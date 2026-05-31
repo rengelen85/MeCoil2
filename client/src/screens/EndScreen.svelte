@@ -1,14 +1,14 @@
 <script>
-  import { finalScores, winner, gameConfig, myId } from '../stores/game.js';
-  import { screen } from '../stores/game.js';
-  import { GAME_MODES } from '../../../shared/messages.js';
+  import { finalScores, winner, gameConfig, myId, screen, gameState } from '../stores/game.js';
+  import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
 
   $: isTDM = $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH;
   $: winnerLabel = isTDM
-    ? ($winner === 'draw' ? 'Draw!' : `${$winner?.toUpperCase()} Team Wins!`)
+    ? ($winner === 'draw' ? 'Draw!' : $winner ? `${$winner.toUpperCase()} Team Wins!` : 'Game Over')
     : ($finalScores?.[0]?.username ? `${$finalScores[0].username} Wins!` : 'Game Over');
 
   function playAgain() {
+    gameState.set(GAME_STATES.WAITING);
     screen.set('lobby');
   }
 </script>

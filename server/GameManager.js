@@ -34,6 +34,11 @@ export class GameManager {
       lobbyState: this._lobbyState(),
     });
     this._broadcastLobby();
+
+    // Drop late joiners straight into the running game
+    if (this.state === GAME_STATES.PLAYING) {
+      this._joinMidGame(player);
+    }
   }
 
   removePlayer(player) {
@@ -47,6 +52,7 @@ export class GameManager {
   handleMessage(player, msg) {
     switch (msg.type) {
       case C2S.READY:
+        if (this.state !== GAME_STATES.WAITING) return;
         player.ready = msg.ready;
         this._broadcastLobby();
         if (this._allReady()) this._startCountdown();
@@ -62,6 +68,12 @@ export class GameManager {
       case C2S.START_GAME:
         if (player.id !== this._hostId) return;
         this._startCountdown();
+        break;
+
+      case C2S.STOP_GAME:
+        if (player.id !== this._hostId) return;
+        if (this.state !== GAME_STATES.PLAYING) return;
+        this._endGame(this._mode?._buildScores() ?? [], null);
         break;
 
       case C2S.POSITION:
@@ -118,9 +130,10 @@ export class GameManager {
   }
 
   _startGame() {
+    // Guard: host may have stopped or another start raced
+    if (this.state !== GAME_STATES.COUNTDOWN) return;
     this.state = GAME_STATES.PLAYING;
 
-    // Assign gun slot IDs
     let slotId = 0;
     for (const p of this.players.values()) {
       p.gunSlotId = slotId++;
@@ -140,10 +153,46 @@ export class GameManager {
     });
 
     const ModeClass = this.config.mode === GAME_MODES.TEAM_DEATHMATCH ? TeamDeathmatch : FFA;
-    this._mode = new ModeClass(this.players, this.config, msg => this.broadcast(msg), this._powerupManager);
+    this._mode = new ModeClass(
+      this.players,
+      this.config,
+      msg => this.broadcast(msg),
+      this._powerupManager,
+      (finalScores, winner) => this._endGame(finalScores, winner),
+    );
     this._mode.start();
 
     this._powerupTimer = setInterval(() => this._broadcastPowerups(), POWERUP_BROADCAST_INTERVAL_MS);
+  }
+
+  _endGame(finalScores, winner) {
+    if (this.state !== GAME_STATES.PLAYING) return;
+    this._mode?.stop();
+    clearInterval(this._powerupTimer);
+    this._powerupTimer = null;
+    this._mode = null;
+    this.state = GAME_STATES.WAITING;
+    for (const p of this.players.values()) p.ready = false;
+    this.broadcast({ type: S2C.GAME_ENDED, finalScores, winner });
+    // Small delay so GAME_ENDED arrives before LOBBY_UPDATE
+    setTimeout(() => this._broadcastLobby(), 150);
+  }
+
+  _joinMidGame(player) {
+    const usedSlots = new Set(
+      [...this.players.values()].map(p => p.gunSlotId).filter(s => s !== null),
+    );
+    let slot = 0;
+    while (usedSlots.has(slot)) slot++;
+    player.gunSlotId = slot;
+    player.resetForGame();
+    player.send({
+      type: S2C.GAME_STARTED,
+      mode: this.config.mode,
+      timeLimit: this.config.timeLimit,
+      scoreLimit: this.config.scoreLimit,
+      gunAssignments: { [player.id]: slot },
+    });
   }
 
   _broadcastPowerups() {
@@ -169,6 +218,7 @@ export class GameManager {
       players: [...this.players.values()].map(p => p.toPublic()),
       config: this.config,
       hostId: this._hostId,
+      state: this.state,
     };
   }
 

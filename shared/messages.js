@@ -5,6 +5,7 @@ export const C2S = {
   READY: 'ready',
   GAME_CONFIG: 'gameConfig',
   START_GAME: 'startGame',
+  STOP_GAME: 'stopGame',
   POSITION: 'position',
   FIRE: 'fire',
   HIT: 'hit',

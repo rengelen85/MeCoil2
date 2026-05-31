@@ -5,11 +5,11 @@
   import KillFeed from '../components/KillFeed.svelte';
   import AmmoBar from '../components/AmmoBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
   import { applyGunAssignment } from '../lib/ble.js';
-  import { sendPosition } from '../lib/network.js';
+  import { sendPosition, sendStopGame } from '../lib/network.js';
   import { GAME_MODES } from '../../../shared/messages.js';
 
   let showScores = false;
@@ -65,6 +65,9 @@
   {#if showScores}
     <div class="scores-overlay">
       <ScoreBoard />
+      {#if $myId === $hostId}
+        <button class="btn-end-game" on:click={sendStopGame}>End Game</button>
+      {/if}
     </div>
   {/if}
 
@@ -155,6 +158,22 @@
     top: 56px;
     left: 12px;
     z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btn-end-game {
+    background: rgba(255, 82, 82, 0.15);
+    border: 1px solid #ff5252;
+    border-radius: 8px;
+    color: #ff5252;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 1px;
   }
 
   .killfeed-wrap {

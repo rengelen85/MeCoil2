@@ -66,6 +66,10 @@ export function sendCollect(powerupId) {
   send({ type: C2S.COLLECT, powerupId });
 }
 
+export function sendStopGame() {
+  send({ type: C2S.STOP_GAME });
+}
+
 function _handle(msg) {
   switch (msg.type) {
     case S2C.JOINED:
@@ -74,6 +78,7 @@ function _handle(msg) {
       players.set(msg.lobbyState.players);
       gameConfig.set(msg.lobbyState.config);
       hostId.set(msg.lobbyState.hostId);
+      if (msg.lobbyState.state) gameState.set(msg.lobbyState.state);
       screen.set('lobby');
       break;
 
@@ -81,6 +86,7 @@ function _handle(msg) {
       players.set(msg.players);
       gameConfig.set(msg.config);
       hostId.set(msg.hostId);
+      if (msg.state) gameState.set(msg.state);
       break;
 
     case S2C.COUNTDOWN:

@@ -1,19 +1,21 @@
-import { S2C, GAME_STATES } from '../../shared/messages.js';
+import { S2C } from '../../shared/messages.js';
 
 const STATE_INTERVAL_MS = 1_000;
 const POSITION_INTERVAL_MS = 1_000;
 const ENEMY_VISIBLE_MS = 3_000;
 
 export class BaseMode {
-  constructor(players, config, broadcast, powerupManager) {
+  constructor(players, config, broadcast, powerupManager, onEnd) {
     this.players = players;
     this.config = config;
     this.broadcast = broadcast;
     this.powerupManager = powerupManager;
+    this.onEnd = onEnd;
     this.killFeed = [];
     this._stateTimer = null;
     this._posTimer = null;
     this._endAt = null;
+    this._ended = false;
   }
 
   start() {
@@ -60,12 +62,10 @@ export class BaseMode {
   }
 
   _end() {
+    if (this._ended) return;
+    this._ended = true;
     this.stop();
-    this.broadcast({
-      type: S2C.GAME_ENDED,
-      finalScores: this._buildScores(),
-      winner: this._determineWinner(),
-    });
+    this.onEnd(this._buildScores(), this._determineWinner());
   }
 
   _broadcastPositions() {
