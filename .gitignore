@@ -3,3 +3,5 @@ client/dist/
 certs/
 .env
 org-set-up.md
+CLAUDE.md
+*.bak
