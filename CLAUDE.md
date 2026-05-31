@@ -58,3 +58,8 @@ All application state lives in two store modules:
 2. Add a constant to `GAME_MODES` in `shared/messages.js`.
 3. Import and instantiate in `GameManager._startGame()`.
 4. Add an `<option>` in `client/src/screens/Lobby.svelte`.
+
+## Hardware Protocol References
+
+- `docs/recoil_protocol_BLE.md` — BLE service/characteristic layout (ID, Telemetry, Control, Config characteristics; weapon config TLV format)
+- `docs/recoil_protocol_IR.md` — IR packet format and encoding (MAN20A for guns, NEC4 for grenades; bit fields for shooter ID, weapon ID, shot counter)

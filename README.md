@@ -297,6 +297,17 @@ Create a new JSON file in `config/weapons/` matching the structure of `rk-45.jso
 
 ---
 
+## Documentation
+
+Hardware protocol references are in [docs/](docs/):
+
+| File | Description |
+|------|-------------|
+| [docs/recoil_protocol_BLE.md](docs/recoil_protocol_BLE.md) | Goliath Recoil BLE service/characteristic layout (ID, Telemetry, Control, Config) |
+| [docs/recoil_protocol_IR.md](docs/recoil_protocol_IR.md) | IR packet format, encoding, grenade protocol (MAN20A / NEC4) |
+
+---
+
 ## Credits
 
 BLE driver adapted from the [DroopCat/Scope](https://github.com/DroopCat/Scope) project (`recoilweapon.js`), which reverse-engineered the Goliath Recoil BLE protocol.
