@@ -1,21 +1,35 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CERT_PATH = path.resolve(__dirname, '../certs/cert.pem');
+const KEY_PATH  = path.resolve(__dirname, '../certs/key.pem');
+
+// Mirror the server's auto-detection: use HTTPS when certs are present.
+const hasCerts  = fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH);
+const wsTarget  = hasCerts ? 'wss://localhost:3000' : 'ws://localhost:3000';
 
 export default defineConfig({
   plugins: [svelte()],
   server: {
     host: true,
+    https: hasCerts
+      ? { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) }
+      : false,
     proxy: {
       '/ws': {
-        target: 'ws://localhost:3000',
+        target: wsTarget,
         ws: true,
+        secure: false,
       },
     },
   },
   resolve: {
     alias: {
-      // Allow client to import from shared/ without ../.. paths
-      '$shared': new URL('../shared', import.meta.url).pathname,
+      '$shared': path.resolve(__dirname, '../shared'),
     },
   },
 });

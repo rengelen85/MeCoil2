@@ -1,9 +1,10 @@
+import { get } from 'svelte/store';
 import { S2C, C2S, GAME_STATES } from '../../../shared/messages.js';
 import {
   myId, isHost, players, gameConfig, hostId,
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
-  ammo, shieldActive, stealthActive,
+  ammo, shieldActive, stealthActive, gunSlotId,
 } from '../stores/game.js';
 import { teammates, firingEnemies, powerups } from '../stores/map.js';
 
@@ -87,11 +88,15 @@ function _handle(msg) {
       countdownAt.set(msg.startsAt);
       break;
 
-    case S2C.GAME_STARTED:
+    case S2C.GAME_STARTED: {
+      const slot = msg.gunAssignments?.[get(myId)] ?? 0;
+      gunSlotId.set(slot);
+      gameConfig.set({ mode: msg.mode, timeLimit: msg.timeLimit, scoreLimit: msg.scoreLimit });
       gameState.set(GAME_STATES.PLAYING);
       resetGame();
       screen.set('ingame');
       break;
+    }
 
     case S2C.GAME_STATE:
       if (msg.scores) scores.set(msg.scores);

@@ -10,9 +10,8 @@
     "narrowIrPower": 100,
     "wideIrPower": 0,
     "muzzleLedPower": 200,
-    "led2Power": 255,
     "motorPower": 12,
-    "flashMode": 0,
-    "flashParam": 1
+    "muzzleFlashMode": 0,
+    "flashParam2": 1
   }
 }

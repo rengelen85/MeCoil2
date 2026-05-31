@@ -11,33 +11,29 @@ import { Player } from './Player.js';
 import { C2S } from '../shared/messages.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(__dirname, '..');
+const ROOT      = path.join(__dirname, '..');
 const CLIENT_DIST = path.join(ROOT, 'client', 'dist');
+const CERT_PATH = path.join(ROOT, 'certs', 'cert.pem');
+const KEY_PATH  = path.join(ROOT, 'certs', 'key.pem');
 
 const PORT = process.env.PORT || 3000;
-const USE_HTTPS = process.env.NO_HTTPS !== '1';
+
+// Auto-detect HTTPS: use it when certs exist, unless NO_HTTPS=1 forces plain HTTP.
+const hasCerts  = fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH);
+const USE_HTTPS = hasCerts && process.env.NO_HTTPS !== '1';
 
 const app = express();
 
-if (USE_HTTPS) {
-  // Serve built client in production; in dev, Vite serves the client on its own port
+// Serve the built client. In Vite dev mode (separate port) this path won't
+// exist yet, but that's fine — the static middleware just serves nothing.
+if (fs.existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
   app.get('*', (_req, res) => res.sendFile(path.join(CLIENT_DIST, 'index.html')));
 }
 
-let server;
-if (USE_HTTPS) {
-  const certPath = path.join(ROOT, 'certs', 'cert.pem');
-  const keyPath = path.join(ROOT, 'certs', 'key.pem');
-  if (!fs.existsSync(certPath)) {
-    console.error('No certs found. Run: npm run gen-certs');
-    console.error('Or start with NO_HTTPS=1 node server/index.js for HTTP (dev only).');
-    process.exit(1);
-  }
-  server = https.createServer({ cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) }, app);
-} else {
-  server = http.createServer(app);
-}
+const server = USE_HTTPS
+  ? https.createServer({ cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) }, app)
+  : http.createServer(app);
 
 const wss = new WebSocketServer({ server });
 const game = new GameManager();
@@ -76,7 +72,22 @@ function getLanIp() {
 
 server.listen(PORT, () => {
   const proto = USE_HTTPS ? 'https' : 'http';
-  const lan = getLanIp();
+  const lan   = getLanIp();
+
+  console.log('');
+  console.log('  MeCoil game server');
   console.log(`  Local:   ${proto}://localhost:${PORT}`);
   if (lan) console.log(`  Network: ${proto}://${lan}:${PORT}`);
+
+  if (!USE_HTTPS) {
+    if (hasCerts) {
+      console.log('  (HTTPS disabled via NO_HTTPS=1)');
+    } else {
+      console.log('  HTTP only — BLE & Geolocation require HTTPS.');
+      console.log('  Run `make gen-certs` then restart for HTTPS support.');
+    }
+  } else {
+    console.log('  HTTPS active — phones can connect to the Network address above.');
+  }
+  console.log('');
 });

@@ -1,14 +1,44 @@
 <script>
-  import { username } from '../stores/game.js';
+  import { username, bleConnected } from '../stores/game.js';
   import { connect, sendJoin } from '../lib/network.js';
+  import { connectBle, isBleAvailable } from '../lib/ble.js';
 
   let nameInput = '';
   let status = '';
   let connecting = false;
   let error = '';
+  let bleConnecting = false;
+  let bleError = '';
 
-  // In Phase 1 the server URL is inferred from the current host.
-  // In dev the Vite proxy forwards /ws to the Node server.
+  function bleErrorMessage(e) {
+    if (e.name === 'NotFoundError') {
+      return 'No device was selected. Make sure your gun is powered on, then try again.';
+    }
+    if (e.name === 'SecurityError') {
+      return 'Bluetooth requires HTTPS. Open this page from the Network address shown in the server terminal, not from localhost.';
+    }
+    if (e.name === 'NotSupportedError') {
+      return 'Web Bluetooth is not supported in this browser. Use Chrome or Edge on Android.';
+    }
+    return `Could not connect: ${e.message}`;
+  }
+
+  async function connectGun() {
+    if (!isBleAvailable()) {
+      bleError = 'Bluetooth is not available. Use Chrome or Edge on Android over HTTPS. iOS is not supported.';
+      return;
+    }
+    bleConnecting = true;
+    bleError = '';
+    try {
+      await connectBle();
+    } catch (e) {
+      bleError = bleErrorMessage(e);
+    } finally {
+      bleConnecting = false;
+    }
+  }
+
   function serverUrl() {
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     return `${proto}://${location.host}/ws`;
@@ -16,7 +46,7 @@
 
   async function join() {
     const name = nameInput.trim();
-    if (!name) { error = 'Please enter a username.'; return; }
+    if (!name) { error = 'Please enter a callsign.'; return; }
     error = '';
     connecting = true;
     status = 'Connecting…';
@@ -61,14 +91,41 @@
       <p class="error">{error}</p>
     {/if}
 
+    <!-- BLE gun connection -->
+    <div class="ble-section" class:ble-ok={$bleConnected}>
+      {#if $bleConnected}
+        <div class="ble-connected-row">
+          <span class="ble-dot"></span>
+          <span class="ble-connected-label">Gun connected</span>
+        </div>
+      {:else}
+        <div class="ble-instructions">
+          <span class="ble-step">1.</span> Power on your Goliath Recoil gun
+          <br/>
+          <span class="ble-step">2.</span> Tap <strong>Connect gun</strong> and select <em>SRG-…</em> from the list
+        </div>
+        <button
+          class="btn-ble"
+          on:click={connectGun}
+          disabled={bleConnecting}
+        >
+          {bleConnecting ? 'Opening Bluetooth picker…' : 'Connect gun'}
+        </button>
+        {#if bleError}
+          <p class="ble-error">{bleError}</p>
+        {/if}
+        <p class="ble-skip">No gun? You can still play using the keyboard simulator.</p>
+      {/if}
+    </div>
+
     <button class="btn-primary" on:click={join} disabled={connecting}>
       {connecting ? status : 'Join Game'}
     </button>
   </div>
 
   <p class="hint">
-    Runs in Chrome / Chromium browsers.<br/>
-    iOS is not supported due to Web Bluetooth restrictions.
+    Bluetooth requires Chrome or Edge on Android over HTTPS.<br/>
+    iOS is not supported due to browser restrictions.
   </p>
 </div>
 
@@ -126,7 +183,80 @@
   }
   input:focus { border-color: var(--accent); }
 
-  .error { color: #ff5252; font-size: 13px; }
+  .error { color: #ff5252; font-size: 13px; margin: 0; }
+
+  /* BLE section */
+  .ble-section {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(255,255,255,0.02);
+  }
+  .ble-section.ble-ok {
+    border-color: #00c853;
+    background: rgba(0, 200, 83, 0.06);
+  }
+
+  .ble-instructions {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+  .ble-step {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .btn-ble {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    padding: 11px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.2s;
+    letter-spacing: 0.5px;
+  }
+  .btn-ble:disabled { opacity: 0.5; cursor: default; }
+
+  .ble-error {
+    color: #ff5252;
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .ble-skip {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin: 0;
+    opacity: 0.7;
+  }
+
+  .ble-connected-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ble-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #00c853;
+    box-shadow: 0 0 8px #00c853;
+    flex-shrink: 0;
+  }
+  .ble-connected-label {
+    color: #00c853;
+    font-weight: 600;
+    font-size: 14px;
+  }
 
   .hint {
     color: var(--text-muted);

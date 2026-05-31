@@ -25,6 +25,10 @@ export const isReloading = writable(false);
 export const shieldActive = writable(false);
 export const stealthActive = writable(false);
 
+// BLE connection state — persists across game resets
+export const bleConnected = writable(false);
+export const gunSlotId = writable(0);
+
 export const myPlayer = derived([players, myId], ([$players, $myId]) =>
   $players.find(p => p.id === $myId) ?? null
 );

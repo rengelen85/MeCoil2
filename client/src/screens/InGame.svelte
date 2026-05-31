@@ -4,9 +4,11 @@
   import ScoreBoard from '../components/ScoreBoard.svelte';
   import KillFeed from '../components/KillFeed.svelte';
   import AmmoBar from '../components/AmmoBar.svelte';
-  import { timeRemaining, gameConfig } from '../stores/game.js';
+  import { get } from 'svelte/store';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId } from '../stores/game.js';
   import { startGPS, stopGPS, gpsError } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
+  import { applyGunAssignment } from '../lib/ble.js';
   import { sendPosition } from '../lib/network.js';
   import { GAME_MODES } from '../../../shared/messages.js';
 
@@ -18,14 +20,21 @@
     return `${m}:${s}`;
   }
 
+  let usingBle = false;
+
   onMount(() => {
     startGPS((lat, lng) => sendPosition(lat, lng));
-    startSimulator();
+    if (get(bleConnected)) {
+      usingBle = true;
+      applyGunAssignment(get(gunSlotId));
+    } else {
+      startSimulator();
+    }
   });
 
   onDestroy(() => {
     stopGPS();
-    stopSimulator();
+    if (!usingBle) stopSimulator();
   });
 
   $: modeLabel = $gameConfig.mode === GAME_MODES.FFA ? 'FFA'
@@ -68,7 +77,11 @@
     {#if $gpsError}
       <div class="gps-error">GPS: {$gpsError}</div>
     {/if}
-    <div class="sim-hint"><kbd>T</kbd> fire · <kbd>R</kbd> reload · <kbd>H</kbd> hit</div>
+    {#if usingBle}
+      <div class="sim-hint ble-hint">BLE gun active</div>
+    {:else}
+      <div class="sim-hint"><kbd>T</kbd> fire · <kbd>R</kbd> reload · <kbd>H</kbd> hit</div>
+    {/if}
   </div>
 </div>
 
@@ -175,6 +188,7 @@
     font-size: 11px;
     color: rgba(255,255,255,0.4);
   }
+  .ble-hint { color: #00c853; }
   kbd {
     background: rgba(255,255,255,0.1);
     border: 1px solid rgba(255,255,255,0.2);
