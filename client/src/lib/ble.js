@@ -75,5 +75,5 @@ function _onReload() {
 }
 
 function _onIrEvent(ev) {
-  sendHit(ev.weaponID);
+  sendHit(ev.shooterID);
 }
