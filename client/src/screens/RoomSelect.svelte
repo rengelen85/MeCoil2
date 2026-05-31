@@ -1,5 +1,5 @@
 <script>
-  import { rooms, username } from '../stores/game.js';
+  import { rooms, username, clearSession } from '../stores/game.js';
   import { sendCreateRoom, sendJoinRoom } from '../lib/network.js';
   import { GAME_STATES } from '../../../shared/messages.js';
 
@@ -24,7 +24,10 @@
 <div class="room-screen">
   <header>
     <div class="logo-small">◎ MeCoil</div>
-    <div class="player-tag">{$username}</div>
+    <div class="header-right">
+      <div class="player-tag">{$username}</div>
+      <button class="btn-logout" on:click={clearSession}>Log off</button>
+    </div>
   </header>
 
   <div class="content">
@@ -84,7 +87,10 @@
     margin-bottom: 20px;
   }
   .logo-small { font-size: 18px; font-weight: 900; letter-spacing: 2px; color: var(--accent); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
   .player-tag { font-size: 13px; color: var(--text-muted); letter-spacing: 1px; }
+  .btn-logout { background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; font-size: 12px; font-weight: 600; padding: 6px 12px; cursor: pointer; font-family: inherit; transition: border-color 0.2s, color 0.2s; }
+  .btn-logout:hover { border-color: var(--text-muted); color: var(--text); }
 
   .content { display: flex; flex-direction: column; gap: 16px; }
 

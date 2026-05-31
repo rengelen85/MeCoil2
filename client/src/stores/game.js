@@ -49,3 +49,18 @@ export function resetGame() {
   shieldActive.set(false);
   stealthActive.set(false);
 }
+
+export function saveSession(name) {
+  localStorage.setItem('mecoil_username', name);
+}
+
+export function loadSession() {
+  return localStorage.getItem('mecoil_username');
+}
+
+export function clearSession() {
+  localStorage.removeItem('mecoil_username');
+  username.set('');
+  myId.set(null);
+  screen.set('setup');
+}

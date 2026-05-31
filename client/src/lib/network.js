@@ -5,7 +5,7 @@ import {
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
   ammo, shieldActive, stealthActive, gunSlotId,
-  rooms, roomName,
+  rooms, roomName, username, saveSession,
 } from '../stores/game.js';
 import { teammates, firingEnemies, powerups } from '../stores/map.js';
 
@@ -91,6 +91,7 @@ function _handle(msg) {
   switch (msg.type) {
     case S2C.REGISTERED:
       myId.set(msg.playerId);
+      saveSession(get(username));
       screen.set('roomselect');
       break;
 
