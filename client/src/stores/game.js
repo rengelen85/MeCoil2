@@ -18,6 +18,9 @@ export const countdownAt = writable(null);
 export const finalScores = writable(null);
 export const winner = writable(null);
 
+export const gameId = writable(null);   // stable for the room's lifetime
+export const roundId = writable(null);  // new UUID each game round
+
 // Gun / ammo state (updated by BLE or simulator)
 export const ammo = writable(30);
 export const maxAmmo = writable(30);

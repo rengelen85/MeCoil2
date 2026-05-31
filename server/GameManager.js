@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { S2C, C2S, GAME_STATES, GAME_MODES, TEAMS } from '../shared/messages.js';
 import { PowerupManager } from './PowerupManager.js';
 import { FFA } from './modes/FFA.js';
@@ -8,6 +9,7 @@ const POWERUP_BROADCAST_INTERVAL_MS = 2_000;
 
 export class GameManager {
   constructor(roomName = 'Game', onStateChange = null) {
+    this.gameId = randomUUID();
     this.roomName = roomName;
     this._onStateChange = onStateChange;
     this.players = new Map(); // id -> Player
@@ -19,6 +21,7 @@ export class GameManager {
       friendlyFire: false,
     };
     this._mode = null;
+    this._roundId = null;
     this._hostId = null;
     this._powerupManager = new PowerupManager(() => this._broadcastPowerups());
     this._powerupTimer = null;
@@ -147,6 +150,7 @@ export class GameManager {
     if (this.state !== GAME_STATES.COUNTDOWN) return;
     this.state = GAME_STATES.PLAYING;
     this._onStateChange?.();
+    this._roundId = randomUUID();
 
     let slotId = 0;
     for (const p of this.players.values()) {
@@ -160,6 +164,8 @@ export class GameManager {
 
     this.broadcast({
       type: S2C.GAME_STARTED,
+      gameId: this.gameId,
+      roundId: this._roundId,
       mode: this.config.mode,
       timeLimit: this.config.timeLimit,
       scoreLimit: this.config.scoreLimit,
@@ -188,7 +194,8 @@ export class GameManager {
     this.state = GAME_STATES.WAITING;
     this._onStateChange?.();
     for (const p of this.players.values()) p.ready = false;
-    this.broadcast({ type: S2C.GAME_ENDED, finalScores, winner });
+    this.broadcast({ type: S2C.GAME_ENDED, gameId: this.gameId, roundId: this._roundId, finalScores, winner });
+    this._roundId = null;
     // Small delay so GAME_ENDED arrives before LOBBY_UPDATE
     setTimeout(() => this._broadcastLobby(), 150);
   }
@@ -209,6 +216,8 @@ export class GameManager {
     player.resetForGame();
     player.send({
       type: S2C.GAME_STARTED,
+      gameId: this.gameId,
+      roundId: this._roundId,
       mode: this.config.mode,
       timeLimit: this.config.timeLimit,
       scoreLimit: this.config.scoreLimit,
@@ -236,6 +245,7 @@ export class GameManager {
 
   _lobbyState() {
     return {
+      gameId: this.gameId,
       roomName: this.roomName,
       players: [...this.players.values()].map(p => p.toPublic()),
       config: this.config,

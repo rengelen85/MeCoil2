@@ -5,7 +5,7 @@
   import KillFeed from '../components/KillFeed.svelte';
   import AmmoBar from '../components/AmmoBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage } from '../lib/ble.js';
@@ -86,6 +86,9 @@
   {#if showScores}
     <div class="scores-overlay">
       <ScoreBoard />
+      {#if $roundId}
+        <div class="round-id" title={$roundId}>Round {$roundId.slice(0, 8)}</div>
+      {/if}
       <div class="score-actions">
         {#if $myId === $hostId}
           <button class="btn-end-game" on:click={sendStopGame}>End Game</button>
@@ -193,6 +196,14 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .round-id {
+    font-size: 10px;
+    font-family: monospace;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 1px;
+    cursor: default;
   }
 
   .score-actions {

@@ -6,6 +6,7 @@ import {
   countdownAt, screen, finalScores, winner, resetGame,
   ammo, shieldActive, stealthActive, gunSlotId,
   rooms, roomName, username, saveSession,
+  gameId, roundId,
 } from '../stores/game.js';
 import { teammates, firingEnemies, powerups } from '../stores/map.js';
 
@@ -106,6 +107,7 @@ function _handle(msg) {
       gameConfig.set(msg.lobbyState.config);
       hostId.set(msg.lobbyState.hostId);
       roomName.set(msg.lobbyState.roomName ?? '');
+      if (msg.lobbyState.gameId) gameId.set(msg.lobbyState.gameId);
       if (msg.lobbyState.state) gameState.set(msg.lobbyState.state);
       screen.set('lobby');
       break;
@@ -114,6 +116,7 @@ function _handle(msg) {
       players.set(msg.players);
       gameConfig.set(msg.config);
       hostId.set(msg.hostId);
+      if (msg.gameId) gameId.set(msg.gameId);
       if (msg.state) gameState.set(msg.state);
       break;
 
@@ -126,6 +129,7 @@ function _handle(msg) {
       const slot = msg.gunAssignments?.[get(myId)] ?? 0;
       gunSlotId.set(slot);
       gameConfig.set({ mode: msg.mode, timeLimit: msg.timeLimit, scoreLimit: msg.scoreLimit });
+      if (msg.roundId) roundId.set(msg.roundId);
       gameState.set(GAME_STATES.PLAYING);
       resetGame();
       screen.set('ingame');
@@ -162,6 +166,8 @@ function _handle(msg) {
       players.set([]);
       hostId.set(null);
       roomName.set('');
+      gameId.set(null);
+      roundId.set(null);
       gameState.set(GAME_STATES.WAITING);
       rooms.set(msg.rooms ?? []);
       resetGame();

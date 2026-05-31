@@ -1,5 +1,5 @@
 <script>
-  import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt, roomName } from '../stores/game.js';
+  import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt, roomName, gameId } from '../stores/game.js';
   import { sendReady, sendGameConfig, sendStartGame, sendLeaveRoom } from '../lib/network.js';
   import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
 
@@ -33,7 +33,12 @@
 
 <div class="lobby-screen">
   <header>
-    <div class="logo-small">◎ {$roomName || 'MeCoil'}</div>
+    <div class="header-left">
+      <div class="logo-small">◎ {$roomName || 'MeCoil'}</div>
+      {#if $gameId}
+        <div class="game-id" title={$gameId}>ID {$gameId.slice(0, 8)}</div>
+      {/if}
+    </div>
     {#if $gameState === GAME_STATES.COUNTDOWN}
       <div class="countdown-banner">Game starts in {countdown}…</div>
     {/if}
@@ -131,7 +136,15 @@
     border-bottom: 1px solid var(--border);
     margin-bottom: 20px;
   }
+  .header-left { display: flex; flex-direction: column; gap: 2px; }
   .logo-small { font-size: 18px; font-weight: 900; letter-spacing: 2px; color: var(--accent); }
+  .game-id {
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    cursor: default;
+  }
 
   .countdown-banner {
     background: var(--accent);
