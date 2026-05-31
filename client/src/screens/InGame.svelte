@@ -6,7 +6,7 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import { get } from 'svelte/store';
   import { timeRemaining, gameConfig, bleConnected, gunSlotId } from '../stores/game.js';
-  import { startGPS, stopGPS, gpsError } from '../stores/map.js';
+  import { startGPS, stopGPS, startHeading, stopHeading, gpsError } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
   import { applyGunAssignment } from '../lib/ble.js';
   import { sendPosition } from '../lib/network.js';
@@ -24,6 +24,7 @@
 
   onMount(() => {
     startGPS((lat, lng) => sendPosition(lat, lng));
+    startHeading();
     if (get(bleConnected)) {
       usingBle = true;
       applyGunAssignment(get(gunSlotId));
@@ -34,6 +35,7 @@
 
   onDestroy(() => {
     stopGPS();
+    stopHeading();
     if (!usingBle) stopSimulator();
   });
 

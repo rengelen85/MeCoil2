@@ -5,8 +5,10 @@ export const teammates = writable([]);    // [{ id, username, lat, lng }]
 export const firingEnemies = writable([]); // [{ id, lat, lng }]
 export const powerups = writable([]);     // [{ id, lat, lng, type }]
 export const gpsError = writable(null);
+export const heading = writable(null);    // degrees clockwise from North, null if unavailable
 
 let watchId = null;
+let _headingCleanup = null;
 
 export function startGPS(onPosition) {
   if (!navigator.geolocation) {
@@ -29,4 +31,34 @@ export function stopGPS() {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
   }
+}
+
+export function startHeading() {
+  if (_headingCleanup) return;
+
+  function onOrientation(e) {
+    if (e.webkitCompassHeading != null) {
+      // iOS: already degrees clockwise from North
+      heading.set(e.webkitCompassHeading);
+    } else if (e.alpha != null) {
+      // Android absolute: alpha is counterclockwise from North
+      heading.set((360 - e.alpha) % 360);
+    }
+  }
+
+  // Android Chrome 83+ exposes absolute compass via this event
+  if ('ondeviceorientationabsolute' in window) {
+    window.addEventListener('deviceorientationabsolute', onOrientation);
+    _headingCleanup = () => window.removeEventListener('deviceorientationabsolute', onOrientation);
+  } else {
+    // iOS uses standard deviceorientation with webkitCompassHeading
+    window.addEventListener('deviceorientation', onOrientation);
+    _headingCleanup = () => window.removeEventListener('deviceorientation', onOrientation);
+  }
+}
+
+export function stopHeading() {
+  _headingCleanup?.();
+  _headingCleanup = null;
+  heading.set(null);
 }
