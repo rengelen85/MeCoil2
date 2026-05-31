@@ -7,6 +7,7 @@
   let map;
   let myMarker;
   let compassRose;
+  let unsubscribers = [];
   const teamMarkers   = new Map();
   const enemyMarkers  = new Map();
   const powerupMarkers = new Map();
@@ -157,10 +158,18 @@
       }
     });
 
-    return () => { unsubPos(); unsubTeam(); unsubEnemies(); unsubPowerups(); };
+    // NOTE: this onMount callback is async, so a returned cleanup function
+    // would be silently ignored by Svelte. Register teardown via onDestroy
+    // instead, otherwise these subscriptions leak across games and fire on a
+    // removed Leaflet map (throwing and freezing the whole UI on round 2+).
+    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups];
   });
 
-  onDestroy(() => map?.remove());
+  onDestroy(() => {
+    for (const unsub of unsubscribers) unsub();
+    unsubscribers = [];
+    map?.remove();
+  });
 </script>
 
 <div class="map-root">
