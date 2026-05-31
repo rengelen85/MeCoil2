@@ -62,8 +62,10 @@ export class GameManager {
 
       case C2S.GAME_CONFIG:
         if (player.id !== this._hostId) return;
+        const prevMode = this.config.mode;
         this.config = { ...this.config, ...msg };
         delete this.config.type;
+        if (this.config.mode !== prevMode) this._reassignTeams();
         this._broadcastLobby();
         break;
 
@@ -116,6 +118,13 @@ export class GameManager {
       if (p.team !== TEAMS.NONE) counts[p.team]++;
     }
     player.team = counts[TEAMS.RED] <= counts[TEAMS.BLUE] ? TEAMS.RED : TEAMS.BLUE;
+  }
+
+  _reassignTeams() {
+    for (const p of this.players.values()) p.team = TEAMS.NONE;
+    if (this.config.mode !== GAME_MODES.FFA) {
+      for (const p of this.players.values()) this._assignTeam(p);
+    }
   }
 
   _allReady() {
