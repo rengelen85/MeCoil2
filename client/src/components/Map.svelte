@@ -6,7 +6,7 @@
   let mapEl;
   let map;
   let myMarker;
-  let compassNeedle;
+  let compassRose;
   const teamMarkers   = new Map();
   const enemyMarkers  = new Map();
   const powerupMarkers = new Map();
@@ -27,20 +27,30 @@
     return _accRotation;
   }
 
-  // Reactive: update the heading cone on the player marker and the compass needle
+  // Reactive: rotate map so player's heading is always at screen top (heading-up mode)
   $: if ($heading !== null) {
     const rot = smoothRotation($heading);
 
+    // Rotate the map container so forward direction = screen top
+    if (mapEl) {
+      mapEl.style.transform = `translate(-50%, -50%) rotate(${-rot}deg)`;
+    }
+
+    // Cone rotates by +rot to cancel out the container's -rot, keeping it pointing
+    // forward (screen up) rather than drifting to point at north
     const cone = myMarker?.getElement()?.querySelector('.heading-cone');
     if (cone) {
       cone.style.transform = `rotate(${rot}deg)`;
       cone.style.transformOrigin = '30px 30px';
     }
 
-    if (compassNeedle) {
-      compassNeedle.style.transform = `rotate(${rot}deg)`;
-      compassNeedle.style.transformOrigin = '40px 40px';
+    // Compass rose counter-rotates so cardinal labels show their true screen position
+    if (compassRose) {
+      compassRose.style.transform = `rotate(${-rot}deg)`;
+      compassRose.style.transformOrigin = '40px 40px';
     }
+  } else if (mapEl) {
+    mapEl.style.transform = 'translate(-50%, -50%)';
   }
 
   onMount(async () => {
@@ -97,6 +107,7 @@
         map.setView([pos.lat, pos.lng], 17);
       } else {
         myMarker.setLatLng([pos.lat, pos.lng]);
+        map.panTo([pos.lat, pos.lng], { animate: false });
       }
     });
 
@@ -162,34 +173,36 @@
         <!-- Background -->
         <circle cx="40" cy="40" r="37" fill="rgba(13,13,15,0.82)" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>
 
-        <!-- Cardinal tick marks -->
-        <line x1="40" y1="5"  x2="40" y2="14" stroke="#ff5252" stroke-width="2.5"/>
-        <line x1="75" y1="40" x2="66" y2="40" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
-        <line x1="40" y1="75" x2="40" y2="66" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
-        <line x1="5"  y1="40" x2="14" y2="40" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+        <!-- Rotating compass rose: cardinal labels track their true screen position -->
+        <g bind:this={compassRose} class="compass-rose">
+          <!-- Cardinal tick marks -->
+          <line x1="40" y1="5"  x2="40" y2="14" stroke="#ff5252" stroke-width="2.5"/>
+          <line x1="75" y1="40" x2="66" y2="40" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+          <line x1="40" y1="75" x2="40" y2="66" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+          <line x1="5"  y1="40" x2="14" y2="40" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
 
-        <!-- Intercardinal tick marks -->
-        <line x1="67" y1="13" x2="61" y2="19" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <line x1="67" y1="67" x2="61" y2="61" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <line x1="13" y1="67" x2="19" y2="61" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-        <line x1="13" y1="13" x2="19" y2="19" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <!-- Intercardinal tick marks -->
+          <line x1="67" y1="13" x2="61" y2="19" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <line x1="67" y1="67" x2="61" y2="61" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <line x1="13" y1="67" x2="19" y2="61" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <line x1="13" y1="13" x2="19" y2="19" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
 
-        <!-- Cardinal labels -->
-        <text x="40" y="26" text-anchor="middle" dominant-baseline="middle"
-              fill="#ff5252" font-size="11" font-weight="700" font-family="sans-serif">N</text>
-        <text x="59" y="40" text-anchor="middle" dominant-baseline="middle"
-              fill="rgba(255,255,255,0.5)" font-size="9" font-family="sans-serif">E</text>
-        <text x="40" y="56" text-anchor="middle" dominant-baseline="middle"
-              fill="rgba(255,255,255,0.5)" font-size="9" font-family="sans-serif">S</text>
-        <text x="21" y="40" text-anchor="middle" dominant-baseline="middle"
-              fill="rgba(255,255,255,0.5)" font-size="9" font-family="sans-serif">W</text>
-
-        <!-- Needle — red tip points toward your current heading direction -->
-        <g bind:this={compassNeedle} class="compass-needle">
-          <polygon points="40,18 37,40 43,40" fill="#ff5252" opacity="0.95"/>
-          <polygon points="40,62 37,40 43,40" fill="rgba(255,255,255,0.22)"/>
-          <circle cx="40" cy="40" r="4" fill="rgba(13,13,15,0.9)" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+          <!-- Cardinal labels -->
+          <text x="40" y="26" text-anchor="middle" dominant-baseline="middle"
+                fill="#ff5252" font-size="11" font-weight="700" font-family="sans-serif">N</text>
+          <text x="59" y="40" text-anchor="middle" dominant-baseline="middle"
+                fill="rgba(255,255,255,0.5)" font-size="9" font-family="sans-serif">E</text>
+          <text x="40" y="56" text-anchor="middle" dominant-baseline="middle"
+                fill="rgba(255,255,255,0.5)" font-size="9" font-family="sans-serif">S</text>
+          <text x="21" y="40" text-anchor="middle" dominant-baseline="middle"
+                fill="rgba(255,255,255,0.5)" font-size="9" font-family="sans-serif">W</text>
         </g>
+
+        <!-- Fixed forward indicator: cyan triangle at top = player's forward direction -->
+        <polygon points="40,4 36,13 44,13" fill="#00e5ff" opacity="0.9"/>
+
+        <!-- Center dot -->
+        <circle cx="40" cy="40" r="3" fill="rgba(255,255,255,0.5)"/>
       </svg>
     </div>
   {/if}
@@ -200,11 +213,22 @@
     position: relative;
     width: 100%;
     height: 100%;
+    overflow: hidden;
   }
 
+  /*
+   * Must be larger than the screen diagonal so that rotating 360° never
+   * exposes blank corners. calc(100vw + 100vh) always exceeds the diagonal
+   * regardless of orientation or aspect ratio.
+   */
   .map-container {
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    width: calc(100vw + 100vh);
+    height: calc(100vw + 100vh);
+    top: 50%;
+    left: 50%;
+    transform-origin: center;
+    transform: translate(-50%, -50%);
   }
 
   /* Compass widget */
@@ -217,13 +241,9 @@
     filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
   }
 
-  /* Smooth rotation transitions — applied globally since these elements
-     are inside Leaflet's DOM (outside Svelte's scoped styles) */
-  :global(.compass-needle) {
+  /* Smooth rotation for the compass rose (inside SVG, outside Svelte scope) */
+  :global(.compass-rose) {
     transition: transform 0.25s ease-out;
-  }
-  :global(.heading-cone) {
-    transition: transform 0.2s ease-out;
   }
 
   /* Player marker */
