@@ -1,0 +1,24 @@
+{
+  "name": "mecoil",
+  "version": "0.1.0",
+  "description": "Open source laser tag game server for Goliath Recoil hardware",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "start": "node server/index.js",
+    "gen-certs": "mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mecoil.local"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "strip-json-comments": "^5.0.1",
+    "ws": "^8.17.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

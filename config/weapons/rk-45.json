@@ -1,0 +1,18 @@
+{
+  "name": "RK-45",
+  "slotId": 6,
+  "damage": 8,
+  "magazineSize": 10,
+  "clips": 9,
+  "profile": {
+    "triggerMode": 254,
+    "rateOfFire": 0,
+    "narrowIrPower": 80,
+    "wideIrPower": 0,
+    "muzzleLedPower": 255,
+    "led2Power": 255,
+    "motorPower": 18,
+    "flashMode": 0,
+    "flashParam": 3
+  }
+}
