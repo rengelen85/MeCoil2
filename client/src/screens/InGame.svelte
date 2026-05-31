@@ -8,11 +8,32 @@
   import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
-  import { applyGunAssignment } from '../lib/ble.js';
+  import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage } from '../lib/ble.js';
   import { sendPosition, sendStopGame } from '../lib/network.js';
   import { GAME_MODES } from '../../../shared/messages.js';
 
   let showScores = false;
+  let bleConnecting = false;
+  let bleError = '';
+
+  async function connectGunMidGame() {
+    if (!isBleAvailable()) {
+      bleError = 'Web Bluetooth not available. Use Chrome or Edge on Android over HTTPS.';
+      return;
+    }
+    bleConnecting = true;
+    bleError = '';
+    try {
+      await connectBle();
+      stopSimulator();
+      usingBle = true;
+      await applyGunAssignment(get(gunSlotId));
+    } catch (e) {
+      bleError = bleErrorMessage(e);
+    } finally {
+      bleConnecting = false;
+    }
+  }
 
   function formatTime(secs) {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -85,7 +106,15 @@
     {#if usingBle}
       <div class="sim-hint ble-hint">BLE gun active</div>
     {:else}
-      <div class="sim-hint"><kbd>T</kbd> fire · <kbd>R</kbd> reload · <kbd>H</kbd> hit</div>
+      <div class="ble-connect-row">
+        <button class="btn-connect-gun" on:click={connectGunMidGame} disabled={bleConnecting}>
+          {bleConnecting ? 'Connecting…' : 'Connect gun'}
+        </button>
+        <span class="sim-hint"><kbd>T</kbd> fire · <kbd>R</kbd> reload · <kbd>H</kbd> hit</span>
+      </div>
+      {#if bleError}
+        <p class="ble-error-inline">{bleError}</p>
+      {/if}
     {/if}
   </div>
 </div>
@@ -203,6 +232,35 @@
     color: #ff5252;
     font-size: 12px;
     padding: 4px 10px;
+  }
+
+  .ble-connect-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn-connect-gun {
+    background: rgba(0, 229, 255, 0.12);
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    border-radius: 6px;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .btn-connect-gun:disabled { opacity: 0.5; cursor: default; }
+
+  .ble-error-inline {
+    font-size: 11px;
+    color: #ff5252;
+    line-height: 1.4;
+    margin: 0;
+    max-width: 280px;
   }
 
   .sim-hint {

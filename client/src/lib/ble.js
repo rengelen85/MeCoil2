@@ -23,6 +23,16 @@ export function isBleAvailable() {
   return !!navigator.bluetooth;
 }
 
+export function bleErrorMessage(e) {
+  if (e.name === 'NotFoundError')
+    return 'No device was selected. Make sure your gun is powered on, then try again.';
+  if (e.name === 'SecurityError')
+    return 'Bluetooth requires HTTPS. Open this page from the Network address shown in the server terminal.';
+  if (e.name === 'NotSupportedError')
+    return 'Web Bluetooth is not supported in this browser. Use Chrome or Edge on Android.';
+  return `Could not connect: ${e.message}`;
+}
+
 export async function connectBle() {
   await gun.connect();
 

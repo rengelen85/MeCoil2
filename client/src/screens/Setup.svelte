@@ -1,7 +1,7 @@
 <script>
   import { username, bleConnected } from '../stores/game.js';
   import { connect, sendJoin } from '../lib/network.js';
-  import { connectBle, isBleAvailable } from '../lib/ble.js';
+  import { connectBle, isBleAvailable, bleErrorMessage } from '../lib/ble.js';
 
   let nameInput = '';
   let status = '';
@@ -9,19 +9,6 @@
   let error = '';
   let bleConnecting = false;
   let bleError = '';
-
-  function bleErrorMessage(e) {
-    if (e.name === 'NotFoundError') {
-      return 'No device was selected. Make sure your gun is powered on, then try again.';
-    }
-    if (e.name === 'SecurityError') {
-      return 'Bluetooth requires HTTPS. Open this page from the Network address shown in the server terminal, not from localhost.';
-    }
-    if (e.name === 'NotSupportedError') {
-      return 'Web Bluetooth is not supported in this browser. Use Chrome or Edge on Android.';
-    }
-    return `Could not connect: ${e.message}`;
-  }
 
   async function connectGun() {
     if (!isBleAvailable()) {
