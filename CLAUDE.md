@@ -4,13 +4,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-**Windows (PowerShell):**
-```powershell
-.\tasks.ps1 install      # install root + client deps, create certs/ dir
-.\tasks.ps1 gen-certs    # generate local HTTPS certs (one-time, requires mkcert)
-.\tasks.ps1 dev          # run server + Vite client together
-```
-
 **Linux/macOS (Makefile):**
 ```sh
 make install

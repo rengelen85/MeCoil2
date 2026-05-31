@@ -1,5 +1,5 @@
 <script>
-  import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt } from '../stores/game.js';
+  import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt, roomName } from '../stores/game.js';
   import { sendReady, sendGameConfig, sendStartGame } from '../lib/network.js';
   import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
 
@@ -30,7 +30,7 @@
 
 <div class="lobby-screen">
   <header>
-    <div class="logo-small">◎ MeCoil</div>
+    <div class="logo-small">◎ {$roomName || 'MeCoil'}</div>
     {#if $gameState === GAME_STATES.COUNTDOWN}
       <div class="countdown-banner">Game starts in {countdown}…</div>
     {/if}

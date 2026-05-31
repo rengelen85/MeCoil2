@@ -1,7 +1,10 @@
 // WebSocket message types shared between server and client
 
 export const C2S = {
-  JOIN: 'join',
+  REGISTER: 'register',
+  LIST_ROOMS: 'listRooms',
+  CREATE_ROOM: 'createRoom',
+  JOIN_ROOM: 'joinRoom',
   READY: 'ready',
   GAME_CONFIG: 'gameConfig',
   START_GAME: 'startGame',
@@ -13,6 +16,8 @@ export const C2S = {
 };
 
 export const S2C = {
+  REGISTERED: 'registered',
+  ROOMS_LIST: 'roomsList',
   JOINED: 'joined',
   LOBBY_UPDATE: 'lobbyUpdate',
   COUNTDOWN: 'countdown',

@@ -41,19 +41,6 @@ make dev            # start server + Vite dev client
 
 Then open `https://localhost:5173` in Chrome.
 
-### Windows (PowerShell)
-
-```powershell
-# One-time: allow local scripts
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-.\tasks.ps1 install      # install dependencies + create certs/ dir
-.\tasks.ps1 gen-certs    # generate local HTTPS certs (one-time)
-.\tasks.ps1 dev          # start server + Vite dev client
-```
-
-Then open `https://localhost:5173` in Chrome.
-
 ### npm scripts directly
 
 ```sh

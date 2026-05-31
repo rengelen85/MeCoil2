@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import { WebSocketServer } from 'ws';
-import { GameManager } from './GameManager.js';
+import { RoomManager } from './RoomManager.js';
 import { Player } from './Player.js';
 import { C2S } from '../shared/messages.js';
 
@@ -36,7 +36,7 @@ const server = USE_HTTPS
   : http.createServer(app);
 
 const wss = new WebSocketServer({ server });
-const game = new GameManager();
+const roomManager = new RoomManager();
 
 wss.on('connection', ws => {
   let player = null;
@@ -46,18 +46,17 @@ wss.on('connection', ws => {
     try { msg = JSON.parse(raw); } catch { return; }
 
     if (!player) {
-      if (msg.type !== C2S.JOIN || !msg.username?.trim()) return;
+      if (msg.type !== C2S.REGISTER || !msg.username?.trim()) return;
       player = new Player(ws, msg.username.trim());
-      if (msg.team) player.team = msg.team;
-      game.addPlayer(player);
+      roomManager.register(player);
       return;
     }
 
-    game.handleMessage(player, msg);
+    roomManager.handleMessage(player, msg);
   });
 
   ws.on('close', () => {
-    if (player) game.removePlayer(player);
+    if (player) roomManager.removePlayer(player);
   });
 });
 

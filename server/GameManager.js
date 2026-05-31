@@ -7,7 +7,9 @@ const COUNTDOWN_SECS = 5;
 const POWERUP_BROADCAST_INTERVAL_MS = 2_000;
 
 export class GameManager {
-  constructor() {
+  constructor(roomName = 'Game', onStateChange = null) {
+    this.roomName = roomName;
+    this._onStateChange = onStateChange;
     this.players = new Map(); // id -> Player
     this.state = GAME_STATES.WAITING;
     this.config = {
@@ -124,6 +126,7 @@ export class GameManager {
   _startCountdown() {
     if (this.state !== GAME_STATES.WAITING) return;
     this.state = GAME_STATES.COUNTDOWN;
+    this._onStateChange?.();
     const startsAt = Date.now() + COUNTDOWN_SECS * 1_000;
     this.broadcast({ type: S2C.COUNTDOWN, startsAt });
     setTimeout(() => this._startGame(), COUNTDOWN_SECS * 1_000);
@@ -133,6 +136,7 @@ export class GameManager {
     // Guard: host may have stopped or another start raced
     if (this.state !== GAME_STATES.COUNTDOWN) return;
     this.state = GAME_STATES.PLAYING;
+    this._onStateChange?.();
 
     let slotId = 0;
     for (const p of this.players.values()) {
@@ -172,10 +176,17 @@ export class GameManager {
     this._powerupTimer = null;
     this._mode = null;
     this.state = GAME_STATES.WAITING;
+    this._onStateChange?.();
     for (const p of this.players.values()) p.ready = false;
     this.broadcast({ type: S2C.GAME_ENDED, finalScores, winner });
     // Small delay so GAME_ENDED arrives before LOBBY_UPDATE
     setTimeout(() => this._broadcastLobby(), 150);
+  }
+
+  destroy() {
+    this._mode?.stop();
+    clearInterval(this._powerupTimer);
+    this._powerupTimer = null;
   }
 
   _joinMidGame(player) {
@@ -215,6 +226,7 @@ export class GameManager {
 
   _lobbyState() {
     return {
+      roomName: this.roomName,
       players: [...this.players.values()].map(p => p.toPublic()),
       config: this.config,
       hostId: this._hostId,

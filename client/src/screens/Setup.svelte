@@ -1,6 +1,6 @@
 <script>
   import { username, bleConnected } from '../stores/game.js';
-  import { connect, sendJoin } from '../lib/network.js';
+  import { connect, sendRegister } from '../lib/network.js';
   import { connectBle, isBleAvailable, bleErrorMessage } from '../lib/ble.js';
 
   let nameInput = '';
@@ -40,7 +40,7 @@
     try {
       await connect(serverUrl());
       username.set(name);
-      sendJoin(name);
+      sendRegister(name);
     } catch (e) {
       error = 'Could not connect to the game server. Make sure you are on the same WiFi.';
       status = '';
@@ -106,7 +106,7 @@
     </div>
 
     <button class="btn-primary" on:click={join} disabled={connecting}>
-      {connecting ? status : 'Join Game'}
+      {connecting ? status : 'Continue'}
     </button>
   </div>
 

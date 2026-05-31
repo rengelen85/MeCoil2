@@ -29,6 +29,10 @@ export const stealthActive = writable(false);
 export const bleConnected = writable(false);
 export const gunSlotId = writable(0);
 
+// Multi-room state
+export const rooms = writable([]);     // [{ id, name, playerCount, state }]
+export const roomName = writable('');
+
 export const myPlayer = derived([players, myId], ([$players, $myId]) =>
   $players.find(p => p.id === $myId) ?? null
 );

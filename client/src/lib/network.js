@@ -5,6 +5,7 @@ import {
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
   ammo, shieldActive, stealthActive, gunSlotId,
+  rooms, roomName,
 } from '../stores/game.js';
 import { teammates, firingEnemies, powerups } from '../stores/map.js';
 
@@ -33,8 +34,20 @@ export function send(obj) {
   }
 }
 
-export function sendJoin(name) {
-  send({ type: C2S.JOIN, username: name });
+export function sendRegister(name) {
+  send({ type: C2S.REGISTER, username: name });
+}
+
+export function sendListRooms() {
+  send({ type: C2S.LIST_ROOMS });
+}
+
+export function sendCreateRoom(name) {
+  send({ type: C2S.CREATE_ROOM, name });
+}
+
+export function sendJoinRoom(id) {
+  send({ type: C2S.JOIN_ROOM, roomId: id });
 }
 
 export function sendReady(ready) {
@@ -72,12 +85,22 @@ export function sendStopGame() {
 
 function _handle(msg) {
   switch (msg.type) {
+    case S2C.REGISTERED:
+      myId.set(msg.playerId);
+      screen.set('roomselect');
+      break;
+
+    case S2C.ROOMS_LIST:
+      rooms.set(msg.rooms ?? []);
+      break;
+
     case S2C.JOINED:
       myId.set(msg.playerId);
       isHost.set(msg.isHost);
       players.set(msg.lobbyState.players);
       gameConfig.set(msg.lobbyState.config);
       hostId.set(msg.lobbyState.hostId);
+      roomName.set(msg.lobbyState.roomName ?? '');
       if (msg.lobbyState.state) gameState.set(msg.lobbyState.state);
       screen.set('lobby');
       break;
