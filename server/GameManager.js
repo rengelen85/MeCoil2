@@ -16,6 +16,7 @@ export class GameManager {
       mode: GAME_MODES.FFA,
       timeLimit: 7,
       scoreLimit: 20,
+      friendlyFire: false,
     };
     this._mode = null;
     this._hostId = null;

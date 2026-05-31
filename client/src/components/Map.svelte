@@ -104,7 +104,7 @@
       if (!pos) return;
       if (!myMarker) {
         myMarker = L.marker([pos.lat, pos.lng], { icon: myIcon }).addTo(map);
-        map.setView([pos.lat, pos.lng], 17);
+        map.setView([pos.lat, pos.lng], 19);
       } else {
         myMarker.setLatLng([pos.lat, pos.lng]);
         map.panTo([pos.lat, pos.lng], { animate: false });

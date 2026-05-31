@@ -5,6 +5,7 @@ export const C2S = {
   LIST_ROOMS: 'listRooms',
   CREATE_ROOM: 'createRoom',
   JOIN_ROOM: 'joinRoom',
+  LEAVE_ROOM: 'leaveRoom',
   READY: 'ready',
   GAME_CONFIG: 'gameConfig',
   START_GAME: 'startGame',
@@ -26,6 +27,7 @@ export const S2C = {
   POSITIONS: 'positions',
   POWERUPS: 'powerups',
   GAME_ENDED: 'gameEnded',
+  LEFT_ROOM: 'leftRoom',
   ERROR: 'error',
 };
 

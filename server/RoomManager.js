@@ -37,6 +37,11 @@ export class RoomManager {
       return;
     }
 
+    if (msg.type === C2S.LEAVE_ROOM) {
+      this._leaveRoom(player, roomId);
+      return;
+    }
+
     const room = this._rooms.get(roomId);
     if (room) room.manager.handleMessage(player, msg);
   }
@@ -57,6 +62,21 @@ export class RoomManager {
     } else {
       this._unroomedWs.delete(player.ws);
     }
+    this._broadcastRoomList();
+  }
+
+  _leaveRoom(player, roomId) {
+    const room = this._rooms.get(roomId);
+    if (room) {
+      room.manager.removePlayer(player);
+      if (room.manager.players.size === 0) {
+        room.manager.destroy();
+        this._rooms.delete(roomId);
+      }
+    }
+    this._playerRoom.delete(player.id);
+    this._unroomedWs.add(player.ws);
+    player.send({ type: S2C.LEFT_ROOM, rooms: this._getPublicList() });
     this._broadcastRoomList();
   }
 

@@ -1,5 +1,6 @@
 <script>
   import { finalScores, winner, gameConfig, myId, screen, gameState } from '../stores/game.js';
+  import { sendLeaveRoom } from '../lib/network.js';
   import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
 
   $: isTDM = $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH;
@@ -47,7 +48,10 @@
     {/if}
   </div>
 
-  <button class="btn-primary" on:click={playAgain}>Back to Lobby</button>
+  <div class="end-actions">
+    <button class="btn-primary" on:click={playAgain}>Back to Lobby</button>
+    <button class="btn-leave" on:click={sendLeaveRoom}>Leave Room</button>
+  </div>
 </div>
 
 <style>
@@ -104,4 +108,25 @@
   .team-section.team-blue .team-header { color: #448aff; }
 
   .scores-card { max-width: 420px; }
+
+  .end-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .btn-leave {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 4px 8px;
+    font-family: inherit;
+  }
+  .btn-leave:hover { color: #ff5252; }
 </style>

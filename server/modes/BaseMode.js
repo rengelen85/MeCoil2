@@ -103,6 +103,7 @@ export class BaseMode {
   registerHit(shooterWeaponId, victim) {
     const shooter = [...this.players.values()].find(p => p.gunSlotId === shooterWeaponId);
     if (!shooter || shooter.id === victim.id) return;
+    if (!this.config.friendlyFire && this._areTeammates(shooter, victim)) return;
     if (victim.shieldHits > 0) {
       victim.shieldHits--;
       return;

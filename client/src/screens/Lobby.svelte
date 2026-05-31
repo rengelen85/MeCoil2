@@ -1,6 +1,6 @@
 <script>
   import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt, roomName } from '../stores/game.js';
-  import { sendReady, sendGameConfig, sendStartGame } from '../lib/network.js';
+  import { sendReady, sendGameConfig, sendStartGame, sendLeaveRoom } from '../lib/network.js';
   import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
 
   let ready = false;
@@ -15,7 +15,10 @@
   }
 
   function updateConfig(field, value) {
-    const parsed = field === 'mode' ? value : Number(value);
+    let parsed;
+    if (field === 'mode') parsed = value;
+    else if (field === 'friendlyFire') parsed = value;
+    else parsed = Number(value);
     sendGameConfig({ ...$gameConfig, [field]: parsed });
   }
 
@@ -75,6 +78,14 @@
             on:change={e => updateConfig('scoreLimit', e.target.value)} />
         </label>
 
+        {#if $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH}
+          <label class="label-checkbox">
+            <input type="checkbox" checked={$gameConfig.friendlyFire}
+              on:change={e => updateConfig('friendlyFire', e.target.checked)} />
+            Friendly fire
+          </label>
+        {/if}
+
         <button class="btn-secondary" on:click={sendStartGame}>Force Start</button>
       </section>
     {:else}
@@ -83,6 +94,9 @@
         <div class="config-row"><span>Mode</span><span>{$gameConfig.mode === GAME_MODES.FFA ? 'Free for All' : 'Team Deathmatch'}</span></div>
         <div class="config-row"><span>Time</span><span>{$gameConfig.timeLimit} min</span></div>
         <div class="config-row"><span>Score limit</span><span>{$gameConfig.scoreLimit} kills</span></div>
+        {#if $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH}
+          <div class="config-row"><span>Friendly fire</span><span>{$gameConfig.friendlyFire ? 'On' : 'Off'}</span></div>
+        {/if}
       </section>
     {/if}
   </div>
@@ -97,6 +111,7 @@
       {ready ? '✓ Ready' : 'Ready Up'}
     </button>
     <p class="sim-hint">Simulator: <kbd>T</kbd> fire · <kbd>R</kbd> reload · <kbd>H</kbd> hit</p>
+    <button class="btn-leave" on:click={sendLeaveRoom}>Leave Room</button>
   </footer>
 </div>
 
@@ -177,6 +192,18 @@
     letter-spacing: 1px;
     text-transform: uppercase;
   }
+  .label-checkbox {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+  .label-checkbox input[type="checkbox"] {
+    width: 18px; height: 18px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
   select, input[type="number"] {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -228,6 +255,18 @@
     box-shadow: 0 0 20px rgba(0,200,83,0.4);
   }
   .btn-ready:disabled { opacity: 0.5; pointer-events: none; }
+
+  .btn-leave {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 4px 8px;
+    font-family: inherit;
+  }
+  .btn-leave:hover { color: #ff5252; }
 
   .sim-hint { font-size: 12px; color: var(--text-muted); }
   kbd {

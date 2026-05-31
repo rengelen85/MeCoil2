@@ -83,6 +83,10 @@ export function sendStopGame() {
   send({ type: C2S.STOP_GAME });
 }
 
+export function sendLeaveRoom() {
+  send({ type: C2S.LEAVE_ROOM });
+}
+
 function _handle(msg) {
   switch (msg.type) {
     case S2C.REGISTERED:
@@ -150,6 +154,17 @@ function _handle(msg) {
       finalScores.set(msg.finalScores);
       winner.set(msg.winner);
       screen.set('end');
+      break;
+
+    case S2C.LEFT_ROOM:
+      isHost.set(false);
+      players.set([]);
+      hostId.set(null);
+      roomName.set('');
+      gameState.set(GAME_STATES.WAITING);
+      rooms.set(msg.rooms ?? []);
+      resetGame();
+      screen.set('roomselect');
       break;
   }
 }

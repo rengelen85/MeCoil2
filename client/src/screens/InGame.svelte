@@ -9,7 +9,7 @@
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage } from '../lib/ble.js';
-  import { sendPosition, sendStopGame } from '../lib/network.js';
+  import { sendPosition, sendStopGame, sendLeaveRoom } from '../lib/network.js';
   import { GAME_MODES } from '../../../shared/messages.js';
 
   let showScores = false;
@@ -86,9 +86,12 @@
   {#if showScores}
     <div class="scores-overlay">
       <ScoreBoard />
-      {#if $myId === $hostId}
-        <button class="btn-end-game" on:click={sendStopGame}>End Game</button>
-      {/if}
+      <div class="score-actions">
+        {#if $myId === $hostId}
+          <button class="btn-end-game" on:click={sendStopGame}>End Game</button>
+        {/if}
+        <button class="btn-leave-game" on:click={sendLeaveRoom}>Leave</button>
+      </div>
     </div>
   {/if}
 
@@ -192,6 +195,11 @@
     gap: 8px;
   }
 
+  .score-actions {
+    display: flex;
+    gap: 8px;
+  }
+
   .btn-end-game {
     background: rgba(255, 82, 82, 0.15);
     border: 1px solid #ff5252;
@@ -204,6 +212,20 @@
     font-family: inherit;
     letter-spacing: 1px;
   }
+
+  .btn-leave-game {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 1px;
+  }
+  .btn-leave-game:hover { color: #fff; }
 
   .killfeed-wrap {
     position: absolute;
