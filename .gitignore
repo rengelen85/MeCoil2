@@ -6,3 +6,13 @@ org-set-up.md
 CLAUDE.md
 *.bak
 .claude/*
+
+# Mobile build artifacts
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/ios/build/
+mobile/ios/Pods/
+mobile/ios/Podfile.lock
+mobile/.expo/

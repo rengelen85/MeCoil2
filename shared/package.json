@@ -1,0 +1,11 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "messages.js",
+  "exports": {
+    ".": "./messages.js",
+    "./messages.js": "./messages.js"
+  }
+}
