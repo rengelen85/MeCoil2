@@ -5,3 +5,4 @@ certs/
 org-set-up.md
 CLAUDE.md
 *.bak
+.claude/*

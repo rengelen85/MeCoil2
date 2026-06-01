@@ -132,6 +132,11 @@ function _handle(msg) {
       if (msg.roundId) roundId.set(msg.roundId);
       gameState.set(GAME_STATES.PLAYING);
       resetGame();
+      // Clear stale positions/power-ups from a previous round so the fresh
+      // map doesn't briefly render last game's markers.
+      teammates.set([]);
+      firingEnemies.set([]);
+      powerups.set([]);
       screen.set('ingame');
       break;
     }
