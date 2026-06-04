@@ -21,12 +21,18 @@ const CHAR_CONTROL      = 'E6F59D13-E878-41BA-A3CE-3B5999FA3D7B';
 const CHAR_CONFIG       = 'E6F59D14-E878-41BA-A3CE-3B5999FA3D7B';
 const DEVICE_NAME_PREFIX = 'SRG';
 
-const MAGAZINE_SIZE = 10;
-const RELOAD_MS     = 2_500;
+// Fallbacks used before a game starts and host settings arrive.
+const DEFAULT_MAGAZINE_SIZE = 10;
+const DEFAULT_RELOAD_MS     = 2_500;
+
+const magazineSize = (): number =>
+  useGameStore.getState().bulletsPerMag || DEFAULT_MAGAZINE_SIZE;
+const reloadMs = (): number =>
+  useGameStore.getState().reloadDelaySecs * 1_000 || DEFAULT_RELOAD_MS;
 
 const DEFAULT_PROFILE = {
   triggerMode:     0xfe, // full auto
-  rateOfFire:      0,
+  rateOfFire:      2,    // 50ms units → ~10 rounds/sec; MUST be >0 or auto/burst never repeats
   narrowIrPower:   80,
   wideIrPower:     0,
   muzzleLedPower:  255,
@@ -35,9 +41,21 @@ const DEFAULT_PROFILE = {
   flashParam2:     3,
 };
 
+// Weapon trigger modes (the profile's TriggerMode byte), per the gun firmware:
+//   0       = plasma  (charge while held, fire accumulated shot on release)
+//   1       = single shot (one round per trigger press) — our "SEMI"
+//   2–253   = N-round burst
+//   254     = full auto (repeat one round per rate-of-fire period while held)
+// Burst/auto/plasma all repeat on the rate-of-fire period, so rateOfFire must
+// be non-zero (see DEFAULT_PROFILE) for AUTO to actually fire continuously.
+export const TRIGGER_MODE = { AUTO: 0xfe, SEMI: 0x01 };
+
 const bleManager = new BleManager();
 let _device: Device | null = null;
 let _gunId = 0;
+// The profile currently written to the gun. Tracked so a mode toggle rewrites
+// only the TriggerMode byte instead of resetting the rest to DEFAULT_PROFILE.
+let _activeProfile = DEFAULT_PROFILE;
 
 // Nibble counters from previous telemetry frame — used for edge detection
 let _prevTrigger = 0;
@@ -95,11 +113,24 @@ export async function applyGunAssignment(
   const game = useGameStore.getState();
   if (!game.bleConnected || !_device) return;
 
+  const mag = magazineSize();
+  _activeProfile = profile;
   await _writeWeaponProfile(_device, profile, slotId);
   _gunId = slotId;
-  _loadClip(_device, MAGAZINE_SIZE);
-  game.setAmmo(MAGAZINE_SIZE);
-  game.setMaxAmmo(MAGAZINE_SIZE);
+  _loadClip(_device, mag);
+  game.setAmmo(mag);
+  game.setMaxAmmo(mag);
+}
+
+// Switch the connected gun between automatic and semi-automatic fire.
+// Rewrites the current slot's profile, changing only the TriggerMode byte and
+// preserving the rest of the applied profile.
+export async function setGunMode(mode: 'auto' | 'semi'): Promise<void> {
+  const game = useGameStore.getState();
+  if (!game.bleConnected || !_device) return;
+  const triggerMode = mode === 'semi' ? TRIGGER_MODE.SEMI : TRIGGER_MODE.AUTO;
+  _activeProfile = { ..._activeProfile, triggerMode };
+  await _writeWeaponProfile(_device, _activeProfile, _gunId);
 }
 
 // ── Scanning / connecting ────────────────────────────────────────────────────
@@ -225,7 +256,8 @@ async function _writeWeaponProfile(
 // ── Event handlers ───────────────────────────────────────────────────────────
 
 function _onTrigger() {
-  if (useGameStore.getState().isReloading) return;
+  const game = useGameStore.getState();
+  if (game.isReloading || !game.isAlive) return;
   sendFire();
 }
 
@@ -235,9 +267,9 @@ function _onReload() {
   game.setIsReloading(true);
   _removeClip(_device);
   setTimeout(() => {
-    if (_device) _loadClip(_device, MAGAZINE_SIZE);
+    if (_device) _loadClip(_device, magazineSize());
     useGameStore.getState().setIsReloading(false);
-  }, RELOAD_MS);
+  }, reloadMs());
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

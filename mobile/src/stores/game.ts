@@ -12,6 +12,11 @@ export interface PlayerInfo {
   ready: boolean;
   kills: number;
   deaths: number;
+  hits?: number;
+  timesHit?: number;
+  hp?: number;
+  maxHp?: number;
+  isAlive?: boolean;
 }
 
 export interface ScoreEntry {
@@ -20,6 +25,12 @@ export interface ScoreEntry {
   team: Team;
   kills: number;
   deaths: number;
+  hits?: number;
+  timesHit?: number;
+  hp?: number;
+  maxHp?: number;
+  isAlive?: boolean;
+  players?: ScoreEntry[]; // present on TDM team rows
 }
 
 export interface KillFeedEntry {
@@ -33,6 +44,11 @@ export interface GameConfig {
   timeLimit: number;
   scoreLimit: number;
   friendlyFire?: boolean;
+  bulletsPerMag?: number;
+  hpPerPlayer?: number;
+  hpCostPerHit?: number;
+  reloadDelaySecs?: number;
+  respawnDelaySecs?: number;
 }
 
 export interface RoomInfo {
@@ -64,6 +80,12 @@ interface GameStore {
   isReloading: boolean;
   shieldActive: boolean;
   stealthActive: boolean;
+  hp: number;
+  maxHp: number;
+  isAlive: boolean;
+  respawnCountdown: number | null;
+  bulletsPerMag: number;
+  reloadDelaySecs: number;
   bleConnected: boolean;
   gunSlotId: number;
   rooms: RoomInfo[];
@@ -90,6 +112,12 @@ interface GameStore {
   setIsReloading: (v: boolean) => void;
   setShieldActive: (v: boolean) => void;
   setStealthActive: (v: boolean) => void;
+  setHp: (n: number) => void;
+  setMaxHp: (n: number) => void;
+  setIsAlive: (v: boolean) => void;
+  setRespawnCountdown: (n: number | null) => void;
+  setBulletsPerMag: (n: number) => void;
+  setReloadDelaySecs: (n: number) => void;
   setBleConnected: (v: boolean) => void;
   setGunSlotId: (id: number) => void;
   setRooms: (r: RoomInfo[]) => void;
@@ -103,7 +131,16 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   isHost: false,
   username: '',
   gameState: GAME_STATES.WAITING,
-  gameConfig: { mode: GAME_MODES.FFA, timeLimit: 7, scoreLimit: 20 },
+  gameConfig: {
+    mode: GAME_MODES.FFA,
+    timeLimit: 7,
+    scoreLimit: 20,
+    bulletsPerMag: 30,
+    hpPerPlayer: 100,
+    hpCostPerHit: 25,
+    reloadDelaySecs: 3,
+    respawnDelaySecs: 10,
+  },
   players: [],
   hostId: null,
   scores: [],
@@ -119,6 +156,12 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   isReloading: false,
   shieldActive: false,
   stealthActive: false,
+  hp: 100,
+  maxHp: 100,
+  isAlive: true,
+  respawnCountdown: null,
+  bulletsPerMag: 30,
+  reloadDelaySecs: 3,
   bleConnected: false,
   gunSlotId: 0,
   rooms: [],
@@ -146,6 +189,12 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setIsReloading: v => set({ isReloading: v }),
   setShieldActive: v => set({ shieldActive: v }),
   setStealthActive: v => set({ stealthActive: v }),
+  setHp: n => set({ hp: n }),
+  setMaxHp: n => set({ maxHp: n }),
+  setIsAlive: v => set({ isAlive: v }),
+  setRespawnCountdown: n => set({ respawnCountdown: n }),
+  setBulletsPerMag: n => set({ bulletsPerMag: n }),
+  setReloadDelaySecs: n => set({ reloadDelaySecs: n }),
   setBleConnected: v => set({ bleConnected: v }),
   setGunSlotId: id => set({ gunSlotId: id }),
   setRooms: r => set({ rooms: r }),
@@ -163,6 +212,8 @@ export const useGameStore = create<GameStore>((set, _get) => ({
       isReloading: false,
       shieldActive: false,
       stealthActive: false,
+      isAlive: true,
+      respawnCountdown: null,
     }),
 
 }));

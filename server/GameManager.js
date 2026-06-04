@@ -19,6 +19,12 @@ export class GameManager {
       timeLimit: 7,
       scoreLimit: 20,
       friendlyFire: false,
+      // Host-tunable gameplay settings
+      bulletsPerMag: 30,
+      hpPerPlayer: 100,
+      hpCostPerHit: 25,
+      reloadDelaySecs: 3,
+      respawnDelaySecs: 10,
     };
     this._mode = null;
     this._roundId = null;
@@ -91,6 +97,7 @@ export class GameManager {
 
       case C2S.FIRE:
         if (this.state !== GAME_STATES.PLAYING) return;
+        if (!player.isAlive) return; // dead players can't fire
         player.lat = msg.lat ?? player.lat;
         player.lng = msg.lng ?? player.lng;
         player.lastFireAt = Date.now();
@@ -170,6 +177,7 @@ export class GameManager {
       timeLimit: this.config.timeLimit,
       scoreLimit: this.config.scoreLimit,
       gunAssignments,
+      ...this._gameplaySettings(),
     });
 
     const ModeClass = this.config.mode === GAME_MODES.TEAM_DEATHMATCH ? TeamDeathmatch : FFA;
@@ -222,7 +230,20 @@ export class GameManager {
       timeLimit: this.config.timeLimit,
       scoreLimit: this.config.scoreLimit,
       gunAssignments: { [player.id]: slot },
+      ...this._gameplaySettings(),
     });
+  }
+
+  // Host-tunable settings shipped to clients at game start so guns/UI can
+  // reflect magazine size, HP, reload and respawn timing.
+  _gameplaySettings() {
+    return {
+      bulletsPerMag: this.config.bulletsPerMag,
+      hpPerPlayer: this.config.hpPerPlayer,
+      hpCostPerHit: this.config.hpCostPerHit,
+      reloadDelaySecs: this.config.reloadDelaySecs,
+      respawnDelaySecs: this.config.respawnDelaySecs,
+    };
   }
 
   _broadcastPowerups() {

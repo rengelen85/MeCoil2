@@ -1,4 +1,4 @@
-import { S2C } from '../../shared/messages.js';
+import { S2C, POWERUP_TYPES } from '../../shared/messages.js';
 
 const STATE_INTERVAL_MS = 1_000;
 const POSITION_INTERVAL_MS = 1_000;
@@ -23,7 +23,7 @@ export class BaseMode {
     this._endAt = Date.now() + durationMs;
 
     for (const p of this.players.values()) {
-      p.resetForGame();
+      p.resetForGame(this.config.hpPerPlayer ?? 100);
     }
 
     // Use first known position as power-up spawn center
@@ -44,6 +44,12 @@ export class BaseMode {
   stop() {
     clearInterval(this._stateTimer);
     clearInterval(this._posTimer);
+    for (const p of this.players.values()) {
+      if (p.respawnTimer) {
+        clearTimeout(p.respawnTimer);
+        p.respawnTimer = null;
+      }
+    }
     this.powerupManager.stop();
   }
 
@@ -80,8 +86,16 @@ export class BaseMode {
 
         const isTeammate = this._areTeammates(player, other);
         if (isTeammate) {
-          teammates.push({ id: other.id, username: other.username, lat: other.lat, lng: other.lng });
-        } else if (other.lastFireAt && now - other.lastFireAt < ENEMY_VISIBLE_MS && !this._isStealth(other)) {
+          teammates.push({
+            id: other.id,
+            username: other.username,
+            lat: other.lat,
+            lng: other.lng,
+            hp: other.hp,
+            maxHp: other.maxHp,
+            isAlive: other.isAlive,
+          });
+        } else if (other.isAlive && other.lastFireAt && now - other.lastFireAt < ENEMY_VISIBLE_MS && !this._isStealth(other)) {
           firingEnemies.push({ id: other.id, lat: other.lat, lng: other.lng });
         }
       }
@@ -99,22 +113,51 @@ export class BaseMode {
   _buildScores() { return []; }
   _determineWinner() { return null; }
 
-  // Called by GameManager when a hit is reported
+  // Called by GameManager when a hit is reported. Damage is HP-based: each hit
+  // subtracts `hpCostPerHit`; a kill is only registered when HP reaches zero.
   registerHit(shooterWeaponId, victim) {
     const shooter = [...this.players.values()].find(p => p.gunSlotId === shooterWeaponId);
     if (!shooter || shooter.id === victim.id) return;
+    if (!shooter.isAlive || !victim.isAlive) return; // dead players neither deal nor take damage
     if (!this.config.friendlyFire && this._areTeammates(shooter, victim)) return;
-    if (victim.shieldHits > 0) {
-      victim.shieldHits--;
-      return;
+
+    const hpCost = this.config.hpCostPerHit ?? 25;
+    victim.hp = Math.max(0, victim.hp - hpCost);
+    shooter.hits++;
+    victim.timesHit++;
+
+    this.broadcast({
+      type: S2C.PLAYER_HP,
+      playerId: victim.id,
+      hp: victim.hp,
+      maxHp: victim.maxHp,
+      shooterId: shooter.id,
+    });
+
+    if (victim.hp <= 0) {
+      this._registerKill(shooter, victim);
     }
+  }
+
+  _registerKill(shooter, victim) {
     shooter.kills++;
     victim.deaths++;
+    victim.isAlive = false;
     this.killFeed.push({
       at: Date.now(),
       shooterName: shooter.username,
       victimName: victim.username,
     });
+
+    const respawnSecs = this.config.respawnDelaySecs ?? 10;
+    this.broadcast({
+      type: S2C.PLAYER_DEAD,
+      playerId: victim.id,
+      killerId: shooter.id,
+      respawnIn: respawnSecs,
+    });
+
+    victim.respawnTimer = setTimeout(() => this._respawn(victim), respawnSecs * 1_000);
 
     const scoreLimit = this.config.scoreLimit ?? Infinity;
     if (this._checkWinCondition(shooter, scoreLimit)) {
@@ -122,18 +165,46 @@ export class BaseMode {
     }
   }
 
+  _respawn(player) {
+    player.respawnTimer = null;
+    player.hp = player.maxHp;
+    player.isAlive = true;
+    this.broadcast({
+      type: S2C.PLAYER_RESPAWN,
+      playerId: player.id,
+      hp: player.hp,
+      maxHp: player.maxHp,
+    });
+  }
+
   // eslint-disable-next-line no-unused-vars
   _checkWinCondition(_scorer, _limit) { return false; }
 
   applyPowerup(player, pkg) {
     switch (pkg.type) {
-      case 'fullReload':
-        player.ammo = 30;
+      case POWERUP_TYPES.FULL_RELOAD:
+        player.ammo = this.config.bulletsPerMag ?? 30;
         break;
-      case 'shield':
-        player.shieldHits = 2;
+      case POWERUP_TYPES.HEALTH_PACK:
+        player.hp = player.maxHp;
+        this.broadcast({
+          type: S2C.PLAYER_HP,
+          playerId: player.id,
+          hp: player.hp,
+          maxHp: player.maxHp,
+        });
         break;
-      case 'stealth':
+      case POWERUP_TYPES.SHIELD:
+        // Shields stack bonus HP on top of max (can exceed maxHp).
+        player.hp += Math.floor(player.maxHp * 0.5);
+        this.broadcast({
+          type: S2C.PLAYER_HP,
+          playerId: player.id,
+          hp: player.hp,
+          maxHp: player.maxHp,
+        });
+        break;
+      case POWERUP_TYPES.STEALTH:
         player.stealthUntil = Date.now() + 30_000;
         break;
     }

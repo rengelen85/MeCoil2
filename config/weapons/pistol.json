@@ -5,7 +5,7 @@
   "magazineSize": 6,
   "clips": 5,
   "profile": {
-    "triggerMode": 0,
+    "triggerMode": 1,
     "rateOfFire": 0,
     "narrowIrPower": 100,
     "wideIrPower": 0,

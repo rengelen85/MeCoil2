@@ -108,15 +108,31 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       const myId = game.myId;
       const assignments = (msg.gunAssignments as Record<number, number>) ?? {};
       const slot = assignments[myId!] ?? 0;
+      const hpMax = (msg.hpPerPlayer as number) ?? 100;
+      const mag = (msg.bulletsPerMag as number) ?? 30;
       game.setGunSlotId(slot);
       game.setGameConfig({
         mode: msg.mode as string,
         timeLimit: msg.timeLimit as number,
         scoreLimit: msg.scoreLimit as number,
+        bulletsPerMag: mag,
+        hpPerPlayer: hpMax,
+        hpCostPerHit: (msg.hpCostPerHit as number) ?? 25,
+        reloadDelaySecs: (msg.reloadDelaySecs as number) ?? 3,
+        respawnDelaySecs: (msg.respawnDelaySecs as number) ?? 10,
       });
       if (msg.roundId) game.setRoundId(msg.roundId as string);
       game.setGameState(GAME_STATES.PLAYING);
       game.resetGame();
+      // Apply host-tuned health and magazine settings for this round
+      game.setMaxHp(hpMax);
+      game.setHp(hpMax);
+      game.setIsAlive(true);
+      game.setRespawnCountdown(null);
+      game.setBulletsPerMag(mag);
+      game.setReloadDelaySecs((msg.reloadDelaySecs as number) ?? 3);
+      game.setMaxAmmo(mag);
+      game.setAmmo(mag);
       map.setTeammates([]);
       map.setFiringEnemies([]);
       map.setPowerups([]);
@@ -142,6 +158,31 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
 
     case S2C.POWERUPS:
       map.setPowerups((msg.packages as []) ?? []);
+      break;
+
+    case S2C.PLAYER_HP:
+      if (msg.playerId === game.myId) {
+        game.setHp(msg.hp as number);
+        game.setMaxHp(msg.maxHp as number);
+      }
+      break;
+
+    case S2C.PLAYER_DEAD:
+      if (msg.playerId === game.myId) {
+        game.setHp(0);
+        game.setIsAlive(false);
+        _startRespawnCountdown((msg.respawnIn as number) ?? 10);
+      }
+      break;
+
+    case S2C.PLAYER_RESPAWN:
+      if (msg.playerId === game.myId) {
+        game.setHp(msg.hp as number);
+        game.setMaxHp(msg.maxHp as number);
+        game.setIsAlive(true);
+        _stopRespawnCountdown();
+        game.setRespawnCountdown(null);
+      }
       break;
 
     case S2C.GAME_ENDED:
@@ -170,7 +211,10 @@ function _applyLocalPowerupFeedback({ type }: { type: string }) {
   const game = useGameStore.getState();
   switch (type) {
     case 'fullReload':
-      game.setAmmo(30);
+      game.setAmmo(game.maxAmmo);
+      break;
+    case 'healthPack':
+      game.setHp(game.maxHp);
       break;
     case 'shield':
       game.setShieldActive(true);
@@ -178,5 +222,35 @@ function _applyLocalPowerupFeedback({ type }: { type: string }) {
     case 'stealth':
       game.setStealthActive(true);
       break;
+  }
+}
+
+// Local 1-second ticker that drives the on-screen respawn countdown while dead.
+let _respawnTimer: ReturnType<typeof setInterval> | null = null;
+
+function _startRespawnCountdown(secs: number) {
+  _stopRespawnCountdown();
+  const game = useGameStore.getState();
+  game.setRespawnCountdown(secs);
+  _respawnTimer = setInterval(() => {
+    const current = useGameStore.getState().respawnCountdown;
+    if (current === null) {
+      _stopRespawnCountdown();
+      return;
+    }
+    const next = current - 1;
+    if (next <= 0) {
+      useGameStore.getState().setRespawnCountdown(0);
+      _stopRespawnCountdown();
+    } else {
+      useGameStore.getState().setRespawnCountdown(next);
+    }
+  }, 1_000);
+}
+
+function _stopRespawnCountdown() {
+  if (_respawnTimer) {
+    clearInterval(_respawnTimer);
+    _respawnTimer = null;
   }
 }

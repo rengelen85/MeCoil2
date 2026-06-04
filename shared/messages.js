@@ -26,6 +26,9 @@ export const S2C = {
   GAME_STATE: 'gameState',
   POSITIONS: 'positions',
   POWERUPS: 'powerups',
+  PLAYER_HP: 'playerHp',           // a player's health changed (after a hit or heal)
+  PLAYER_DEAD: 'playerDead',       // a player's HP hit zero; carries respawnIn (secs)
+  PLAYER_RESPAWN: 'playerRespawn', // a dead player is alive again with full HP
   GAME_ENDED: 'gameEnded',
   LEFT_ROOM: 'leftRoom',
   ERROR: 'error',
@@ -52,6 +55,7 @@ export const TEAMS = {
 
 export const POWERUP_TYPES = {
   FULL_RELOAD: 'fullReload',
-  SHIELD: 'shield',
+  HEALTH_PACK: 'healthPack', // restores the collector to full HP
+  SHIELD: 'shield',          // grants bonus HP on top of max
   STEALTH: 'stealth',
 };

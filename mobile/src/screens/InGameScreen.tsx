@@ -1,21 +1,38 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/index.js';
-import { useGameStore } from '../stores/game.js';
+import { useGameStore, ScoreEntry } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
 import { sendPosition, sendStopGame } from '../lib/network.js';
-import { applyGunAssignment, connectBle } from '../lib/ble.js';
+import { applyGunAssignment, connectBle, setGunMode } from '../lib/ble.js';
 import GameMap from '../components/GameMap.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'InGame'>;
+
+// Resolve the local player's score entry across FFA (flat) and TDM (nested) shapes.
+function findMyScore(scores: ScoreEntry[], myId: number | null): ScoreEntry | null {
+  for (const entry of scores) {
+    if (entry.players) {
+      const found = entry.players.find(p => p.id === myId);
+      if (found) return found;
+    } else if (entry.id === myId) {
+      return entry;
+    }
+  }
+  return null;
+}
 
 export default function InGameScreen(_props: Props) {
   const {
     ammo, maxAmmo, isReloading, shieldActive, stealthActive,
     timeRemaining, scores, myId, isHost, bleConnected, gunSlotId,
-    killFeed,
+    killFeed, hp, maxHp, isAlive, respawnCountdown,
   } = useGameStore();
+
+  const myScore = findMyScore(scores, myId);
+  const hpPct = maxHp > 0 ? Math.min(100, Math.round((hp / maxHp) * 100)) : 0;
+  const hpColor = hpPct > 50 ? '#00e676' : hpPct > 25 ? '#ffeb3b' : '#ff5252';
 
   const { myPosition, startGPS, stopGPS, startHeading, stopHeading } =
     useMapStore();
@@ -45,6 +62,14 @@ export default function InGameScreen(_props: Props) {
     connectBle().catch(e => Alert.alert('BLE Error', e.message));
   }
 
+  const [gunMode, setGunModeState] = useState<'auto' | 'semi'>('auto');
+
+  function toggleGunMode() {
+    const next = gunMode === 'auto' ? 'semi' : 'auto';
+    setGunModeState(next);
+    setGunMode(next).catch(e => Alert.alert('BLE Error', e.message));
+  }
+
   const mins = String(Math.floor(timeRemaining / 60)).padStart(2, '0');
   const secs = String(timeRemaining % 60).padStart(2, '0');
   const topScore = scores[0];
@@ -64,6 +89,37 @@ export default function InGameScreen(_props: Props) {
           </Text>
         )}
       </View>
+
+      {/* Personal stats + health (always visible) */}
+      <View style={styles.statsBar}>
+        <View style={styles.statsRow}>
+          <Text style={styles.stat}>💀 {myScore?.kills ?? 0}</Text>
+          <Text style={styles.stat}>🎯 {myScore?.hits ?? 0}</Text>
+          <Text style={styles.stat}>🩸 {myScore?.timesHit ?? 0}</Text>
+        </View>
+        <View style={styles.healthLabelRow}>
+          <Text style={styles.healthLabel}>
+            ♥ {hp}
+            <Text style={styles.healthMax}> / {maxHp}</Text>
+          </Text>
+          {hp > maxHp && <Text style={styles.healthShield}>🛡</Text>}
+        </View>
+        <View style={styles.healthTrack}>
+          <View
+            style={[styles.healthFill, { width: `${hpPct}%`, backgroundColor: hpColor }]}
+          />
+        </View>
+      </View>
+
+      {/* Respawn overlay */}
+      {!isAlive && (
+        <View style={styles.respawnOverlay} pointerEvents="none">
+          <Text style={styles.respawnTitle}>YOU ARE DOWN</Text>
+          <Text style={styles.respawnCount}>
+            Respawning in {respawnCountdown ?? 0}…
+          </Text>
+        </View>
+      )}
 
       {/* Kill feed */}
       <View style={styles.killFeed}>
@@ -91,7 +147,13 @@ export default function InGameScreen(_props: Props) {
         <View style={styles.statusIcons}>
           {shieldActive && <Text style={styles.statusIcon}>🛡</Text>}
           {stealthActive && <Text style={styles.statusIcon}>👻</Text>}
-          {!bleConnected && (
+          {bleConnected ? (
+            <TouchableOpacity onPress={toggleGunMode}>
+              <Text style={[styles.gunMode, gunMode === 'semi' && styles.gunModeSemi]}>
+                {gunMode === 'auto' ? 'AUTO' : 'SEMI'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
             <TouchableOpacity onPress={handleConnectBle}>
               <Text style={styles.bleWarning}>⚠ Gun</Text>
             </TouchableOpacity>
@@ -143,9 +205,76 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 4,
   },
+  statsBar: {
+    position: 'absolute',
+    top: 88,
+    left: 16,
+    width: 180,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 6,
+  },
+  stat: {
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    overflow: 'hidden',
+  },
+  healthLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  healthLabel: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  healthMax: { color: '#aaa', fontSize: 12, fontWeight: '400' },
+  healthShield: { fontSize: 14, marginLeft: 6 },
+  healthTrack: {
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  healthFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  respawnOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(20,0,0,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  respawnTitle: {
+    color: '#ff5252',
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: 3,
+    marginBottom: 10,
+  },
+  respawnCount: {
+    color: '#fff',
+    fontSize: 18,
+  },
   killFeed: {
     position: 'absolute',
-    top: 100,
+    top: 170,
     left: 16,
     pointerEvents: 'none',
   },
@@ -199,6 +328,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     padding: 6,
     borderRadius: 6,
+  },
+  gunMode: {
+    color: '#00e5ff',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1,
+    backgroundColor: 'rgba(0,229,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,255,0.4)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  gunModeSemi: {
+    color: '#ffc107',
+    backgroundColor: 'rgba(255,193,7,0.15)',
+    borderColor: 'rgba(255,193,7,0.5)',
   },
   stopBtn: {
     backgroundColor: 'rgba(0,0,0,0.5)',

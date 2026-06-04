@@ -4,7 +4,8 @@ import {
   myId, isHost, players, gameConfig, hostId,
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
-  ammo, shieldActive, stealthActive, gunSlotId,
+  ammo, maxAmmo, shieldActive, stealthActive, gunSlotId,
+  hp, maxHp, isAlive, respawnCountdown, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
 } from '../stores/game.js';
@@ -128,10 +129,29 @@ function _handle(msg) {
     case S2C.GAME_STARTED: {
       const slot = msg.gunAssignments?.[get(myId)] ?? 0;
       gunSlotId.set(slot);
-      gameConfig.set({ mode: msg.mode, timeLimit: msg.timeLimit, scoreLimit: msg.scoreLimit });
+      gameConfig.set({
+        mode: msg.mode,
+        timeLimit: msg.timeLimit,
+        scoreLimit: msg.scoreLimit,
+        bulletsPerMag: msg.bulletsPerMag ?? 30,
+        hpPerPlayer: msg.hpPerPlayer ?? 100,
+        hpCostPerHit: msg.hpCostPerHit ?? 25,
+        reloadDelaySecs: msg.reloadDelaySecs ?? 3,
+        respawnDelaySecs: msg.respawnDelaySecs ?? 10,
+      });
       if (msg.roundId) roundId.set(msg.roundId);
       gameState.set(GAME_STATES.PLAYING);
       resetGame();
+      // Apply host-tuned health and magazine settings for this round
+      const hpMax = msg.hpPerPlayer ?? 100;
+      maxHp.set(hpMax);
+      hp.set(hpMax);
+      isAlive.set(true);
+      respawnCountdown.set(null);
+      bulletsPerMag.set(msg.bulletsPerMag ?? 30);
+      reloadDelaySecs.set(msg.reloadDelaySecs ?? 3);
+      maxAmmo.set(msg.bulletsPerMag ?? 30);
+      ammo.set(msg.bulletsPerMag ?? 30);
       // Clear stale positions/power-ups from a previous round so the fresh
       // map doesn't briefly render last game's markers.
       teammates.set([]);
@@ -159,6 +179,31 @@ function _handle(msg) {
       powerups.set(msg.packages ?? []);
       break;
 
+    case S2C.PLAYER_HP:
+      if (msg.playerId === get(myId)) {
+        hp.set(msg.hp);
+        maxHp.set(msg.maxHp);
+      }
+      break;
+
+    case S2C.PLAYER_DEAD:
+      if (msg.playerId === get(myId)) {
+        hp.set(0);
+        isAlive.set(false);
+        _startRespawnCountdown(msg.respawnIn ?? 10);
+      }
+      break;
+
+    case S2C.PLAYER_RESPAWN:
+      if (msg.playerId === get(myId)) {
+        hp.set(msg.hp);
+        maxHp.set(msg.maxHp);
+        isAlive.set(true);
+        _stopRespawnCountdown();
+        respawnCountdown.set(null);
+      }
+      break;
+
     case S2C.GAME_ENDED:
       gameState.set(GAME_STATES.ENDED);
       finalScores.set(msg.finalScores);
@@ -184,8 +229,32 @@ function _handle(msg) {
 function _applyLocalPowerupFeedback({ type }) {
   // Update local store state so UI reflects the effect immediately
   switch (type) {
-    case 'fullReload': ammo.set(30); break;
+    case 'fullReload': ammo.set(get(maxAmmo)); break;
+    case 'healthPack': hp.set(get(maxHp)); break;
     case 'shield': shieldActive.set(true); break;
     case 'stealth': stealthActive.set(true); break;
+  }
+}
+
+// Local 1-second ticker that drives the on-screen respawn countdown while dead.
+let _respawnTimer = null;
+
+function _startRespawnCountdown(secs) {
+  _stopRespawnCountdown();
+  respawnCountdown.set(secs);
+  _respawnTimer = setInterval(() => {
+    respawnCountdown.update(v => {
+      if (v === null) return null;
+      const next = v - 1;
+      if (next <= 0) { _stopRespawnCountdown(); return 0; }
+      return next;
+    });
+  }, 1_000);
+}
+
+function _stopRespawnCountdown() {
+  if (_respawnTimer) {
+    clearInterval(_respawnTimer);
+    _respawnTimer = null;
   }
 }

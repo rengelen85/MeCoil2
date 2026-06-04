@@ -13,8 +13,11 @@
         <span class="team-kills">{team.kills}</span>
         <div class="player-list">
           {#each team.players as p}
-            <span class="player" class:is-me={p.id === $myId}>
+            <span class="player" class:is-me={p.id === $myId} class:dead={p.isAlive === false}>
               {p.username} {p.kills}/{p.deaths}
+              {#if p.hp != null}
+                <span class="hp">{p.isAlive === false ? '☠' : `♥${p.hp}`}</span>
+              {/if}
             </span>
           {/each}
         </div>
@@ -22,9 +25,12 @@
     {/each}
   {:else}
     {#each $scores as p, i}
-      <div class="score-row" class:is-me={p.id === $myId}>
+      <div class="score-row" class:is-me={p.id === $myId} class:dead={p.isAlive === false}>
         <span class="rank">#{i + 1}</span>
         <span class="name">{p.username}</span>
+        {#if p.hp != null}
+          <span class="hp">{p.isAlive === false ? '☠' : `♥${p.hp}`}</span>
+        {/if}
         <span class="kd">{p.kills}<span class="sep">/</span>{p.deaths}</span>
       </div>
     {/each}
@@ -53,6 +59,8 @@
   .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .kd { color: #aaa; font-variant-numeric: tabular-nums; }
   .sep { color: #555; margin: 0 2px; }
+  .hp { color: #ff7a7a; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .score-row.dead, .player.dead { opacity: 0.5; }
 
   .team-row { padding: 4px 0; }
   .team-row.team-red .team-label { color: #ff5252; }

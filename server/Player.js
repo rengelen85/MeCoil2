@@ -14,9 +14,16 @@ export class Player {
     // Game state (reset each match)
     this.kills = 0;
     this.deaths = 0;
+    this.hits = 0;        // shots that landed on an enemy
+    this.timesHit = 0;    // shots that landed on this player
     this.ammo = 0;
-    this.shieldHits = 0;
     this.stealthUntil = 0;
+
+    // Health / respawn
+    this.maxHp = 100;
+    this.hp = 100;
+    this.isAlive = true;
+    this.respawnTimer = null;
 
     // Map state
     this.lat = null;
@@ -30,12 +37,20 @@ export class Player {
     }
   }
 
-  resetForGame() {
+  resetForGame(maxHp = 100) {
     this.kills = 0;
     this.deaths = 0;
+    this.hits = 0;
+    this.timesHit = 0;
     this.ammo = 0;
-    this.shieldHits = 0;
     this.stealthUntil = 0;
+    this.maxHp = maxHp;
+    this.hp = maxHp;
+    this.isAlive = true;
+    if (this.respawnTimer) {
+      clearTimeout(this.respawnTimer);
+      this.respawnTimer = null;
+    }
     this.lastFireAt = 0;
   }
 
@@ -47,6 +62,11 @@ export class Player {
       ready: this.ready,
       kills: this.kills,
       deaths: this.deaths,
+      hits: this.hits,
+      timesHit: this.timesHit,
+      hp: this.hp,
+      maxHp: this.maxHp,
+      isAlive: this.isAlive,
     };
   }
 }

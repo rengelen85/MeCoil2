@@ -18,7 +18,17 @@ export class TeamDeathmatch extends BaseMode {
       kills: this._teamKills(team),
       players: [...this.players.values()]
         .filter(p => p.team === team)
-        .map(p => ({ id: p.id, username: p.username, kills: p.kills, deaths: p.deaths })),
+        .map(p => ({
+          id: p.id,
+          username: p.username,
+          kills: p.kills,
+          deaths: p.deaths,
+          hits: p.hits,
+          timesHit: p.timesHit,
+          hp: p.hp,
+          maxHp: p.maxHp,
+          isAlive: p.isAlive,
+        })),
     }));
     return teams.sort((a, b) => b.kills - a.kills);
   }

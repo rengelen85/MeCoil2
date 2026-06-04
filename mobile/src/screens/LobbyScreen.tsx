@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  TextInput,
   TouchableOpacity,
   Switch,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/index.js';
-import { useGameStore, PlayerInfo } from '../stores/game.js';
+import { useGameStore, PlayerInfo, GameConfig } from '../stores/game.js';
 import {
   sendReady,
   sendGameConfig,
@@ -20,6 +21,15 @@ import {
 import { GAME_MODES } from 'shared/messages.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Lobby'>;
+
+// Host-tunable numeric settings (keys must match GameConfig fields).
+const COMBAT_SETTINGS: { key: keyof GameConfig; label: string; fallback: number }[] = [
+  { key: 'bulletsPerMag', label: 'Bullets / magazine', fallback: 30 },
+  { key: 'hpPerPlayer', label: 'HP per player', fallback: 100 },
+  { key: 'hpCostPerHit', label: 'HP cost per hit', fallback: 25 },
+  { key: 'reloadDelaySecs', label: 'Reload delay (s)', fallback: 3 },
+  { key: 'respawnDelaySecs', label: 'Respawn delay (s)', fallback: 10 },
+];
 
 export default function LobbyScreen(_props: Props) {
   const {
@@ -121,6 +131,38 @@ export default function LobbyScreen(_props: Props) {
               />
             </View>
           )}
+
+          <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
+            Combat Settings
+          </Text>
+          {COMBAT_SETTINGS.map(s => (
+            <View key={s.key} style={styles.settingRow}>
+              <Text style={styles.settingLabel}>{s.label}</Text>
+              <TextInput
+                style={styles.settingInput}
+                keyboardType="numeric"
+                defaultValue={String(gameConfig[s.key] ?? s.fallback)}
+                onEndEditing={e => {
+                  const n = Number(e.nativeEvent.text);
+                  if (!Number.isNaN(n)) sendGameConfig({ [s.key]: n });
+                }}
+              />
+            </View>
+          ))}
+        </View>
+      )}
+
+      {!isHost && (
+        <View style={styles.configSection}>
+          <Text style={styles.sectionTitle}>Combat Settings</Text>
+          {COMBAT_SETTINGS.map(s => (
+            <View key={s.key} style={styles.settingRow}>
+              <Text style={styles.settingLabel}>{s.label}</Text>
+              <Text style={styles.settingValue}>
+                {gameConfig[s.key] ?? s.fallback}
+              </Text>
+            </View>
+          ))}
         </View>
       )}
 
@@ -209,6 +251,33 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 10,
   },
+  sectionTitleSpaced: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    color: '#e63946',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  settingLabel: { color: '#ccc', fontSize: 14, flex: 1 },
+  settingInput: {
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 6,
+    color: '#fff',
+    fontSize: 15,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 70,
+    textAlign: 'right',
+  },
+  settingValue: { color: '#fff', fontSize: 15, fontWeight: '600' },
   modeRow: {
     flexDirection: 'row',
     gap: 8,
