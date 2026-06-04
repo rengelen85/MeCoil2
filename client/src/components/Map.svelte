@@ -97,7 +97,7 @@
       return L.divIcon({
         className: '',
         html: `<div class="dot dot-powerup" title="${type}">${emoji}</div>`,
-        iconSize: [20, 20], iconAnchor: [10, 10],
+        iconSize: [24, 24], iconAnchor: [12, 12],
       });
     }
 
@@ -279,11 +279,13 @@
   :global(.dot-powerup) {
     background: rgba(0,0,0,0.7);
     border-radius: 50%;
-    font-size: 14px;
-    line-height: 20px;
-    text-align: center;
+    font-size: 16px;
+    line-height: 1;
     cursor: pointer;
-    width: 20px; height: 20px;
+    width: 24px; height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   @keyframes enemy-pulse {

@@ -5,11 +5,9 @@
  * In Phase 2 this module is replaced by ble.js.
  */
 import { sendFire, sendHit } from './network.js';
-import { ammo, isReloading } from '../stores/game.js';
+import { ammo, isReloading, isAlive, maxAmmo, reloadDelaySecs } from '../stores/game.js';
 import { get } from 'svelte/store';
 
-const RELOAD_TIME_MS = 2_000;
-const MAX_AMMO = 30;
 const FAKE_SHOOTER_WEAPON_ID = 0;
 
 let enabled = false;
@@ -34,11 +32,12 @@ function _onKey(e) {
     case 't': _fire(); break;
     case 'r': _reload(); break;
     case 'h': _hit(); break;
-    case 'a': ammo.update(v => Math.min(v + 5, MAX_AMMO)); break;
+    case 'a': ammo.update(v => Math.min(v + 5, get(maxAmmo))); break;
   }
 }
 
 function _fire() {
+  if (!get(isAlive)) return; // can't fire while dead
   const current = get(ammo);
   if (current <= 0 || get(isReloading)) return;
   ammo.update(v => Math.max(0, v - 1));
@@ -49,9 +48,9 @@ function _reload() {
   if (get(isReloading)) return;
   isReloading.set(true);
   setTimeout(() => {
-    ammo.set(MAX_AMMO);
+    ammo.set(get(maxAmmo));
     isReloading.set(false);
-  }, RELOAD_TIME_MS);
+  }, get(reloadDelaySecs) * 1_000);
 }
 
 function _hit() {

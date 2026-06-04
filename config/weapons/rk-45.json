@@ -6,7 +6,7 @@
   "clips": 9,
   "profile": {
     "triggerMode": 254,
-    "rateOfFire": 0,
+    "rateOfFire": 2,
     "narrowIrPower": 80,
     "wideIrPower": 0,
     "muzzleLedPower": 255,

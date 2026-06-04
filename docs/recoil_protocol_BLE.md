@@ -192,13 +192,24 @@ Uses TLV format:
 
 | Field | Type | Description |
 |------|-----|------------|
-| TriggerMode | U8 | Fire mode |
-| RateOfFire | U8 | 50ms units |
+| TriggerMode | U8 | Fire mode (see below) |
+| RateOfFire | U8 | Repeat period, 50ms units (e.g. 2 = 100ms ≈ 10 rounds/sec) |
 | PowerIR1 | U8 | Long-range IR |
 | PowerIR2 | U8 | Short-range IR |
 | PowerLED1 | U8 | Muzzle LED |
 | PowerLED2 | U8 | Debug LED |
 | PowerMotor | U8 | Recoil duration |
+
+#### TriggerMode values
+
+| Value | Mode | Behaviour |
+|------|------|-----------|
+| 0 | Plasma | Charges while held (4 rounds per rate-of-fire period), fires one accumulated shot on release |
+| 1 | Single shot | One round per trigger press; nothing more until released |
+| 2–253 | N-round burst | One round on press, then one more per rate-of-fire period, up to N rounds (or trigger release / empty clip) |
+| 254 | Full auto | One round on press, then one more per rate-of-fire period until trigger release or empty clip |
+
+> **Note:** Burst, full-auto, and plasma all repeat on the **rate-of-fire period**. With `RateOfFire = 0` there is no period, so full auto fires only the single press shot and never repeats — it must be non-zero to fire continuously.
 
 ---
 

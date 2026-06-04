@@ -4,17 +4,28 @@
   import ScoreBoard from '../components/ScoreBoard.svelte';
   import KillFeed from '../components/KillFeed.svelte';
   import AmmoBar from '../components/AmmoBar.svelte';
+  import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
-  import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage } from '../lib/ble.js';
+  import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode } from '../lib/ble.js';
   import { sendPosition, sendStopGame, sendLeaveRoom } from '../lib/network.js';
   import { GAME_MODES } from '../../../shared/messages.js';
 
   let showScores = false;
   let bleConnecting = false;
   let bleError = '';
+  let gunMode = 'auto'; // 'auto' | 'semi'
+
+  async function toggleGunMode() {
+    gunMode = gunMode === 'auto' ? 'semi' : 'auto';
+    try {
+      await setGunMode(gunMode);
+    } catch (e) {
+      bleError = bleErrorMessage(e);
+    }
+  }
 
   async function connectGunMidGame() {
     if (!isBleAvailable()) {
@@ -82,6 +93,26 @@
     </button>
   </div>
 
+  <!-- Bottom-right: HP bar above, personal stats below -->
+  <div class="hud-bottom-right">
+    <div class="health-wrap">
+      <HealthBar />
+    </div>
+    <div class="stats-bar">
+      <div class="stat" title="Kills"><span class="stat-icon">💀</span>{$myScore?.kills ?? 0}</div>
+      <div class="stat" title="Hits landed"><span class="stat-icon">🎯</span>{$myScore?.hits ?? 0}</div>
+      <div class="stat" title="Times you were hit"><span class="stat-icon">🩸</span>{$myScore?.timesHit ?? 0}</div>
+    </div>
+  </div>
+
+  <!-- Respawn overlay -->
+  {#if !$isAlive}
+    <div class="respawn-overlay">
+      <div class="respawn-title">YOU ARE DOWN</div>
+      <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
+    </div>
+  {/if}
+
   <!-- Score overlay -->
   {#if showScores}
     <div class="scores-overlay">
@@ -110,7 +141,12 @@
       <div class="gps-error">GPS: {$gpsError}</div>
     {/if}
     {#if usingBle}
-      <div class="sim-hint ble-hint">BLE gun active</div>
+      <div class="ble-active-row">
+        <span class="sim-hint ble-hint">BLE gun active</span>
+        <button class="btn-gun-mode" class:semi={gunMode === 'semi'} on:click={toggleGunMode}>
+          {gunMode === 'auto' ? 'AUTO' : 'SEMI'}
+        </button>
+      </div>
     {:else}
       <div class="ble-connect-row">
         <button class="btn-connect-gun" on:click={connectGunMidGame} disabled={bleConnecting}>
@@ -186,6 +222,65 @@
     padding: 6px 10px;
     font-size: 16px;
     cursor: pointer;
+  }
+
+  .hud-bottom-right {
+    position: absolute;
+    bottom: 16px;
+    right: 12px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 6px;
+  }
+  .stat {
+    background: rgba(0,0,0,0.7);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .stat-icon { font-size: 12px; }
+
+  .health-wrap {
+    align-self: stretch;
+  }
+
+  .respawn-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1500;
+    background: rgba(20,0,0,0.78);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  .respawn-title {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: #ff5252;
+    text-shadow: 0 0 20px rgba(255,82,82,0.6);
+  }
+  .respawn-count {
+    font-size: 18px;
+    color: #fff;
+    letter-spacing: 1px;
+    font-variant-numeric: tabular-nums;
   }
 
   .scores-overlay {
@@ -301,6 +396,29 @@
     color: rgba(255,255,255,0.4);
   }
   .ble-hint { color: #00c853; }
+
+  .ble-active-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn-gun-mode {
+    background: rgba(0, 229, 255, 0.12);
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    border-radius: 6px;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-gun-mode.semi {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.5);
+    color: #ffc107;
+  }
   kbd {
     background: rgba(255,255,255,0.1);
     border: 1px solid rgba(255,255,255,0.2);

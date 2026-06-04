@@ -8,7 +8,16 @@ export const isHost = writable(false);
 export const username = writable('');
 
 export const gameState = writable(GAME_STATES.WAITING);
-export const gameConfig = writable({ mode: GAME_MODES.FFA, timeLimit: 7, scoreLimit: 20 });
+export const gameConfig = writable({
+  mode: GAME_MODES.FFA,
+  timeLimit: 7,
+  scoreLimit: 20,
+  bulletsPerMag: 30,
+  hpPerPlayer: 100,
+  hpCostPerHit: 25,
+  reloadDelaySecs: 3,
+  respawnDelaySecs: 10,
+});
 export const players = writable([]);
 export const hostId = writable(null);
 export const scores = writable([]);
@@ -28,6 +37,16 @@ export const isReloading = writable(false);
 export const shieldActive = writable(false);
 export const stealthActive = writable(false);
 
+// Health / respawn state (host-tunable, set from GAME_STARTED)
+export const hp = writable(100);
+export const maxHp = writable(100);
+export const isAlive = writable(true);
+export const respawnCountdown = writable(null); // seconds left while dead, else null
+
+// Host-tunable gameplay settings consumed by the gun/simulator
+export const bulletsPerMag = writable(30);
+export const reloadDelaySecs = writable(3);
+
 // BLE connection state — persists across game resets
 export const bleConnected = writable(false);
 export const gunSlotId = writable(0);
@@ -40,6 +59,19 @@ export const myPlayer = derived([players, myId], ([$players, $myId]) =>
   $players.find(p => p.id === $myId) ?? null
 );
 
+// My live score entry, resolved across FFA (flat) and TDM (nested teams) shapes.
+export const myScore = derived([scores, myId], ([$scores, $myId]) => {
+  for (const entry of $scores) {
+    if (entry.players) {
+      const found = entry.players.find(p => p.id === $myId);
+      if (found) return found;
+    } else if (entry.id === $myId) {
+      return entry;
+    }
+  }
+  return null;
+});
+
 export function resetGame() {
   scores.set([]);
   timeRemaining.set(0);
@@ -51,6 +83,8 @@ export function resetGame() {
   isReloading.set(false);
   shieldActive.set(false);
   stealthActive.set(false);
+  isAlive.set(true);
+  respawnCountdown.set(null);
 }
 
 export function saveSession(name) {
