@@ -5,7 +5,7 @@ import { RootStackParamList } from '../navigation/index.js';
 import { useGameStore, ScoreEntry } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
 import { sendPosition, sendStopGame } from '../lib/network.js';
-import { applyGunAssignment, connectBle, setGunMode } from '../lib/ble.js';
+import { applyGunAssignment, connectBle, setGunMode, GUN_MODES, GUN_MODE_CYCLE, GunMode } from '../lib/ble.js';
 import GameMap from '../components/GameMap.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'InGame'>;
@@ -62,10 +62,11 @@ export default function InGameScreen(_props: Props) {
     connectBle().catch(e => Alert.alert('BLE Error', e.message));
   }
 
-  const [gunMode, setGunModeState] = useState<'auto' | 'semi'>('auto');
+  const [gunMode, setGunModeState] = useState<GunMode>('auto');
 
-  function toggleGunMode() {
-    const next = gunMode === 'auto' ? 'semi' : 'auto';
+  function cycleGunMode() {
+    const i = GUN_MODE_CYCLE.indexOf(gunMode);
+    const next = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
     setGunModeState(next);
     setGunMode(next).catch(e => Alert.alert('BLE Error', e.message));
   }
@@ -148,9 +149,9 @@ export default function InGameScreen(_props: Props) {
           {shieldActive && <Text style={styles.statusIcon}>🛡</Text>}
           {stealthActive && <Text style={styles.statusIcon}>👻</Text>}
           {bleConnected ? (
-            <TouchableOpacity onPress={toggleGunMode}>
-              <Text style={[styles.gunMode, gunMode === 'semi' && styles.gunModeSemi]}>
-                {gunMode === 'auto' ? 'AUTO' : 'SEMI'}
+            <TouchableOpacity onPress={cycleGunMode}>
+              <Text style={[styles.gunMode, GUN_MODE_STYLES[gunMode]]}>
+                {GUN_MODES[gunMode].label}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -342,10 +343,21 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: 'hidden',
   },
+  // AUTO uses the base gunMode (cyan) style.
   gunModeSemi: {
     color: '#ffc107',
     backgroundColor: 'rgba(255,193,7,0.15)',
     borderColor: 'rgba(255,193,7,0.5)',
+  },
+  gunModeBurst: {
+    color: '#ff9800',
+    backgroundColor: 'rgba(255,152,0,0.15)',
+    borderColor: 'rgba(255,152,0,0.5)',
+  },
+  gunModePlasma: {
+    color: '#e040fb',
+    backgroundColor: 'rgba(224,64,251,0.15)',
+    borderColor: 'rgba(224,64,251,0.5)',
   },
   stopBtn: {
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -355,3 +367,11 @@ const styles = StyleSheet.create({
   },
   stopBtnText: { color: '#e63946', fontWeight: '700' },
 });
+
+// Per-mode accent applied on top of styles.gunMode. AUTO keeps the base style.
+const GUN_MODE_STYLES: Record<GunMode, object | undefined> = {
+  semi:   styles.gunModeSemi,
+  burst:  styles.gunModeBurst,
+  auto:   undefined,
+  plasma: styles.gunModePlasma,
+};

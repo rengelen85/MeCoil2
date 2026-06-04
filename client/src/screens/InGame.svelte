@@ -9,17 +9,18 @@
   import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
-  import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode } from '../lib/ble.js';
+  import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
   import { sendPosition, sendStopGame, sendLeaveRoom } from '../lib/network.js';
   import { GAME_MODES } from '../../../shared/messages.js';
 
   let showScores = false;
   let bleConnecting = false;
   let bleError = '';
-  let gunMode = 'auto'; // 'auto' | 'semi'
+  let gunMode = 'auto'; // key of GUN_MODES
 
-  async function toggleGunMode() {
-    gunMode = gunMode === 'auto' ? 'semi' : 'auto';
+  async function cycleGunMode() {
+    const i = GUN_MODE_CYCLE.indexOf(gunMode);
+    gunMode = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
     try {
       await setGunMode(gunMode);
     } catch (e) {
@@ -143,8 +144,8 @@
     {#if usingBle}
       <div class="ble-active-row">
         <span class="sim-hint ble-hint">BLE gun active</span>
-        <button class="btn-gun-mode" class:semi={gunMode === 'semi'} on:click={toggleGunMode}>
-          {gunMode === 'auto' ? 'AUTO' : 'SEMI'}
+        <button class="btn-gun-mode" data-mode={gunMode} on:click={cycleGunMode}>
+          {GUN_MODES[gunMode].label}
         </button>
       </div>
     {:else}
@@ -413,11 +414,23 @@
     padding: 4px 12px;
     cursor: pointer;
     font-family: inherit;
+    min-width: 64px;
   }
-  .btn-gun-mode.semi {
+  /* AUTO uses the default cyan accent. */
+  .btn-gun-mode[data-mode="semi"] {
     background: rgba(255, 193, 7, 0.15);
     border-color: rgba(255, 193, 7, 0.5);
     color: #ffc107;
+  }
+  .btn-gun-mode[data-mode="burst"] {
+    background: rgba(255, 152, 0, 0.15);
+    border-color: rgba(255, 152, 0, 0.5);
+    color: #ff9800;
+  }
+  .btn-gun-mode[data-mode="plasma"] {
+    background: rgba(224, 64, 251, 0.15);
+    border-color: rgba(224, 64, 251, 0.5);
+    color: #e040fb;
   }
   kbd {
     background: rgba(255,255,255,0.1);

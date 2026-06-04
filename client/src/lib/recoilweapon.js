@@ -271,8 +271,10 @@ class RecoilGun {
       view.setUint8(7,  weaponProfile.muzzleLedPower);
       view.setUint8(8,  0xff);
       view.setUint8(9,  weaponProfile.motorPower);
+      // byte 10: FlashLED1 (high nibble) | FlashLED2 (low nibble, unused = 0)
       view.setUint8(10, ((weaponProfile.muzzleFlashMode & 0x0f) << 4) | 0x00);
-      view.setUint8(11, ((weaponProfile.flashParam2 & 0x0f) << 4) | (weaponProfile.flashParam2 & 0x0f));
+      // byte 11: FlashParam1 (high nibble) | FlashParam2 (low nibble)
+      view.setUint8(11, ((weaponProfile.flashParam1 & 0x0f) << 4) | (weaponProfile.flashParam2 & 0x0f));
       try {
         await this._CONFIGCHAR.writeValue(buffer);
         resolve();

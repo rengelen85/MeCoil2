@@ -3,14 +3,29 @@ import { sendFire, sendHit } from './network.js';
 import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId } from '../stores/game.js';
 import { get } from 'svelte/store';
 
-// Weapon trigger modes (the profile's TriggerMode byte), per the gun firmware:
-//   0       = plasma  (charge while held, fire accumulated shot on release)
-//   1       = single shot (one round per trigger press) — our "SEMI"
-//   2–253   = N-round burst
-//   254     = full auto (repeat one round per rate-of-fire period while held)
-// Burst/auto/plasma all repeat on the rate-of-fire period, so rateOfFire must
-// be non-zero (see DEFAULT_PROFILE) for AUTO to actually fire continuously.
-export const TRIGGER_MODE = { AUTO: 0xfe, SEMI: 0x01 };
+// Muzzle-flash (FlashLED1) modes — see docs/Recoil_Gun_Firmware_Config_Guide.md.
+//   square wave: flashParam1 = flashes per shot, flashParam2 = flash duration (100ms units)
+//   glow:        flashParam1 = flashes on release, flashParam2 = glow period (500ms units)
+const FLASH = { NONE: 0, SQUARE: 1, GLOW: 2, SOLID: 3 };
+
+// Selectable fire modes. The firmware's TriggerMode byte encodes the mode and,
+// for burst, doubles as the burst length N (2–253). rateOfFire is in 50ms units
+// and sets the repeat/charge period (irrelevant for single shot).
+// See docs/Recoil_Gun_Firmware_Config_Guide.md.
+//   plasma 0    — charge while held (4 rounds / period), fire on release
+//   semi   1    — one round per trigger press
+//   burst  N    — one round on press, then up to N total, one per period
+//   auto   254  — one round on press, then one per period until release/empty
+const BURST_LENGTH = 3;
+export const GUN_MODES = {
+  // label, TriggerMode/RateOfFire, plus per-mode muzzle flash (mode + params).
+  semi:   { label: 'SEMI',   triggerMode: 0x01,         rateOfFire: 20, flashMode: FLASH.SQUARE, flashParam1: 1,            flashParam2: 3 }, // single shot
+  burst:  { label: 'BURST',  triggerMode: BURST_LENGTH, rateOfFire: 2,  flashMode: FLASH.SQUARE, flashParam1: BURST_LENGTH, flashParam2: 3 }, // N rounds at full-auto cadence
+  auto:   { label: 'AUTO',   triggerMode: 0xfe,         rateOfFire: 2,  flashMode: FLASH.SQUARE, flashParam1: 4,            flashParam2: 3 }, // full auto, ~100ms cadence
+  plasma: { label: 'PLASMA', triggerMode: 0x00,         rateOfFire: 20, flashMode: FLASH.GLOW,   flashParam1: 15,           flashParam2: 4 }, // charge-up glow, fire on release
+};
+// Order the in-game button cycles through.
+export const GUN_MODE_CYCLE = ['semi', 'burst', 'auto', 'plasma'];
 
 // Fallbacks used before a game starts and host settings arrive.
 const DEFAULT_MAGAZINE_SIZE = 10;
@@ -19,17 +34,18 @@ const DEFAULT_RELOAD_MS     = 2_500;
 const magazineSize = () => get(bulletsPerMag) || DEFAULT_MAGAZINE_SIZE;
 const reloadMs     = () => (get(reloadDelaySecs) || 0) * 1_000 || DEFAULT_RELOAD_MS;
 
-// Default weapon profile — RK-45 equivalent.
+// Default weapon profile — RK-45 equivalent (matches the AUTO mode below).
 // Field names match recoilweapon.js _setWeaponProfile expectations.
 const DEFAULT_PROFILE = {
-  triggerMode:    0xfe, // full auto
-  rateOfFire:     2,    // 50ms units → ~10 rounds/sec; MUST be >0 or auto/burst never repeats
-  narrowIrPower:  80,
-  wideIrPower:    0,
-  muzzleLedPower: 255,
-  motorPower:     18,
-  muzzleFlashMode: 0,
-  flashParam2:    3,
+  triggerMode:     0xfe, // full auto
+  rateOfFire:      2,    // 50ms units → ~10 rounds/sec; MUST be >0 or auto/burst never repeats
+  narrowIrPower:   80,
+  wideIrPower:     0,
+  muzzleLedPower:  255,
+  motorPower:      18,
+  muzzleFlashMode: FLASH.SQUARE,
+  flashParam1:     4,
+  flashParam2:     3,
 };
 
 // The profile currently written to the active weapon slot. Tracked so a mode
@@ -89,13 +105,20 @@ export async function applyGunAssignment(slotId, profile = DEFAULT_PROFILE) {
   maxAmmo.set(mag);
 }
 
-// Switch the connected gun between automatic and semi-automatic fire.
-// `mode` is 'auto' or 'semi'. Rewrites the active slot's profile, changing only
-// the TriggerMode byte and preserving the rest of the applied profile.
+// Switch the connected gun's fire mode (a key of GUN_MODES). Rewrites the active
+// slot's profile, changing the TriggerMode and RateOfFire bytes while preserving
+// the rest of the applied profile.
 export async function setGunMode(mode) {
   if (!get(bleConnected)) return;
-  const triggerMode = mode === 'semi' ? TRIGGER_MODE.SEMI : TRIGGER_MODE.AUTO;
-  _activeProfile = { ..._activeProfile, triggerMode };
+  const cfg = GUN_MODES[mode] ?? GUN_MODES.auto;
+  _activeProfile = {
+    ..._activeProfile,
+    triggerMode:     cfg.triggerMode,
+    rateOfFire:      cfg.rateOfFire,
+    muzzleFlashMode: cfg.flashMode,
+    flashParam1:     cfg.flashParam1,
+    flashParam2:     cfg.flashParam2,
+  };
   await gun.setWeaponProfile(_activeProfile, get(gunSlotId));
 }
 

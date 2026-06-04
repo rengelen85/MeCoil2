@@ -11,7 +11,8 @@
     "wideIrPower": 0,
     "muzzleLedPower": 200,
     "motorPower": 12,
-    "muzzleFlashMode": 0,
+    "muzzleFlashMode": 1,
+    "flashParam1": 1,
     "flashParam2": 1
   }
 }
