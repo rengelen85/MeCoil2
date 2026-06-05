@@ -1,6 +1,7 @@
 import { S2C, C2S, GAME_STATES } from 'shared/messages.js';
 import { useGameStore, saveSession } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
+import { playKilled, playRespawn } from './audio.js';
 
 let ws: WebSocket | null = null;
 let _getPosition: () => { lat: number | null; lng: number | null } = () => ({
@@ -171,6 +172,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       if (msg.playerId === game.myId) {
         game.setHp(0);
         game.setIsAlive(false);
+        playKilled();
         _startRespawnCountdown((msg.respawnIn as number) ?? 10);
       }
       break;
@@ -180,6 +182,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
         game.setHp(msg.hp as number);
         game.setMaxHp(msg.maxHp as number);
         game.setIsAlive(true);
+        playRespawn();
         _stopRespawnCountdown();
         game.setRespawnCountdown(null);
       }

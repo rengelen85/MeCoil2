@@ -16,6 +16,7 @@ export class BaseMode {
     this._posTimer = null;
     this._endAt = null;
     this._ended = false;
+    this._powerupsStarted = false;
   }
 
   start() {
@@ -26,11 +27,10 @@ export class BaseMode {
       p.resetForGame(this.config.hpPerPlayer ?? 100);
     }
 
-    // Use first known position as power-up spawn center
-    const first = [...this.players.values()].find(p => p.lat !== null);
-    if (first) {
-      this.powerupManager.start(first.lat, first.lng);
-    }
+    // Try to start power-up spawning immediately; if no player has a GPS fix yet
+    // (clients only start GPS once they reach the in-game screen), _tick keeps
+    // retrying until a position is known so power-ups still appear.
+    this._tryStartPowerups();
 
     this._stateTimer = setInterval(() => {
       this._tick();
@@ -53,7 +53,19 @@ export class BaseMode {
     this.powerupManager.stop();
   }
 
+  // Power-up spawning needs a center point (the first known player position).
+  // At game start no client has sent a GPS fix yet, so this is retried each tick
+  // until a position is available, then the spawner runs for the rest of the game.
+  _tryStartPowerups() {
+    if (this._powerupsStarted) return;
+    const first = [...this.players.values()].find(p => p.lat !== null);
+    if (!first) return;
+    this.powerupManager.start(first.lat, first.lng);
+    this._powerupsStarted = true;
+  }
+
   _tick() {
+    this._tryStartPowerups();
     const remaining = Math.max(0, this._endAt - Date.now());
     this.broadcast({
       type: S2C.GAME_STATE,

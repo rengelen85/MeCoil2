@@ -10,6 +10,7 @@ import {
   gameId, roundId,
 } from '../stores/game.js';
 import { teammates, firingEnemies, powerups } from '../stores/map.js';
+import { playKilled, playRespawn } from './audio.js';
 
 let ws = null;
 let _getPosition = () => ({ lat: null, lng: null });
@@ -190,6 +191,7 @@ function _handle(msg) {
       if (msg.playerId === get(myId)) {
         hp.set(0);
         isAlive.set(false);
+        playKilled();
         _startRespawnCountdown(msg.respawnIn ?? 10);
       }
       break;
@@ -199,6 +201,7 @@ function _handle(msg) {
         hp.set(msg.hp);
         maxHp.set(msg.maxHp);
         isAlive.set(true);
+        playRespawn();
         _stopRespawnCountdown();
         respawnCountdown.set(null);
       }

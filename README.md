@@ -115,7 +115,7 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mec
 |--------|-------------|
 | **Setup** | Enter a callsign, optionally pair a BLE gun |
 | **Lobby** | Wait for players, configure the game (host only), ready up |
-| **In Game** | Live GPS map, ammo bar, kill feed, timer |
+| **In Game** | Live GPS map, ammo bar, kill feed, timer, synthesized sound effects (reload / killed / respawn) |
 | **End Screen** | Final scores, back to lobby for another round |
 
 ### Game Modes
@@ -173,6 +173,7 @@ MeCoil/
 │   │   │   ├── ble.js        # Web Bluetooth wrapper (connect, fire, reload, hit)
 │   │   │   ├── recoilweapon.js  # Low-level Goliath BLE driver (ported from Scope project)
 │   │   │   ├── simulator.js  # Keyboard gun simulator
+│   │   │   ├── audio.js      # Synthesized sound effects (Web Audio, no assets)
 │   │   │   └── network.js    # WebSocket client and message dispatcher
 │   │   └── stores/
 │   │       ├── game.js       # Svelte stores: screen, players, scores, ammo, BLE state

@@ -7,6 +7,7 @@
 import { sendFire, sendHit } from './network.js';
 import { ammo, isReloading, isAlive, maxAmmo, reloadDelaySecs } from '../stores/game.js';
 import { get } from 'svelte/store';
+import { playReload } from './audio.js';
 
 const FAKE_SHOOTER_WEAPON_ID = 0;
 
@@ -47,6 +48,7 @@ function _fire() {
 function _reload() {
   if (get(isReloading)) return;
   isReloading.set(true);
+  playReload();
   setTimeout(() => {
     ammo.set(get(maxAmmo));
     isReloading.set(false);

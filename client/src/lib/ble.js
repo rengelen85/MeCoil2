@@ -1,5 +1,6 @@
 import { gun } from './recoilweapon.js';
 import { sendFire, sendHit } from './network.js';
+import { playReload } from './audio.js';
 import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId } from '../stores/game.js';
 import { get } from 'svelte/store';
 
@@ -130,7 +131,18 @@ function _onTrigger() {
 function _onReload() {
   if (get(isReloading)) return;
   isReloading.set(true);
-  gun.removeClip();
+  playReload();
+  // Plasma (TriggerMode 0) fires on trigger *release* and keeps charging through
+  // the normal "reload mode" control action, so the gun fires continuously for
+  // the whole reload window. Force the clip empty instead (ammo 0): the firmware
+  // will not auto-fire a plasma shot with an empty clip, so the gun stays silent
+  // until the reload completes. Other modes fire on press, where "reload mode"
+  // correctly suppresses firing, so they keep the original behaviour.
+  if (_activeProfile.triggerMode === GUN_MODES.plasma.triggerMode) {
+    gun.loadClip(0);
+  } else {
+    gun.removeClip();
+  }
   setTimeout(() => {
     gun.loadClip(magazineSize());
     isReloading.set(false);

@@ -14,6 +14,7 @@ import { BleManager, Device, Characteristic } from 'react-native-ble-plx';
 import { Platform, PermissionsAndroid } from 'react-native';
 import { sendFire, sendHit } from './network.js';
 import { useGameStore } from '../stores/game.js';
+import { playReload } from './audio.js';
 
 const SERVICE_UUID      = 'E6F59D10-E878-41BA-A3CE-3B5999FA3D7B';
 const CHAR_TELEMETRY    = 'E6F59D12-E878-41BA-A3CE-3B5999FA3D7B';
@@ -298,7 +299,18 @@ function _onReload() {
   const game = useGameStore.getState();
   if (game.isReloading || !_device) return;
   game.setIsReloading(true);
-  _removeClip(_device);
+  playReload();
+  // Plasma (TriggerMode 0) fires on trigger *release* and keeps charging through
+  // the normal "reload mode" control action, so the gun fires continuously for
+  // the whole reload window. Force the clip empty instead (ammo 0): the firmware
+  // will not auto-fire a plasma shot with an empty clip, so the gun stays silent
+  // until the reload completes. Other modes fire on press, where "reload mode"
+  // correctly suppresses firing, so they keep the original behaviour.
+  if (_activeProfile.triggerMode === GUN_MODES.plasma.triggerMode) {
+    _loadClip(_device, 0);
+  } else {
+    _removeClip(_device);
+  }
   setTimeout(() => {
     if (_device) _loadClip(_device, magazineSize());
     useGameStore.getState().setIsReloading(false);
