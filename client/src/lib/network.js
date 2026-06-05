@@ -4,13 +4,13 @@ import {
   myId, isHost, players, gameConfig, hostId,
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
-  ammo, maxAmmo, shieldActive, stealthActive, gunSlotId,
+  ammo, maxAmmo, shieldActive, stealthActive, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
   hp, maxHp, isAlive, respawnCountdown, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
 } from '../stores/game.js';
-import { teammates, firingEnemies, powerups } from '../stores/map.js';
-import { playKilled, playRespawn } from './audio.js';
+import { teammates, firingEnemies, powerups, airstrikes } from '../stores/map.js';
+import { playKilled, playRespawn, playAirstrikeWarning } from './audio.js';
 
 let ws = null;
 let _getPosition = () => ({ lat: null, lng: null });
@@ -80,6 +80,10 @@ export function sendHit(shooterWeaponId) {
 
 export function sendCollect(powerupId) {
   send({ type: C2S.COLLECT, powerupId });
+}
+
+export function sendDeployAirstrike(lat, lng) {
+  send({ type: C2S.DEPLOY_AIRSTRIKE, lat, lng });
 }
 
 export function sendStopGame() {
@@ -158,6 +162,7 @@ function _handle(msg) {
       teammates.set([]);
       firingEnemies.set([]);
       powerups.set([]);
+      airstrikes.set([]);
       screen.set('ingame');
       break;
     }
@@ -166,7 +171,7 @@ function _handle(msg) {
       if (msg.scores) scores.set(msg.scores);
       if (msg.timeRemaining != null) timeRemaining.set(msg.timeRemaining);
       if (msg.killFeed) killFeed.set(msg.killFeed);
-      if (msg.event?.powerupCollected) {
+      if (msg.event?.powerupCollected?.playerId === get(myId)) {
         _applyLocalPowerupFeedback(msg.event.powerupCollected);
       }
       break;
@@ -178,6 +183,19 @@ function _handle(msg) {
 
     case S2C.POWERUPS:
       powerups.set(msg.packages ?? []);
+      break;
+
+    case S2C.AIRSTRIKE_INCOMING:
+      airstrikes.update(list => [
+        ...list.filter(a => a.id !== msg.id),
+        { id: msg.id, lat: msg.lat, lng: msg.lng, radius: msg.radius, detonateAt: msg.detonateAt },
+      ]);
+      playAirstrikeWarning();
+      break;
+
+    case S2C.AIRSTRIKE_HIT:
+      // Blast resolved — drop the warning marker. Damage arrives via PLAYER_HP/DEAD.
+      airstrikes.update(list => list.filter(a => a.id !== msg.id));
       break;
 
     case S2C.PLAYER_HP:
@@ -236,6 +254,12 @@ function _applyLocalPowerupFeedback({ type }) {
     case 'healthPack': hp.set(get(maxHp)); break;
     case 'shield': shieldActive.set(true); break;
     case 'stealth': stealthActive.set(true); break;
+    case 'radar':
+      radarActive.set(true);
+      // Radar lasts one minute server-side; clear the indicator to match.
+      setTimeout(() => radarActive.set(false), 60_000);
+      break;
+    case 'airstrike': airstrikeReady.update(n => n + 1); break;
   }
 }
 

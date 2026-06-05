@@ -1,12 +1,31 @@
 import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
-import MapView, { Marker, LatLng, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Circle, LatLng, PROVIDER_DEFAULT, MapPressEvent } from 'react-native-maps';
 import { useMapStore } from '../stores/map.js';
 import { useGameStore } from '../stores/game.js';
+import { sendDeployAirstrike } from '../lib/network.js';
+
+const POWERUP_EMOJI: Record<string, string> = {
+  fullReload: '🔋',
+  healthPack: '🩹',
+  shield: '🛡️',
+  stealth: '👻',
+  radar: '📡',
+  airstrike: '🚀',
+};
 
 export default function GameMap() {
-  const { myPosition, teammates, firingEnemies, powerups, heading } = useMapStore();
-  const { gameConfig } = useGameStore();
+  const { myPosition, teammates, firingEnemies, powerups, airstrikes, heading } = useMapStore();
+  const { airstrikeArmed, airstrikeReady, setAirstrikeArmed, setAirstrikeReady } = useGameStore();
+
+  // When an airstrike is armed, the next map tap calls it in at that point.
+  function onMapPress(e: MapPressEvent) {
+    if (!airstrikeArmed) return;
+    const { latitude, longitude } = e.nativeEvent.coordinate;
+    sendDeployAirstrike(latitude, longitude);
+    setAirstrikeArmed(false);
+    setAirstrikeReady(Math.max(0, airstrikeReady - 1));
+  }
 
   if (!myPosition) {
     return (
@@ -35,6 +54,7 @@ export default function GameMap() {
       // Rotate map to heading-up orientation (north always toward top of screen
       // would be 0; heading-up means bearing = heading degrees)
       camera={{ center, heading: heading ?? 0, pitch: 0, zoom: 18 }}
+      onPress={onMapPress}
       showsUserLocation={false}
       showsCompass={false}
       showsScale={false}
@@ -68,15 +88,35 @@ export default function GameMap() {
         </Marker>
       ))}
 
-      {/* Power-ups (blue) */}
+      {/* Power-ups */}
       {powerups.map(p => (
         <Marker
           key={`pu-${p.id}`}
           coordinate={{ latitude: p.lat, longitude: p.lng }}
           anchor={{ x: 0.5, y: 0.5 }}
           title={p.type}>
-          <View style={styles.powerupDot} />
+          <View style={styles.powerupDot}>
+            <Text style={styles.powerupEmoji}>{POWERUP_EMOJI[p.type] ?? '📦'}</Text>
+          </View>
         </Marker>
+      ))}
+
+      {/* Inbound airstrikes: blast zone + target marker */}
+      {airstrikes.map(a => (
+        <React.Fragment key={`as-${a.id}`}>
+          <Circle
+            center={{ latitude: a.lat, longitude: a.lng }}
+            radius={a.radius}
+            strokeColor="#ff1744"
+            strokeWidth={2}
+            fillColor="rgba(255,23,68,0.2)"
+          />
+          <Marker
+            coordinate={{ latitude: a.lat, longitude: a.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}>
+            <Text style={styles.airstrikeTarget}>💥</Text>
+          </Marker>
+        </React.Fragment>
       ))}
     </MapView>
   );
@@ -121,11 +161,19 @@ const styles = StyleSheet.create({
     borderColor: '#000',
   },
   powerupDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#457b9d',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     borderWidth: 2,
     borderColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  powerupEmoji: {
+    fontSize: 14,
+  },
+  airstrikeTarget: {
+    fontSize: 24,
   },
 });

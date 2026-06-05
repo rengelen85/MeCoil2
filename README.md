@@ -115,7 +115,7 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mec
 |--------|-------------|
 | **Setup** | Enter a callsign, optionally pair a BLE gun |
 | **Lobby** | Wait for players, configure the game (host only), ready up |
-| **In Game** | Live GPS map, ammo bar, kill feed, timer, synthesized sound effects (reload / killed / respawn) |
+| **In Game** | Live GPS map, ammo bar, kill feed, timer, synthesized sound effects (reload / killed / respawn / airstrike alert) |
 | **End Screen** | Final scores, back to lobby for another round |
 
 ### Game Modes
@@ -124,6 +124,21 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mec
 |------|-------------|
 | **Free for All (FFA)** | Every player for themselves, highest kills wins |
 | **Team Deathmatch (TDM)** | Red vs Blue, auto-balanced teams |
+
+### Power-ups
+
+Power-ups spawn periodically around the play area. Walk onto one (or tap it on the map) to collect it.
+
+| Power-up | Icon | Effect |
+|----------|------|--------|
+| **Full Reload** | 🔋 | Instantly refills your magazine |
+| **Health Pack** | 🩹 | Restores you to full HP |
+| **Shield** | 🛡️ | Adds bonus HP on top of your max |
+| **Stealth** | 👻 | Hides you from enemy maps for 30s |
+| **Radar** | 📡 | Reveals **every** living enemy on your map for 1 minute (even stealthed ones) |
+| **Airstrike** | 🚀 | Held until you call it in: arm it, tap a spot on the map, and after a short warning everyone in the blast radius is killed. All players see an **INCOMING AIRSTRIKE** alert with a countdown and must clear the zone |
+
+> Airstrikes respect the friendly-fire setting — with it off, teammates (and the caller) inside the blast are spared.
 
 ### Controls
 
@@ -249,6 +264,7 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
 | `fire` | `{ lat, lng }` | Trigger pressed — makes player visible to enemies for 3s |
 | `hit` | `{ shooterWeaponId }` | IR event received from gun |
 | `collect` | `{ powerupId }` | Collect a power-up |
+| `deployAirstrike` | `{ lat, lng }` | Call in a held airstrike at a map point |
 
 ### Server → Client
 
@@ -259,8 +275,10 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
 | `countdown` | `{ startsAt }` | Game starting, timestamp of start |
 | `gameStarted` | `{ mode, timeLimit, scoreLimit, gunAssignments }` | Game begins |
 | `gameState` | `{ scores, timeRemaining, killFeed }` | Periodic (1/sec) |
-| `positions` | `{ teammates, firingEnemies }` | Map update, filtered per player |
+| `positions` | `{ teammates, firingEnemies }` | Map update, filtered per player (radar reveals all living enemies) |
 | `powerups` | `{ packages }` | Current power-up locations |
+| `airstrikeIncoming` | `{ id, lat, lng, radius, detonateAt, by }` | An airstrike is inbound — evacuate before `detonateAt` |
+| `airstrikeHit` | `{ id, lat, lng, radius }` | An airstrike detonated (drives the blast FX) |
 | `gameEnded` | `{ finalScores, winner }` | Match over |
 
 ---

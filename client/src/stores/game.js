@@ -36,6 +36,9 @@ export const maxAmmo = writable(30);
 export const isReloading = writable(false);
 export const shieldActive = writable(false);
 export const stealthActive = writable(false);
+export const radarActive = writable(false);     // enemies revealed on my map
+export const airstrikeReady = writable(0);       // held airstrikes available to deploy
+export const airstrikeArmed = writable(false);   // armed: next map tap calls the strike
 
 // Health / respawn state (host-tunable, set from GAME_STARTED)
 export const hp = writable(100);
@@ -83,6 +86,9 @@ export function resetGame() {
   isReloading.set(false);
   shieldActive.set(false);
   stealthActive.set(false);
+  radarActive.set(false);
+  airstrikeReady.set(0);
+  airstrikeArmed.set(false);
   isAlive.set(true);
   respawnCountdown.set(null);
 }

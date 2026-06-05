@@ -112,6 +112,11 @@ export class GameManager {
         if (this.state !== GAME_STATES.PLAYING) return;
         this._tryCollect(player, msg.powerupId);
         break;
+
+      case C2S.DEPLOY_AIRSTRIKE:
+        if (this.state !== GAME_STATES.PLAYING) return;
+        this._mode?.deployAirstrike(player, msg.lat, msg.lng);
+        break;
     }
   }
 

@@ -3,6 +3,23 @@ import { S2C, POWERUP_TYPES } from '../../shared/messages.js';
 const STATE_INTERVAL_MS = 1_000;
 const POSITION_INTERVAL_MS = 1_000;
 const ENEMY_VISIBLE_MS = 3_000;
+const RADAR_DURATION_MS = 60_000;   // radar reveals all enemies for one minute
+const AIRSTRIKE_RADIUS_M = 30;      // lethal blast radius
+const AIRSTRIKE_WARNING_MS = 8_000; // evacuation window before detonation
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+let nextAirstrikeId = 1;
 
 export class BaseMode {
   constructor(players, config, broadcast, powerupManager, onEnd) {
@@ -17,6 +34,7 @@ export class BaseMode {
     this._endAt = null;
     this._ended = false;
     this._powerupsStarted = false;
+    this._airstrikeTimers = [];
   }
 
   start() {
@@ -50,6 +68,8 @@ export class BaseMode {
         p.respawnTimer = null;
       }
     }
+    for (const t of this._airstrikeTimers) clearTimeout(t);
+    this._airstrikeTimers = [];
     this.powerupManager.stop();
   }
 
@@ -91,6 +111,9 @@ export class BaseMode {
     for (const [_id, player] of this.players) {
       const teammates = [];
       const firingEnemies = [];
+      // While radar is active this player sees every living enemy, even stealthed
+      // ones; otherwise enemies only blip when they fire.
+      const hasRadar = this._isRadar(player);
 
       for (const [, other] of this.players) {
         if (other.id === player.id) continue;
@@ -107,7 +130,11 @@ export class BaseMode {
             maxHp: other.maxHp,
             isAlive: other.isAlive,
           });
-        } else if (other.isAlive && other.lastFireAt && now - other.lastFireAt < ENEMY_VISIBLE_MS && !this._isStealth(other)) {
+        } else if (
+          other.isAlive &&
+          (hasRadar ||
+            (other.lastFireAt && now - other.lastFireAt < ENEMY_VISIBLE_MS && !this._isStealth(other)))
+        ) {
           firingEnemies.push({ id: other.id, lat: other.lat, lng: other.lng });
         }
       }
@@ -118,6 +145,10 @@ export class BaseMode {
 
   _isStealth(player) {
     return Date.now() < player.stealthUntil;
+  }
+
+  _isRadar(player) {
+    return Date.now() < player.radarUntil;
   }
 
   // Override in subclasses:
@@ -152,12 +183,19 @@ export class BaseMode {
   }
 
   _registerKill(shooter, victim) {
-    shooter.kills++;
+    this._killPlayer(victim, shooter);
+  }
+
+  // Lethal takedown shared by gunfire and airstrikes. `killer` may be null or the
+  // victim themselves (e.g. caught in their own blast) — then it's an uncredited death.
+  _killPlayer(victim, killer) {
+    const credited = killer && killer.id !== victim.id;
     victim.deaths++;
     victim.isAlive = false;
+    if (credited) killer.kills++;
     this.killFeed.push({
       at: Date.now(),
-      shooterName: shooter.username,
+      shooterName: credited ? killer.username : 'Airstrike',
       victimName: victim.username,
     });
 
@@ -165,14 +203,14 @@ export class BaseMode {
     this.broadcast({
       type: S2C.PLAYER_DEAD,
       playerId: victim.id,
-      killerId: shooter.id,
+      killerId: credited ? killer.id : null,
       respawnIn: respawnSecs,
     });
 
     victim.respawnTimer = setTimeout(() => this._respawn(victim), respawnSecs * 1_000);
 
     const scoreLimit = this.config.scoreLimit ?? Infinity;
-    if (this._checkWinCondition(shooter, scoreLimit)) {
+    if (credited && this._checkWinCondition(killer, scoreLimit)) {
       this._end();
     }
   }
@@ -219,6 +257,65 @@ export class BaseMode {
       case POWERUP_TYPES.STEALTH:
         player.stealthUntil = Date.now() + 30_000;
         break;
+      case POWERUP_TYPES.RADAR:
+        player.radarUntil = Date.now() + RADAR_DURATION_MS;
+        break;
+      case POWERUP_TYPES.AIRSTRIKE:
+        // Not an instant effect — the player holds it and deploys it later.
+        player.airstrikesAvailable++;
+        break;
+    }
+  }
+
+  // A player calls in one of their held airstrikes at a chosen map point. Everyone
+  // is warned immediately and has AIRSTRIKE_WARNING_MS to clear the blast radius.
+  deployAirstrike(deployer, lat, lng) {
+    if (!deployer || !deployer.isAlive) return;
+    if (deployer.airstrikesAvailable <= 0) return;
+    if (typeof lat !== 'number' || typeof lng !== 'number') return;
+    deployer.airstrikesAvailable--;
+
+    const id = nextAirstrikeId++;
+    const detonateAt = Date.now() + AIRSTRIKE_WARNING_MS;
+    this.broadcast({
+      type: S2C.AIRSTRIKE_INCOMING,
+      id,
+      lat,
+      lng,
+      radius: AIRSTRIKE_RADIUS_M,
+      detonateAt,
+      by: deployer.username,
+    });
+
+    const timer = setTimeout(
+      () => this._detonateAirstrike(deployer, id, lat, lng),
+      AIRSTRIKE_WARNING_MS,
+    );
+    this._airstrikeTimers.push(timer);
+  }
+
+  _detonateAirstrike(deployer, id, lat, lng) {
+    const victims = [];
+    for (const p of this.players.values()) {
+      if (!p.isAlive || p.lat === null) continue;
+      if (haversineMeters(lat, lng, p.lat, p.lng) > AIRSTRIKE_RADIUS_M) continue;
+      // Respect friendly fire: spare the caller and teammates unless it's enabled.
+      if (!this.config.friendlyFire && (p.id === deployer.id || this._areTeammates(deployer, p))) continue;
+      victims.push(p);
+    }
+
+    this.broadcast({ type: S2C.AIRSTRIKE_HIT, id, lat, lng, radius: AIRSTRIKE_RADIUS_M });
+
+    for (const victim of victims) {
+      victim.hp = 0;
+      victim.timesHit++;
+      this.broadcast({
+        type: S2C.PLAYER_HP,
+        playerId: victim.id,
+        hp: victim.hp,
+        maxHp: victim.maxHp,
+      });
+      this._killPlayer(victim, deployer);
     }
   }
 }

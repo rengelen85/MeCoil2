@@ -1,7 +1,7 @@
 import { S2C, C2S, GAME_STATES } from 'shared/messages.js';
 import { useGameStore, saveSession } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
-import { playKilled, playRespawn } from './audio.js';
+import { playKilled, playRespawn, playAirstrikeWarning } from './audio.js';
 
 let ws: WebSocket | null = null;
 let _getPosition: () => { lat: number | null; lng: number | null } = () => ({
@@ -61,6 +61,8 @@ export const sendHit = (shooterWeaponId: number) =>
   send({ type: C2S.HIT, shooterWeaponId });
 export const sendCollect = (powerupId: number) =>
   send({ type: C2S.COLLECT, powerupId });
+export const sendDeployAirstrike = (lat: number, lng: number) =>
+  send({ type: C2S.DEPLOY_AIRSTRIKE, lat, lng });
 
 function _handle(msg: { type: string; [key: string]: unknown }) {
   const game = useGameStore.getState();
@@ -137,6 +139,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       map.setTeammates([]);
       map.setFiringEnemies([]);
       map.setPowerups([]);
+      map.setAirstrikes([]);
       game.setScreen('ingame');
       break;
     }
@@ -145,10 +148,13 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       if (msg.scores) game.setScores(msg.scores as []);
       if (msg.timeRemaining != null) game.setTimeRemaining(msg.timeRemaining as number);
       if (msg.killFeed) game.setKillFeed(msg.killFeed as []);
-      if ((msg.event as Record<string, unknown>)?.powerupCollected) {
-        _applyLocalPowerupFeedback(
-          (msg.event as Record<string, unknown>).powerupCollected as { type: string },
-        );
+      {
+        const collected = (msg.event as Record<string, unknown>)?.powerupCollected as
+          | { type: string; playerId: number }
+          | undefined;
+        if (collected && collected.playerId === game.myId) {
+          _applyLocalPowerupFeedback(collected);
+        }
       }
       break;
 
@@ -159,6 +165,25 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
 
     case S2C.POWERUPS:
       map.setPowerups((msg.packages as []) ?? []);
+      break;
+
+    case S2C.AIRSTRIKE_INCOMING:
+      map.setAirstrikes([
+        ...map.airstrikes.filter(a => a.id !== msg.id),
+        {
+          id: msg.id as number,
+          lat: msg.lat as number,
+          lng: msg.lng as number,
+          radius: msg.radius as number,
+          detonateAt: msg.detonateAt as number,
+        },
+      ]);
+      playAirstrikeWarning();
+      break;
+
+    case S2C.AIRSTRIKE_HIT:
+      // Blast resolved — drop the warning marker. Damage arrives via PLAYER_HP/DEAD.
+      map.setAirstrikes(map.airstrikes.filter(a => a.id !== msg.id));
       break;
 
     case S2C.PLAYER_HP:
@@ -224,6 +249,14 @@ function _applyLocalPowerupFeedback({ type }: { type: string }) {
       break;
     case 'stealth':
       game.setStealthActive(true);
+      break;
+    case 'radar':
+      game.setRadarActive(true);
+      // Radar lasts one minute server-side; clear the indicator to match.
+      setTimeout(() => useGameStore.getState().setRadarActive(false), 60_000);
+      break;
+    case 'airstrike':
+      game.setAirstrikeReady(game.airstrikeReady + 1);
       break;
   }
 }

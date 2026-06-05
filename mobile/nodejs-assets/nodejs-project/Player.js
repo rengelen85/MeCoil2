@@ -18,6 +18,8 @@ export class Player {
     this.timesHit = 0;    // shots that landed on this player
     this.ammo = 0;
     this.stealthUntil = 0;
+    this.radarUntil = 0;        // sees all enemies until this timestamp
+    this.airstrikesAvailable = 0; // held airstrikes ready to deploy
 
     // Health / respawn
     this.maxHp = 100;
@@ -44,6 +46,8 @@ export class Player {
     this.timesHit = 0;
     this.ammo = 0;
     this.stealthUntil = 0;
+    this.radarUntil = 0;
+    this.airstrikesAvailable = 0;
     this.maxHp = maxHp;
     this.hp = maxHp;
     this.isAlive = true;

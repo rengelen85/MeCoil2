@@ -94,3 +94,12 @@ export function playRespawn() {
     tone(c, { type: 'triangle', from: 494, to: 988, start: 0.16, dur: 0.22, gain: 0.22 });
   });
 }
+
+// Urgent "incoming airstrike" siren — three rising/falling square-wave whoops.
+export function playAirstrikeWarning() {
+  play(c => {
+    tone(c, { type: 'square', from: 440, to: 880, start: 0,    dur: 0.25, gain: 0.22 });
+    tone(c, { type: 'square', from: 440, to: 880, start: 0.30, dur: 0.25, gain: 0.22 });
+    tone(c, { type: 'square', from: 880, to: 220, start: 0.62, dur: 0.40, gain: 0.22 });
+  });
+}

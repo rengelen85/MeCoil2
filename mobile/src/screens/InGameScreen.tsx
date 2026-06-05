@@ -26,6 +26,7 @@ function findMyScore(scores: ScoreEntry[], myId: number | null): ScoreEntry | nu
 export default function InGameScreen(_props: Props) {
   const {
     ammo, maxAmmo, isReloading, shieldActive, stealthActive,
+    radarActive, airstrikeReady, airstrikeArmed, setAirstrikeArmed,
     timeRemaining, scores, myId, isHost, bleConnected, gunSlotId,
     killFeed, hp, maxHp, isAlive, respawnCountdown,
   } = useGameStore();
@@ -34,8 +35,23 @@ export default function InGameScreen(_props: Props) {
   const hpPct = maxHp > 0 ? Math.min(100, Math.round((hp / maxHp) * 100)) : 0;
   const hpColor = hpPct > 50 ? '#00e676' : hpPct > 25 ? '#ffeb3b' : '#ff5252';
 
-  const { myPosition, startGPS, stopGPS, startHeading, stopHeading } =
+  const { startGPS, stopGPS, startHeading, stopHeading, airstrikes } =
     useMapStore();
+
+  // 1s ticker so the incoming-airstrike countdown updates live.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const incomingStrike = airstrikes.length
+    ? Math.max(0, Math.ceil((Math.min(...airstrikes.map(a => a.detonateAt)) - now) / 1000))
+    : null;
+
+  function toggleAirstrike() {
+    if (airstrikeReady <= 0) return;
+    setAirstrikeArmed(!airstrikeArmed);
+  }
 
   const onPosition = useCallback(
     (lat: number, lng: number) => sendPosition(lat, lng),
@@ -78,6 +94,30 @@ export default function InGameScreen(_props: Props) {
   return (
     <View style={styles.container}>
       <GameMap />
+
+      {/* Incoming airstrike warning */}
+      {incomingStrike !== null && (
+        <View style={styles.airstrikeWarning} pointerEvents="none">
+          <Text style={styles.airstrikeWarningTitle}>⚠ INCOMING AIRSTRIKE</Text>
+          <Text style={styles.airstrikeWarningCount}>
+            {incomingStrike}s — CLEAR THE ZONE
+          </Text>
+        </View>
+      )}
+
+      {/* Radar active indicator */}
+      {radarActive && (
+        <View style={styles.radarBadge} pointerEvents="none">
+          <Text style={styles.radarBadgeText}>📡 RADAR</Text>
+        </View>
+      )}
+
+      {/* Airstrike armed hint */}
+      {airstrikeArmed && (
+        <View style={styles.airstrikeArmedHint} pointerEvents="none">
+          <Text style={styles.airstrikeArmedHintText}>Tap the map to call the strike</Text>
+        </View>
+      )}
 
       {/* Top HUD */}
       <View style={styles.topHud}>
@@ -148,6 +188,13 @@ export default function InGameScreen(_props: Props) {
         <View style={styles.statusIcons}>
           {shieldActive && <Text style={styles.statusIcon}>🛡</Text>}
           {stealthActive && <Text style={styles.statusIcon}>👻</Text>}
+          {airstrikeReady > 0 && (
+            <TouchableOpacity onPress={toggleAirstrike}>
+              <Text style={[styles.airstrikeBtn, airstrikeArmed && styles.airstrikeBtnArmed]}>
+                🚀 {airstrikeReady}
+              </Text>
+            </TouchableOpacity>
+          )}
           {bleConnected ? (
             <TouchableOpacity onPress={cycleGunMode}>
               <Text style={[styles.gunMode, GUN_MODE_STYLES[gunMode]]}>
@@ -322,6 +369,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusIcon: { fontSize: 24 },
+  airstrikeBtn: {
+    color: '#ff5252',
+    fontSize: 14,
+    fontWeight: '700',
+    backgroundColor: 'rgba(255,23,68,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,23,68,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  airstrikeBtnArmed: {
+    color: '#fff',
+    backgroundColor: '#ff1744',
+  },
+  airstrikeWarning: {
+    position: 'absolute',
+    top: 92,
+    alignSelf: 'center',
+    zIndex: 50,
+    backgroundColor: 'rgba(40,0,0,0.85)',
+    borderWidth: 1,
+    borderColor: '#ff1744',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  airstrikeWarningTitle: {
+    color: '#ff5252',
+    fontWeight: '900',
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  airstrikeWarningCount: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  radarBadge: {
+    position: 'absolute',
+    top: 130,
+    left: 16,
+    zIndex: 50,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,255,0.5)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  radarBadgeText: {
+    color: '#00e5ff',
+    fontWeight: '700',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  airstrikeArmedHint: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    zIndex: 50,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  airstrikeArmedHintText: {
+    color: '#ff8a80',
+    fontSize: 12,
+  },
   bleWarning: {
     color: '#f4c430',
     fontSize: 14,

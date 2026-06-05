@@ -6,8 +6,8 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown } from '../stores/game.js';
-  import { startGPS, stopGPS, startHeading, stopHeading, gpsError } from '../stores/map.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, radarActive, airstrikeReady, airstrikeArmed } from '../stores/game.js';
+  import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes } from '../stores/map.js';
   import { startSimulator, stopSimulator } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
   import { sendPosition, sendStopGame, sendLeaveRoom } from '../lib/network.js';
@@ -55,9 +55,24 @@
 
   let usingBle = false;
 
+  // 1s ticker so the incoming-airstrike countdown updates live.
+  let now = Date.now();
+  let nowTimer = null;
+
+  // Seconds until the soonest inbound airstrike detonates (null if none).
+  $: incomingStrike = $airstrikes.length
+    ? Math.max(0, Math.ceil((Math.min(...$airstrikes.map(a => a.detonateAt)) - now) / 1000))
+    : null;
+
+  function toggleAirstrike() {
+    if ($airstrikeReady <= 0) return;
+    airstrikeArmed.update(v => !v);
+  }
+
   onMount(() => {
     startGPS((lat, lng) => sendPosition(lat, lng));
     startHeading();
+    nowTimer = setInterval(() => { now = Date.now(); }, 1000);
     if (get(bleConnected)) {
       usingBle = true;
       applyGunAssignment(get(gunSlotId));
@@ -69,6 +84,7 @@
   onDestroy(() => {
     stopGPS();
     stopHeading();
+    if (nowTimer) clearInterval(nowTimer);
     if (!usingBle) stopSimulator();
   });
 
@@ -93,6 +109,19 @@
       {showScores ? '✕' : '⊞'}
     </button>
   </div>
+
+  <!-- Incoming airstrike warning -->
+  {#if incomingStrike !== null}
+    <div class="airstrike-warning">
+      ⚠ INCOMING AIRSTRIKE
+      <span class="airstrike-count">{incomingStrike}s — CLEAR THE ZONE</span>
+    </div>
+  {/if}
+
+  <!-- Radar active indicator -->
+  {#if $radarActive}
+    <div class="radar-badge">📡 RADAR</div>
+  {/if}
 
   <!-- Bottom-right: HP bar above, personal stats below -->
   <div class="hud-bottom-right">
@@ -138,6 +167,14 @@
   <!-- Bottom HUD -->
   <div class="hud-bottom">
     <AmmoBar />
+    {#if $airstrikeReady > 0}
+      <button class="btn-airstrike" class:armed={$airstrikeArmed} on:click={toggleAirstrike}>
+        🚀 Airstrike ({$airstrikeReady})
+      </button>
+      {#if $airstrikeArmed}
+        <div class="airstrike-hint">Tap the map to call the strike</div>
+      {/if}
+    {/if}
     {#if $gpsError}
       <div class="gps-error">GPS: {$gpsError}</div>
     {/if}
@@ -340,6 +377,72 @@
     right: 12px;
     z-index: 1000;
     max-width: 220px;
+  }
+
+  .airstrike-warning {
+    position: absolute;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1400;
+    background: rgba(40,0,0,0.85);
+    border: 1px solid #ff1744;
+    border-radius: 8px;
+    padding: 6px 14px;
+    color: #ff5252;
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+    animation: pulse 0.6s ease-in-out infinite alternate;
+  }
+  .airstrike-count {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #fff;
+    margin-top: 2px;
+  }
+
+  .radar-badge {
+    position: absolute;
+    top: 56px;
+    left: 12px;
+    z-index: 1000;
+    background: rgba(0,0,0,0.7);
+    border: 1px solid rgba(0,229,255,0.5);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .btn-airstrike {
+    background: rgba(255, 23, 68, 0.15);
+    border: 1px solid rgba(255, 23, 68, 0.5);
+    border-radius: 8px;
+    color: #ff5252;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 1px;
+  }
+  .btn-airstrike.armed {
+    background: #ff1744;
+    color: #fff;
+    animation: pulse 0.6s ease-in-out infinite alternate;
+  }
+  .airstrike-hint {
+    font-size: 11px;
+    color: #ff8a80;
+    letter-spacing: 0.5px;
   }
 
   .hud-bottom {

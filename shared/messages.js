@@ -14,6 +14,7 @@ export const C2S = {
   FIRE: 'fire',
   HIT: 'hit',
   COLLECT: 'collect',
+  DEPLOY_AIRSTRIKE: 'deployAirstrike', // player calls in a held airstrike at a chosen point
 };
 
 export const S2C = {
@@ -29,6 +30,8 @@ export const S2C = {
   PLAYER_HP: 'playerHp',           // a player's health changed (after a hit or heal)
   PLAYER_DEAD: 'playerDead',       // a player's HP hit zero; carries respawnIn (secs)
   PLAYER_RESPAWN: 'playerRespawn', // a dead player is alive again with full HP
+  AIRSTRIKE_INCOMING: 'airstrikeIncoming', // an airstrike is inbound; carries detonateAt so everyone can evacuate
+  AIRSTRIKE_HIT: 'airstrikeHit',           // an airstrike detonated; carries blast center/radius for the FX
   GAME_ENDED: 'gameEnded',
   LEFT_ROOM: 'leftRoom',
   ERROR: 'error',
@@ -58,4 +61,6 @@ export const POWERUP_TYPES = {
   HEALTH_PACK: 'healthPack', // restores the collector to full HP
   SHIELD: 'shield',          // grants bonus HP on top of max
   STEALTH: 'stealth',
+  RADAR: 'radar',            // reveals every living enemy on the collector's map for a while
+  AIRSTRIKE: 'airstrike',    // a held strike the collector can later place on the map
 };

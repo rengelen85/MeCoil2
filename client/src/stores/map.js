@@ -4,6 +4,7 @@ export const myPosition = writable(null); // { lat, lng }
 export const teammates = writable([]);    // [{ id, username, lat, lng }]
 export const firingEnemies = writable([]); // [{ id, lat, lng }]
 export const powerups = writable([]);     // [{ id, lat, lng, type }]
+export const airstrikes = writable([]);   // [{ id, lat, lng, radius, detonateAt }] inbound strikes
 export const gpsError = writable(null);
 export const heading = writable(null);    // degrees clockwise from North, null if unavailable
 

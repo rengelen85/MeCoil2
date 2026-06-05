@@ -1,7 +1,9 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { myPosition, teammates, firingEnemies, powerups, heading } from '../stores/map.js';
-  import { sendCollect } from '../lib/network.js';
+  import { get } from 'svelte/store';
+  import { myPosition, teammates, firingEnemies, powerups, airstrikes, heading } from '../stores/map.js';
+  import { airstrikeArmed, airstrikeReady } from '../stores/game.js';
+  import { sendCollect, sendDeployAirstrike } from '../lib/network.js';
 
   let mapEl;
   let map;
@@ -11,6 +13,7 @@
   const teamMarkers   = new Map();
   const enemyMarkers  = new Map();
   const powerupMarkers = new Map();
+  const airstrikeMarkers = new Map(); // id -> { circle, marker }
 
   // Accumulated rotation avoids the wrap-around jump when heading crosses 0°/360°
   let _prevHeading = null;
@@ -93,13 +96,29 @@
     });
 
     function powerupIcon(type) {
-      const emoji = { fullReload: '🔋', shield: '🛡️', stealth: '👻' }[type] ?? '📦';
+      const emoji = { fullReload: '🔋', healthPack: '🩹', shield: '🛡️', stealth: '👻', radar: '📡', airstrike: '🚀' }[type] ?? '📦';
       return L.divIcon({
         className: '',
         html: `<div class="dot dot-powerup" title="${type}">${emoji}</div>`,
         iconSize: [24, 24], iconAnchor: [12, 12],
       });
     }
+
+    function airstrikeIcon() {
+      return L.divIcon({
+        className: '',
+        html: '<div class="airstrike-target">💥</div>',
+        iconSize: [30, 30], iconAnchor: [15, 15],
+      });
+    }
+
+    // Arming an airstrike turns the next map tap into a strike call.
+    map.on('click', e => {
+      if (!get(airstrikeArmed)) return;
+      sendDeployAirstrike(e.latlng.lat, e.latlng.lng);
+      airstrikeArmed.set(false);
+      airstrikeReady.update(n => Math.max(0, n - 1));
+    });
 
     const unsubPos = myPosition.subscribe(pos => {
       if (!pos) return;
@@ -158,11 +177,33 @@
       }
     });
 
+    const unsubAirstrikes = airstrikes.subscribe(list => {
+      const seen = new Set();
+      for (const a of list) {
+        seen.add(a.id);
+        if (!airstrikeMarkers.has(a.id)) {
+          const circle = L.circle([a.lat, a.lng], {
+            radius: a.radius,
+            color: '#ff1744',
+            weight: 2,
+            fillColor: '#ff1744',
+            fillOpacity: 0.18,
+            className: 'airstrike-zone',
+          }).addTo(map);
+          const marker = L.marker([a.lat, a.lng], { icon: airstrikeIcon() }).addTo(map);
+          airstrikeMarkers.set(a.id, { circle, marker });
+        }
+      }
+      for (const [id, m] of airstrikeMarkers) {
+        if (!seen.has(id)) { m.circle.remove(); m.marker.remove(); airstrikeMarkers.delete(id); }
+      }
+    });
+
     // NOTE: this onMount callback is async, so a returned cleanup function
     // would be silently ignored by Svelte. Register teardown via onDestroy
     // instead, otherwise these subscriptions leak across games and fire on a
     // removed Leaflet map (throwing and freezing the whole UI on round 2+).
-    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups];
+    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes];
   });
 
   onDestroy(() => {
@@ -291,5 +332,21 @@
   @keyframes enemy-pulse {
     from { transform: scale(1); }
     to   { transform: scale(1.4); }
+  }
+
+  /* Inbound airstrike blast zone + target marker */
+  :global(.airstrike-zone) {
+    animation: airstrike-pulse 0.8s ease-in-out infinite alternate;
+  }
+  @keyframes airstrike-pulse {
+    from { stroke-opacity: 0.9; fill-opacity: 0.12; }
+    to   { stroke-opacity: 0.4; fill-opacity: 0.30; }
+  }
+  :global(.airstrike-target) {
+    font-size: 22px;
+    line-height: 1;
+    text-align: center;
+    filter: drop-shadow(0 0 6px rgba(255,23,68,0.9));
+    animation: enemy-pulse 0.5s ease-in-out infinite alternate;
   }
 </style>

@@ -80,6 +80,9 @@ interface GameStore {
   isReloading: boolean;
   shieldActive: boolean;
   stealthActive: boolean;
+  radarActive: boolean;
+  airstrikeReady: number;
+  airstrikeArmed: boolean;
   hp: number;
   maxHp: number;
   isAlive: boolean;
@@ -112,6 +115,9 @@ interface GameStore {
   setIsReloading: (v: boolean) => void;
   setShieldActive: (v: boolean) => void;
   setStealthActive: (v: boolean) => void;
+  setRadarActive: (v: boolean) => void;
+  setAirstrikeReady: (n: number) => void;
+  setAirstrikeArmed: (v: boolean) => void;
   setHp: (n: number) => void;
   setMaxHp: (n: number) => void;
   setIsAlive: (v: boolean) => void;
@@ -156,6 +162,9 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   isReloading: false,
   shieldActive: false,
   stealthActive: false,
+  radarActive: false,
+  airstrikeReady: 0,
+  airstrikeArmed: false,
   hp: 100,
   maxHp: 100,
   isAlive: true,
@@ -189,6 +198,9 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setIsReloading: v => set({ isReloading: v }),
   setShieldActive: v => set({ shieldActive: v }),
   setStealthActive: v => set({ stealthActive: v }),
+  setRadarActive: v => set({ radarActive: v }),
+  setAirstrikeReady: n => set({ airstrikeReady: n }),
+  setAirstrikeArmed: v => set({ airstrikeArmed: v }),
   setHp: n => set({ hp: n }),
   setMaxHp: n => set({ maxHp: n }),
   setIsAlive: v => set({ isAlive: v }),
@@ -212,6 +224,9 @@ export const useGameStore = create<GameStore>((set, _get) => ({
       isReloading: false,
       shieldActive: false,
       stealthActive: false,
+      radarActive: false,
+      airstrikeReady: 0,
+      airstrikeArmed: false,
       isAlive: true,
       respawnCountdown: null,
     }),
