@@ -82,6 +82,9 @@ let _gunId = 0;
 // The profile currently written to the gun. Tracked so a mode toggle rewrites
 // only the TriggerMode byte instead of resetting the rest to DEFAULT_PROFILE.
 let _activeProfile = DEFAULT_PROFILE;
+// The current fire-mode key. Sent with each shot so the server can apply
+// mode-appropriate damage. DEFAULT_PROFILE is full auto.
+let _activeMode: GunMode = 'auto';
 
 // Nibble counters from previous telemetry frame — used for edge detection
 let _prevTrigger = 0;
@@ -141,6 +144,7 @@ export async function applyGunAssignment(
 
   const mag = magazineSize();
   _activeProfile = profile;
+  _activeMode = 'auto'; // matches DEFAULT_PROFILE; the in-game toggle re-syncs it
   await _writeWeaponProfile(_device, profile, slotId);
   _gunId = slotId;
   _loadClip(_device, mag);
@@ -155,6 +159,7 @@ export async function setGunMode(mode: GunMode): Promise<void> {
   const game = useGameStore.getState();
   if (!game.bleConnected || !_device) return;
   const cfg = GUN_MODES[mode] ?? GUN_MODES.auto;
+  _activeMode = GUN_MODES[mode] ? mode : 'auto';
   _activeProfile = {
     ..._activeProfile,
     triggerMode:     cfg.triggerMode,
@@ -292,7 +297,9 @@ async function _writeWeaponProfile(
 function _onTrigger() {
   const game = useGameStore.getState();
   if (game.isReloading || !game.isAlive) return;
-  sendFire();
+  // Pass the active mode and the rounds currently loaded — plasma damage scales
+  // with the latter (loaded ammo * PLASMA_DAMAGE_PER_AMMO on the server).
+  sendFire(_activeMode, game.ammo);
 }
 
 function _onReload() {

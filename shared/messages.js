@@ -56,6 +56,16 @@ export const TEAMS = {
   BLUE: 'blue',
 };
 
+// Per-mode weapon damage (HP removed per landed hit). PLASMA is dynamic — see
+// PLASMA_DAMAGE_PER_AMMO — and scales with the rounds loaded when the shot was
+// fired. Keys match the GUN_MODES keys in client/src/lib/ble.js.
+export const GUN_MODE_DAMAGE = {
+  semi: 25,
+  auto: 10,
+  burst: 15,
+};
+export const PLASMA_DAMAGE_PER_AMMO = 10; // plasma damage = loaded ammo * this
+
 export const POWERUP_TYPES = {
   FULL_RELOAD: 'fullReload',
   HEALTH_PACK: 'healthPack', // restores the collector to full HP

@@ -22,7 +22,6 @@ export class GameManager {
       // Host-tunable gameplay settings
       bulletsPerMag: 30,
       hpPerPlayer: 100,
-      hpCostPerHit: 25,
       reloadDelaySecs: 3,
       respawnDelaySecs: 10,
     };
@@ -101,6 +100,10 @@ export class GameManager {
         player.lat = msg.lat ?? player.lat;
         player.lng = msg.lng ?? player.lng;
         player.lastFireAt = Date.now();
+        // Carries the shooter's current fire mode (and loaded ammo for plasma) so
+        // the next hit it produces deals mode-appropriate damage.
+        player.lastFireMode = msg.mode ?? null;
+        player.lastFireAmmo = msg.ammo ?? 0;
         break;
 
       case C2S.HIT:
@@ -245,7 +248,6 @@ export class GameManager {
     return {
       bulletsPerMag: this.config.bulletsPerMag,
       hpPerPlayer: this.config.hpPerPlayer,
-      hpCostPerHit: this.config.hpCostPerHit,
       reloadDelaySecs: this.config.reloadDelaySecs,
       respawnDelaySecs: this.config.respawnDelaySecs,
     };

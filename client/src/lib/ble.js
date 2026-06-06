@@ -54,6 +54,10 @@ const DEFAULT_PROFILE = {
 // the profile back to DEFAULT_PROFILE.
 let _activeProfile = DEFAULT_PROFILE;
 
+// The current fire-mode key (a key of GUN_MODES). Sent with each shot so the
+// server can apply mode-appropriate damage. DEFAULT_PROFILE is full auto.
+let _activeMode = 'auto';
+
 export function isBleAvailable() {
   return !!navigator.bluetooth;
 }
@@ -89,6 +93,7 @@ export async function applyGunAssignment(slotId, profile = DEFAULT_PROFILE) {
   if (!get(bleConnected)) return;
   const mag = magazineSize();
   _activeProfile = profile;
+  _activeMode = 'auto'; // matches DEFAULT_PROFILE; the in-game toggle re-syncs it
   await gun.setWeaponProfile(profile, slotId);
   gun.setGunId(slotId);
   // Make the slot we just configured the active weapon, otherwise the firmware
@@ -112,6 +117,7 @@ export async function applyGunAssignment(slotId, profile = DEFAULT_PROFILE) {
 export async function setGunMode(mode) {
   if (!get(bleConnected)) return;
   const cfg = GUN_MODES[mode] ?? GUN_MODES.auto;
+  _activeMode = GUN_MODES[mode] ? mode : 'auto';
   _activeProfile = {
     ..._activeProfile,
     triggerMode:     cfg.triggerMode,
@@ -125,7 +131,9 @@ export async function setGunMode(mode) {
 
 function _onTrigger() {
   if (get(isReloading) || !get(isAlive)) return;
-  sendFire();
+  // Pass the active mode and the rounds currently loaded — plasma damage scales
+  // with the latter (loaded ammo * PLASMA_DAMAGE_PER_AMMO on the server).
+  sendFire(_activeMode, get(ammo));
 }
 
 function _onReload() {

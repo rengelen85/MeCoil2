@@ -9,7 +9,7 @@ import {
   rooms, roomName, username, saveSession,
   gameId, roundId,
 } from '../stores/game.js';
-import { teammates, firingEnemies, powerups, airstrikes } from '../stores/map.js';
+import { teammates, firingEnemies, powerups, airstrikes, graves } from '../stores/map.js';
 import { playKilled, playRespawn, playAirstrikeWarning } from './audio.js';
 
 let ws = null;
@@ -69,9 +69,9 @@ export function sendPosition(lat, lng) {
   send({ type: C2S.POSITION, lat, lng });
 }
 
-export function sendFire() {
+export function sendFire(mode = null, ammo = 0) {
   const { lat, lng } = _getPosition();
-  send({ type: C2S.FIRE, lat, lng });
+  send({ type: C2S.FIRE, lat, lng, mode, ammo });
 }
 
 export function sendHit(shooterWeaponId) {
@@ -140,7 +140,6 @@ function _handle(msg) {
         scoreLimit: msg.scoreLimit,
         bulletsPerMag: msg.bulletsPerMag ?? 30,
         hpPerPlayer: msg.hpPerPlayer ?? 100,
-        hpCostPerHit: msg.hpCostPerHit ?? 25,
         reloadDelaySecs: msg.reloadDelaySecs ?? 3,
         respawnDelaySecs: msg.respawnDelaySecs ?? 10,
       });
@@ -163,6 +162,7 @@ function _handle(msg) {
       firingEnemies.set([]);
       powerups.set([]);
       airstrikes.set([]);
+      graves.set([]);
       screen.set('ingame');
       break;
     }
@@ -206,6 +206,13 @@ function _handle(msg) {
       break;
 
     case S2C.PLAYER_DEAD:
+      // Drop/refresh a tombstone at every player's latest death spot (own included).
+      if (msg.lat != null && msg.lng != null) {
+        graves.update(list => [
+          ...list.filter(g => g.id !== msg.playerId),
+          { id: msg.playerId, username: msg.username, lat: msg.lat, lng: msg.lng },
+        ]);
+      }
       if (msg.playerId === get(myId)) {
         hp.set(0);
         isAlive.set(false);

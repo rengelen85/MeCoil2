@@ -52,9 +52,9 @@ export const sendStopGame = () => send({ type: C2S.STOP_GAME });
 export const sendPosition = (lat: number, lng: number) =>
   send({ type: C2S.POSITION, lat, lng });
 
-export function sendFire() {
+export function sendFire(mode: string | null = null, ammo = 0) {
   const { lat, lng } = _getPosition();
-  send({ type: C2S.FIRE, lat, lng });
+  send({ type: C2S.FIRE, lat, lng, mode, ammo });
 }
 
 export const sendHit = (shooterWeaponId: number) =>
@@ -120,7 +120,6 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
         scoreLimit: msg.scoreLimit as number,
         bulletsPerMag: mag,
         hpPerPlayer: hpMax,
-        hpCostPerHit: (msg.hpCostPerHit as number) ?? 25,
         reloadDelaySecs: (msg.reloadDelaySecs as number) ?? 3,
         respawnDelaySecs: (msg.respawnDelaySecs as number) ?? 10,
       });
@@ -140,6 +139,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       map.setFiringEnemies([]);
       map.setPowerups([]);
       map.setAirstrikes([]);
+      map.setGraves([]);
       game.setScreen('ingame');
       break;
     }
@@ -194,6 +194,18 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       break;
 
     case S2C.PLAYER_DEAD:
+      // Drop/refresh a tombstone at every player's latest death spot (own included).
+      if (msg.lat != null && msg.lng != null) {
+        map.setGraves([
+          ...map.graves.filter(g => g.id !== msg.playerId),
+          {
+            id: msg.playerId as number,
+            username: msg.username as string,
+            lat: msg.lat as number,
+            lng: msg.lng as number,
+          },
+        ]);
+      }
       if (msg.playerId === game.myId) {
         game.setHp(0);
         game.setIsAlive(false);

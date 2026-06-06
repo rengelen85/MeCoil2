@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { myPosition, teammates, firingEnemies, powerups, airstrikes, heading } from '../stores/map.js';
+  import { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading } from '../stores/map.js';
   import { airstrikeArmed, airstrikeReady } from '../stores/game.js';
   import { sendCollect, sendDeployAirstrike } from '../lib/network.js';
 
@@ -14,6 +14,7 @@
   const enemyMarkers  = new Map();
   const powerupMarkers = new Map();
   const airstrikeMarkers = new Map(); // id -> { circle, marker }
+  const graveMarkers = new Map();     // playerId -> tombstone marker
 
   // Accumulated rotation avoids the wrap-around jump when heading crosses 0°/360°
   let _prevHeading = null;
@@ -112,6 +113,17 @@
       });
     }
 
+    // Tombstone at a player's last death spot, with their name beside it.
+    function graveIcon(username) {
+      const safe = String(username ?? '').replace(/[&<>"]/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      return L.divIcon({
+        className: '',
+        html: `<div class="grave"><span class="grave-icon">🪦</span><span class="grave-name">${safe}</span></div>`,
+        iconSize: [24, 24], iconAnchor: [12, 24],
+      });
+    }
+
     // Arming an airstrike turns the next map tap into a strike call.
     map.on('click', e => {
       if (!get(airstrikeArmed)) return;
@@ -199,11 +211,29 @@
       }
     });
 
+    const unsubGraves = graves.subscribe(list => {
+      const seen = new Set();
+      for (const g of list) {
+        seen.add(g.id);
+        if (!graveMarkers.has(g.id)) {
+          graveMarkers.set(g.id, L.marker([g.lat, g.lng], { icon: graveIcon(g.username) }).addTo(map));
+        } else {
+          // A repeat death moves the existing tombstone to the new spot.
+          const m = graveMarkers.get(g.id);
+          m.setLatLng([g.lat, g.lng]);
+          m.setIcon(graveIcon(g.username));
+        }
+      }
+      for (const [id, m] of graveMarkers) {
+        if (!seen.has(id)) { m.remove(); graveMarkers.delete(id); }
+      }
+    });
+
     // NOTE: this onMount callback is async, so a returned cleanup function
     // would be silently ignored by Svelte. Register teardown via onDestroy
     // instead, otherwise these subscriptions leak across games and fire on a
     // removed Leaflet map (throwing and freezing the whole UI on round 2+).
-    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes];
+    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes, unsubGraves];
   });
 
   onDestroy(() => {
@@ -348,5 +378,27 @@
     text-align: center;
     filter: drop-shadow(0 0 6px rgba(255,23,68,0.9));
     animation: enemy-pulse 0.5s ease-in-out infinite alternate;
+  }
+
+  /* Tombstone marker at a player's last death spot */
+  :global(.grave) {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  :global(.grave-icon) {
+    font-size: 20px;
+    line-height: 1;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+  }
+  :global(.grave-name) {
+    font-size: 11px;
+    font-weight: 700;
+    color: #e0e0e0;
+    background: rgba(0,0,0,0.65);
+    border-radius: 4px;
+    padding: 1px 5px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
   }
 </style>

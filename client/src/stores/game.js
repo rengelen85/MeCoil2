@@ -14,7 +14,6 @@ export const gameConfig = writable({
   scoreLimit: 20,
   bulletsPerMag: 30,
   hpPerPlayer: 100,
-  hpCostPerHit: 25,
   reloadDelaySecs: 3,
   respawnDelaySecs: 10,
 });

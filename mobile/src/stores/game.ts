@@ -46,7 +46,6 @@ export interface GameConfig {
   friendlyFire?: boolean;
   bulletsPerMag?: number;
   hpPerPlayer?: number;
-  hpCostPerHit?: number;
   reloadDelaySecs?: number;
   respawnDelaySecs?: number;
 }
@@ -143,7 +142,6 @@ export const useGameStore = create<GameStore>((set, _get) => ({
     scoreLimit: 20,
     bulletsPerMag: 30,
     hpPerPlayer: 100,
-    hpCostPerHit: 25,
     reloadDelaySecs: 3,
     respawnDelaySecs: 10,
   },

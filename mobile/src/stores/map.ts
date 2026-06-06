@@ -23,12 +23,18 @@ export interface AirstrikePosition extends Position {
   detonateAt: number;
 }
 
+export interface GravePosition extends Position {
+  id: number;
+  username?: string;
+}
+
 interface MapStore {
   myPosition: Position | null;
   teammates: PlayerPosition[];
   firingEnemies: PlayerPosition[];
   powerups: PowerupPosition[];
   airstrikes: AirstrikePosition[];
+  graves: GravePosition[];
   gpsError: string | null;
   heading: number | null;
 
@@ -37,6 +43,7 @@ interface MapStore {
   setFiringEnemies: (e: PlayerPosition[]) => void;
   setPowerups: (p: PowerupPosition[]) => void;
   setAirstrikes: (a: AirstrikePosition[]) => void;
+  setGraves: (g: GravePosition[]) => void;
   setGpsError: (err: string | null) => void;
   setHeading: (h: number | null) => void;
   startGPS: (onPosition: (lat: number, lng: number) => void) => void;
@@ -54,6 +61,7 @@ export const useMapStore = create<MapStore>((set, _get) => ({
   firingEnemies: [],
   powerups: [],
   airstrikes: [],
+  graves: [],
   gpsError: null,
   heading: null,
 
@@ -62,6 +70,7 @@ export const useMapStore = create<MapStore>((set, _get) => ({
   setFiringEnemies: e => set({ firingEnemies: e }),
   setPowerups: p => set({ powerups: p }),
   setAirstrikes: a => set({ airstrikes: a }),
+  setGraves: g => set({ graves: g }),
   setGpsError: err => set({ gpsError: err }),
   setHeading: h => set({ heading: h }),
 

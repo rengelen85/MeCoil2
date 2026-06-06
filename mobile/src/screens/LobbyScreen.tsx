@@ -26,7 +26,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Lobby'>;
 const COMBAT_SETTINGS: { key: keyof GameConfig; label: string; fallback: number }[] = [
   { key: 'bulletsPerMag', label: 'Bullets / magazine', fallback: 30 },
   { key: 'hpPerPlayer', label: 'HP per player', fallback: 100 },
-  { key: 'hpCostPerHit', label: 'HP cost per hit', fallback: 25 },
   { key: 'reloadDelaySecs', label: 'Reload delay (s)', fallback: 3 },
   { key: 'respawnDelaySecs', label: 'Respawn delay (s)', fallback: 10 },
 ];

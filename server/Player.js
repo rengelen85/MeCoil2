@@ -31,6 +31,8 @@ export class Player {
     this.lat = null;
     this.lng = null;
     this.lastFireAt = 0;
+    this.lastFireMode = null; // gun mode of the most recent shot (drives hit damage)
+    this.lastFireAmmo = 0;    // rounds loaded when the most recent shot fired (plasma damage)
   }
 
   send(obj) {
@@ -56,6 +58,8 @@ export class Player {
       this.respawnTimer = null;
     }
     this.lastFireAt = 0;
+    this.lastFireMode = null;
+    this.lastFireAmmo = 0;
   }
 
   toPublic() {

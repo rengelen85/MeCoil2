@@ -1,4 +1,4 @@
-import { S2C, POWERUP_TYPES } from '../../shared/messages.js';
+import { S2C, POWERUP_TYPES, GUN_MODE_DAMAGE, PLASMA_DAMAGE_PER_AMMO } from '../../shared/messages.js';
 
 const STATE_INTERVAL_MS = 1_000;
 const POSITION_INTERVAL_MS = 1_000;
@@ -156,15 +156,15 @@ export class BaseMode {
   _buildScores() { return []; }
   _determineWinner() { return null; }
 
-  // Called by GameManager when a hit is reported. Damage is HP-based: each hit
-  // subtracts `hpCostPerHit`; a kill is only registered when HP reaches zero.
+  // Called by GameManager when a hit is reported. Damage is HP-based; a kill is
+  // only registered when HP reaches zero.
   registerHit(shooterWeaponId, victim) {
     const shooter = [...this.players.values()].find(p => p.gunSlotId === shooterWeaponId);
     if (!shooter || shooter.id === victim.id) return;
     if (!shooter.isAlive || !victim.isAlive) return; // dead players neither deal nor take damage
     if (!this.config.friendlyFire && this._areTeammates(shooter, victim)) return;
 
-    const hpCost = this.config.hpCostPerHit ?? 25;
+    const hpCost = this._damageFor(shooter);
     victim.hp = Math.max(0, victim.hp - hpCost);
     shooter.hits++;
     victim.timesHit++;
@@ -180,6 +180,17 @@ export class BaseMode {
     if (victim.hp <= 0) {
       this._registerKill(shooter, victim);
     }
+  }
+
+  // HP removed by a single hit, derived from the shooter's most recent fire mode.
+  // PLASMA scales with the rounds that were loaded when it fired; the other modes
+  // are fixed (see GUN_MODE_DAMAGE). Falls back to AUTO damage when no mode was
+  // reported (e.g. the keyboard simulator).
+  _damageFor(shooter) {
+    if (shooter.lastFireMode === 'plasma') {
+      return Math.max(0, shooter.lastFireAmmo) * PLASMA_DAMAGE_PER_AMMO;
+    }
+    return GUN_MODE_DAMAGE[shooter.lastFireMode] ?? GUN_MODE_DAMAGE.auto;
   }
 
   _registerKill(shooter, victim) {
@@ -203,8 +214,13 @@ export class BaseMode {
     this.broadcast({
       type: S2C.PLAYER_DEAD,
       playerId: victim.id,
+      username: victim.username,
       killerId: credited ? killer.id : null,
       respawnIn: respawnSecs,
+      // Last-known position of the victim, so clients can drop a tombstone marker
+      // where they fell. May be null if the victim never had a GPS fix.
+      lat: victim.lat,
+      lng: victim.lng,
     });
 
     victim.respawnTimer = setTimeout(() => this._respawn(victim), respawnSecs * 1_000);

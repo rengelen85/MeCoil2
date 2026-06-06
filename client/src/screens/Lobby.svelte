@@ -103,11 +103,6 @@
             on:change={e => updateConfig('hpPerPlayer', e.target.value)} />
         </label>
 
-        <label>HP cost per hit
-          <input type="number" min="1" max="1000" value={$gameConfig.hpCostPerHit}
-            on:change={e => updateConfig('hpCostPerHit', e.target.value)} />
-        </label>
-
         <label>Reload delay (seconds)
           <input type="number" min="0" max="30" step="0.5" value={$gameConfig.reloadDelaySecs}
             on:change={e => updateConfig('reloadDelaySecs', e.target.value)} />
@@ -131,7 +126,6 @@
         {/if}
         <div class="config-row"><span>Magazine</span><span>{$gameConfig.bulletsPerMag} rounds</span></div>
         <div class="config-row"><span>HP / player</span><span>{$gameConfig.hpPerPlayer}</span></div>
-        <div class="config-row"><span>Damage / hit</span><span>{$gameConfig.hpCostPerHit}</span></div>
         <div class="config-row"><span>Reload</span><span>{$gameConfig.reloadDelaySecs}s</span></div>
         <div class="config-row"><span>Respawn</span><span>{$gameConfig.respawnDelaySecs}s</span></div>
       </section>

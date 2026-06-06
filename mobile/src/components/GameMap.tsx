@@ -15,7 +15,7 @@ const POWERUP_EMOJI: Record<string, string> = {
 };
 
 export default function GameMap() {
-  const { myPosition, teammates, firingEnemies, powerups, airstrikes, heading } = useMapStore();
+  const { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading } = useMapStore();
   const { airstrikeArmed, airstrikeReady, setAirstrikeArmed, setAirstrikeReady } = useGameStore();
 
   // When an airstrike is armed, the next map tap calls it in at that point.
@@ -101,6 +101,19 @@ export default function GameMap() {
         </Marker>
       ))}
 
+      {/* Tombstones at each player's last death spot, name beside the marker */}
+      {graves.map(g => (
+        <Marker
+          key={`gr-${g.id}`}
+          coordinate={{ latitude: g.lat, longitude: g.lng }}
+          anchor={{ x: 0.5, y: 1 }}>
+          <View style={styles.grave}>
+            <Text style={styles.graveIcon}>🪦</Text>
+            <Text style={styles.graveName}>{g.username}</Text>
+          </View>
+        </Marker>
+      ))}
+
       {/* Inbound airstrikes: blast zone + target marker */}
       {airstrikes.map(a => (
         <React.Fragment key={`as-${a.id}`}>
@@ -175,5 +188,23 @@ const styles = StyleSheet.create({
   },
   airstrikeTarget: {
     fontSize: 24,
+  },
+  grave: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  graveIcon: {
+    fontSize: 20,
+  },
+  graveName: {
+    marginLeft: 3,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#e0e0e0',
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    overflow: 'hidden',
   },
 });
