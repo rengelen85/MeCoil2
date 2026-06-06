@@ -4,7 +4,9 @@
   import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
 
   $: isTDM = $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH;
-  $: winnerLabel = isTDM
+  $: isCTF = $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG;
+  $: isTeamMode = isTDM || isCTF;
+  $: winnerLabel = isTeamMode
     ? ($winner === 'draw' ? 'Draw!' : $winner ? `${$winner.toUpperCase()} Team Wins!` : 'Game Over')
     : ($finalScores?.[0]?.username ? `${$finalScores[0].username} Wins!` : 'Game Over');
 
@@ -22,12 +24,12 @@
 
   <div class="card scores-card">
     <h2>Final Scores</h2>
-    {#if isTDM && $finalScores}
+    {#if isTeamMode && $finalScores}
       {#each $finalScores as team}
         <div class="team-section team-{team.team}">
           <div class="team-header">
             <span>{team.team.toUpperCase()}</span>
-            <span>{team.kills} kills</span>
+            <span>{isCTF ? `${team.captures} captures` : `${team.kills} kills`}</span>
           </div>
           {#each team.players as p}
             <div class="score-row" class:is-me={p.id === $myId}>
