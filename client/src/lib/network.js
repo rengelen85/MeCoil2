@@ -5,7 +5,7 @@ import {
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
   ammo, maxAmmo, shieldActive, stealthActive, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
-  hp, maxHp, isAlive, respawnCountdown, bulletsPerMag, reloadDelaySecs,
+  hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
 } from '../stores/game.js';
@@ -200,6 +200,7 @@ function _handle(msg) {
 
     case S2C.PLAYER_HP:
       if (msg.playerId === get(myId)) {
+        if (msg.hp < get(hp)) lastHitAt.set(Date.now());
         hp.set(msg.hp);
         maxHp.set(msg.maxHp);
       }
@@ -216,6 +217,7 @@ function _handle(msg) {
       if (msg.playerId === get(myId)) {
         hp.set(0);
         isAlive.set(false);
+        killedBy.set(msg.killerName ?? null);
         playKilled();
         _startRespawnCountdown(msg.respawnIn ?? 10);
       }
@@ -226,6 +228,7 @@ function _handle(msg) {
         hp.set(msg.hp);
         maxHp.set(msg.maxHp);
         isAlive.set(true);
+        killedBy.set(null);
         playRespawn();
         _stopRespawnCountdown();
         respawnCountdown.set(null);

@@ -216,6 +216,7 @@ export class BaseMode {
       playerId: victim.id,
       username: victim.username,
       killerId: credited ? killer.id : null,
+      killerName: credited ? killer.username : null,
       respawnIn: respawnSecs,
       // Last-known position of the victim, so clients can drop a tombstone marker
       // where they fell. May be null if the victim never had a GPS fix.

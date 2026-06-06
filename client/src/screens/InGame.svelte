@@ -6,9 +6,9 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, radarActive, airstrikeReady, airstrikeArmed } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, radarActive, airstrikeReady, airstrikeArmed } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes } from '../stores/map.js';
-  import { startSimulator, stopSimulator } from '../lib/simulator.js';
+  import { startSimulator, stopSimulator, setSimulatorMode } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
   import { sendPosition, sendStopGame, sendLeaveRoom } from '../lib/network.js';
   import { GAME_MODES } from '../../../shared/messages.js';
@@ -18,13 +18,25 @@
   let bleError = '';
   let gunMode = 'auto'; // key of GUN_MODES
 
+  let hitFlashActive = false;
+  let hitFlashTimer = null;
+  $: if ($lastHitAt) {
+    hitFlashActive = true;
+    if (hitFlashTimer) clearTimeout(hitFlashTimer);
+    hitFlashTimer = setTimeout(() => { hitFlashActive = false; }, 350);
+  }
+
   async function cycleGunMode() {
     const i = GUN_MODE_CYCLE.indexOf(gunMode);
     gunMode = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
-    try {
-      await setGunMode(gunMode);
-    } catch (e) {
-      bleError = bleErrorMessage(e);
+    if (usingBle) {
+      try {
+        await setGunMode(gunMode);
+      } catch (e) {
+        bleError = bleErrorMessage(e);
+      }
+    } else {
+      setSimulatorMode(gunMode);
     }
   }
 
@@ -135,10 +147,18 @@
     </div>
   </div>
 
+  <!-- Hit flash overlay -->
+  {#if hitFlashActive}
+    <div class="hit-flash"></div>
+  {/if}
+
   <!-- Respawn overlay -->
   {#if !$isAlive}
     <div class="respawn-overlay">
       <div class="respawn-title">YOU ARE DOWN</div>
+      {#if $killedBy}
+        <div class="respawn-killer">Killed by <span class="killer-name">{$killedBy}</span></div>
+      {/if}
       <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
     </div>
   {/if}
@@ -191,6 +211,9 @@
           {bleConnecting ? 'Connecting…' : 'Connect gun'}
         </button>
         <span class="sim-hint"><kbd>T</kbd> fire · <kbd>R</kbd> reload · <kbd>H</kbd> hit</span>
+        <button class="btn-gun-mode" data-mode={gunMode} on:click={cycleGunMode}>
+          {GUN_MODES[gunMode].label}
+        </button>
       </div>
       {#if bleError}
         <p class="ble-error-inline">{bleError}</p>
@@ -296,6 +319,19 @@
     align-self: stretch;
   }
 
+  .hit-flash {
+    position: absolute;
+    inset: 0;
+    z-index: 1400;
+    background: rgba(255, 30, 30, 0.45);
+    pointer-events: none;
+    animation: hitfade 0.35s ease-out forwards;
+  }
+  @keyframes hitfade {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
   .respawn-overlay {
     position: absolute;
     inset: 0;
@@ -313,6 +349,15 @@
     letter-spacing: 4px;
     color: #ff5252;
     text-shadow: 0 0 20px rgba(255,82,82,0.6);
+  }
+  .respawn-killer {
+    font-size: 15px;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 1px;
+  }
+  .killer-name {
+    color: #fff;
+    font-weight: 700;
   }
   .respawn-count {
     font-size: 18px;

@@ -44,6 +44,8 @@ export const hp = writable(100);
 export const maxHp = writable(100);
 export const isAlive = writable(true);
 export const respawnCountdown = writable(null); // seconds left while dead, else null
+export const killedBy = writable(null);         // username of last killer, null when alive
+export const lastHitAt = writable(null);        // timestamp of last damage hit (for flash)
 
 // Host-tunable gameplay settings consumed by the gun/simulator
 export const bulletsPerMag = writable(30);
@@ -90,6 +92,8 @@ export function resetGame() {
   airstrikeArmed.set(false);
   isAlive.set(true);
   respawnCountdown.set(null);
+  killedBy.set(null);
+  lastHitAt.set(null);
 }
 
 export function saveSession(name) {

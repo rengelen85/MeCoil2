@@ -12,6 +12,11 @@ import { playReload } from './audio.js';
 const FAKE_SHOOTER_WEAPON_ID = 0;
 
 let enabled = false;
+let _activeMode = 'auto';
+
+export function setSimulatorMode(mode) {
+  _activeMode = mode;
+}
 
 export function startSimulator() {
   if (enabled) return;
@@ -41,8 +46,14 @@ function _fire() {
   if (!get(isAlive)) return; // can't fire while dead
   const current = get(ammo);
   if (current <= 0 || get(isReloading)) return;
-  ammo.update(v => Math.max(0, v - 1));
-  sendFire();
+  if (_activeMode === 'plasma') {
+    // Plasma fires all loaded rounds in one shot; damage scales with ammo count on the server.
+    ammo.set(0);
+    sendFire('plasma', current);
+  } else {
+    ammo.update(v => Math.max(0, v - 1));
+    sendFire(_activeMode, current);
+  }
 }
 
 function _reload() {
