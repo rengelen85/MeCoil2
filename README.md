@@ -357,6 +357,7 @@ Hardware protocol references are in [docs/](docs/):
 |------|-------------|
 | [docs/recoil_protocol_BLE.md](docs/recoil_protocol_BLE.md) | Goliath Recoil BLE service/characteristic layout (ID, Telemetry, Control, Config) |
 | [docs/recoil_protocol_IR.md](docs/recoil_protocol_IR.md) | IR packet format, encoding, grenade protocol (MAN20A / NEC4) |
+| [docs/recoil_gun_firmware_config_guide.md](docs/recoil_gun_firmware_config_guide.md) | RecoilGun firmware configuration guide (weapon config parameters, firmware behavior) |
 
 ---
 
