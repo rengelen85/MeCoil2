@@ -66,7 +66,7 @@ export const GUN_MODE_DAMAGE = {
   auto: 5,
   burst: 10,
 };
-export const PLASMA_DAMAGE_PER_AMMO = 5; // plasma damage = loaded ammo * this
+export const PLASMA_DAMAGE_PER_AMMO = 3; // plasma damage = loaded ammo * this
 
 export const POWERUP_TYPES = {
   FULL_RELOAD: 'fullReload',
