@@ -116,11 +116,22 @@
     }
 
     function flagIcon(team, state) {
-      const emoji = state === 'carried' ? '🏃' : state === 'dropped' ? '📍' : '🚩';
       const color = team === 'red' ? '#ff5252' : '#448aff';
+      let content;
+      if (state === 'carried') {
+        content = `<span style="font-size:20px">🏃</span>`;
+      } else if (state === 'dropped') {
+        content = `<span style="font-size:20px">📍</span>`;
+      } else {
+        // SVG flag so the color is actually applied (🚩 emoji ignores CSS color)
+        content = `<svg viewBox="0 0 20 26" width="20" height="26">
+          <line x1="4" y1="2" x2="4" y2="24" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+          <polygon points="4,2 19,9 4,16" fill="${color}"/>
+        </svg>`;
+      }
       return L.divIcon({
         className: '',
-        html: `<div class="ctf-flag" style="color:${color}">${emoji}</div>`,
+        html: `<div class="ctf-flag" style="color:${color}">${content}</div>`,
         iconSize: [28, 28], iconAnchor: [14, 14],
       });
     }
@@ -242,7 +253,7 @@
     });
 
     const CTF_BASE_COLORS = { red: '#ff5252', blue: '#448aff' };
-    const CTF_BASE_RADIUS_M = 15;
+    const CTF_BASE_RADIUS_M = 7.5;
 
     const unsubCtfBases = ctfBases.subscribe(bases => {
       for (const team of ['red', 'blue']) {

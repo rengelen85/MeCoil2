@@ -1,7 +1,7 @@
 import { BaseMode } from './BaseMode.js';
 import { S2C, TEAMS } from '../../shared/messages.js';
 
-const BASE_RADIUS_M = 15;
+const BASE_RADIUS_M = 7.5;
 const FLAG_INTERACT_RADIUS_M = 10;
 
 const FLAG_STATE = {
@@ -35,6 +35,7 @@ export class CaptureTheFlag extends BaseMode {
     };
 
     this._captures = { [TEAMS.RED]: 0, [TEAMS.BLUE]: 0 };
+    this._deathTimes = new Map(); // playerId → ms timestamp of death
   }
 
   start() {
@@ -59,10 +60,13 @@ export class CaptureTheFlag extends BaseMode {
     if (player.lat === null) return;
 
     if (!player.isAlive) {
-      // Dead player at own base → respawn
+      // Dead player at own base AND ≥10s since death → respawn
       const base = player.team === TEAMS.RED ? this._redBase : this._blueBase;
       if (base && haversineMeters(player.lat, player.lng, base.lat, base.lng) <= BASE_RADIUS_M) {
-        this._respawnAtBase(player);
+        const elapsed = Date.now() - (this._deathTimes.get(player.id) ?? 0);
+        if (elapsed >= 10_000) {
+          this._respawnAtBase(player);
+        }
       }
       return;
     }
@@ -166,6 +170,7 @@ export class CaptureTheFlag extends BaseMode {
     const credited = killer && killer.id !== victim.id;
     victim.deaths++;
     victim.isAlive = false;
+    this._deathTimes.set(victim.id, Date.now());
     if (credited) killer.kills++;
     this.killFeed.push({
       at: Date.now(),
