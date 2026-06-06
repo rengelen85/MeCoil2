@@ -272,7 +272,7 @@ export class BaseMode {
         });
         break;
       case POWERUP_TYPES.STEALTH:
-        player.stealthUntil = Date.now() + 30_000;
+        player.stealthUntil = Date.now() + 120_000;
         break;
       case POWERUP_TYPES.RADAR:
         player.radarUntil = Date.now() + RADAR_DURATION_MS;

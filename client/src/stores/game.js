@@ -35,6 +35,7 @@ export const maxAmmo = writable(30);
 export const isReloading = writable(false);
 export const shieldActive = writable(false);
 export const stealthActive = writable(false);
+export const stealthCountdown = writable(null); // seconds remaining while stealth is active
 export const radarActive = writable(false);     // enemies revealed on my map
 export const airstrikeReady = writable(0);       // held airstrikes available to deploy
 export const airstrikeArmed = writable(false);   // armed: next map tap calls the strike
@@ -108,6 +109,7 @@ export function resetGame() {
   isReloading.set(false);
   shieldActive.set(false);
   stealthActive.set(false);
+  stealthCountdown.set(null);
   radarActive.set(false);
   airstrikeReady.set(0);
   airstrikeArmed.set(false);

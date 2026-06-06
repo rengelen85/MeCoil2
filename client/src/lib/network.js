@@ -4,7 +4,7 @@ import {
   myId, isHost, players, gameConfig, hostId,
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
-  ammo, maxAmmo, shieldActive, stealthActive, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
+  ammo, maxAmmo, shieldActive, stealthActive, stealthCountdown, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
   hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
@@ -281,7 +281,7 @@ function _applyLocalPowerupFeedback({ type }) {
     case 'fullReload': ammo.set(get(maxAmmo)); break;
     case 'healthPack': hp.set(get(maxHp)); break;
     case 'shield': shieldActive.set(true); break;
-    case 'stealth': stealthActive.set(true); break;
+    case 'stealth': _startStealthCountdown(120); break;
     case 'radar':
       radarActive.set(true);
       // Radar lasts one minute server-side; clear the indicator to match.
@@ -289,6 +289,32 @@ function _applyLocalPowerupFeedback({ type }) {
       break;
     case 'airstrike': airstrikeReady.update(n => n + 1); break;
   }
+}
+
+// Local 1-second ticker that drives the stealth badge countdown.
+let _stealthTimer = null;
+
+function _startStealthCountdown(secs) {
+  _stopStealthCountdown();
+  stealthActive.set(true);
+  stealthCountdown.set(secs);
+  _stealthTimer = setInterval(() => {
+    stealthCountdown.update(v => {
+      if (v === null) return null;
+      const next = v - 1;
+      if (next <= 0) { _stopStealthCountdown(); return null; }
+      return next;
+    });
+  }, 1_000);
+}
+
+function _stopStealthCountdown() {
+  if (_stealthTimer) {
+    clearInterval(_stealthTimer);
+    _stealthTimer = null;
+  }
+  stealthActive.set(false);
+  stealthCountdown.set(null);
 }
 
 // Local 1-second ticker that drives the on-screen respawn countdown while dead.
