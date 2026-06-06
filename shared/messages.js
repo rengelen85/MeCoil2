@@ -60,11 +60,11 @@ export const TEAMS = {
 // PLASMA_DAMAGE_PER_AMMO — and scales with the rounds loaded when the shot was
 // fired. Keys match the GUN_MODES keys in client/src/lib/ble.js.
 export const GUN_MODE_DAMAGE = {
-  semi: 25,
-  auto: 10,
-  burst: 15,
+  semi: 20,
+  auto: 5,
+  burst: 10,
 };
-export const PLASMA_DAMAGE_PER_AMMO = 10; // plasma damage = loaded ammo * this
+export const PLASMA_DAMAGE_PER_AMMO = 5; // plasma damage = loaded ammo * this
 
 export const POWERUP_TYPES = {
   FULL_RELOAD: 'fullReload',
