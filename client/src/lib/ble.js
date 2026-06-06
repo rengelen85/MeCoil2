@@ -1,7 +1,7 @@
 import { gun } from './recoilweapon.js';
 import { sendFire, sendHit } from './network.js';
 import { playReload } from './audio.js';
-import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId, gunLocked } from '../stores/game.js';
+import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId, gunLocked, activeGunMode } from '../stores/game.js';
 import { get } from 'svelte/store';
 
 // Muzzle-flash (FlashLED1) modes — see docs/Recoil_Gun_Firmware_Config_Guide.md.
@@ -77,6 +77,7 @@ export async function connectBle() {
 
   gun.on('triggerBtn', _onTrigger);
   gun.on('reloadBtn',  _onReload);
+  gun.on('powerBtn',   _onResetBtn);
   gun.on('irEvent',    _onIrEvent);
   gun.on('ammoChanged', count => {
     ammo.set(count);
@@ -94,6 +95,7 @@ export async function applyGunAssignment(slotId, profile = DEFAULT_PROFILE) {
   const mag = magazineSize();
   _activeProfile = profile;
   _activeMode = 'auto'; // matches DEFAULT_PROFILE; the in-game toggle re-syncs it
+  activeGunMode.set('auto');
   await gun.setWeaponProfile(profile, slotId);
   gun.setGunId(slotId);
   // Make the slot we just configured the active weapon, otherwise the firmware
@@ -118,6 +120,7 @@ export async function setGunMode(mode) {
   if (!get(bleConnected)) return;
   const cfg = GUN_MODES[mode] ?? GUN_MODES.auto;
   _activeMode = GUN_MODES[mode] ? mode : 'auto';
+  activeGunMode.set(_activeMode);
   _activeProfile = {
     ..._activeProfile,
     triggerMode:     cfg.triggerMode,
@@ -127,6 +130,12 @@ export async function setGunMode(mode) {
     flashParam2:     cfg.flashParam2,
   };
   await gun.setWeaponProfile(_activeProfile, get(gunSlotId));
+}
+
+function _onResetBtn() {
+  const i = GUN_MODE_CYCLE.indexOf(_activeMode);
+  const next = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
+  setGunMode(next).catch(() => {});
 }
 
 function _onTrigger() {

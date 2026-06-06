@@ -12,7 +12,7 @@ function isBitSet(position, byte) {
 
 // Module-level state — safe because we only ever create one RecoilGun instance.
 let lastAmmo = 0;
-let lastButtonCount = { trigger: 0, reload: 0, radio: 0, power: 0, recoil: 0 };
+let lastButtonCount = { trigger: 0, reload: 0, radio: 0, reset: 0, power: 0, recoil: 0 };
 let lastShotCount = 0;
 let packetCounter = null;
 
@@ -201,6 +201,7 @@ class RecoilGun {
     if (counts.trigger !== lastButtonCount.trigger) this._EVENTS['triggerBtn']?.(counts.trigger);
     if (counts.reload  !== lastButtonCount.reload)  this._EVENTS['reloadBtn']?.(counts.reload);
     if (counts.radio   !== lastButtonCount.radio)   this._EVENTS['radioBtn']?.(counts.radio);
+    if (counts.reset   !== lastButtonCount.reset)   this._EVENTS['resetBtn']?.(counts.reset);
     if (counts.power   !== lastButtonCount.power)   this._EVENTS['powerBtn']?.(counts.power);
     if (counts.recoil  !== lastButtonCount.recoil)  this._EVENTS['recoilBtn']?.(counts.recoil);
     lastButtonCount = { ...counts };

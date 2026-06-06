@@ -170,6 +170,17 @@ The **keyboard simulator** lets you play without a physical gun, useful for test
 | `R` | Reload |
 | `H` | Simulate being hit |
 
+### BLE Gun Controls
+
+Once a gun is paired, you can switch fire modes:
+
+| Control | Action |
+|---------|--------|
+| Power button (back) | Cycle through SEMI → BURST → AUTO → PLASMA |
+| On-screen button | Tap the mode badge in the HUD to cycle (same as power button) |
+
+The current mode is displayed as a colored badge in the bottom-left HUD (`SEMI`, `BURST`, `AUTO`, or `PLASMA`). Each mode has different firing behavior and damage characteristics.
+
 ### BLE Gun Pairing
 
 1. Power on the Goliath Recoil gun (hold trigger until it buzzes).

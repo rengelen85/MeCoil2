@@ -54,6 +54,7 @@ export const reloadDelaySecs = writable(3);
 // BLE connection state — persists across game resets
 export const bleConnected = writable(false);
 export const gunSlotId = writable(0);
+export const activeGunMode = writable('auto'); // key of GUN_MODES; updated by BLE and on-screen toggle
 
 // CTF mode state
 export const ctfState = writable(null); // { flags: { red, blue }, captures: { red, blue }, bases: { red, blue } }

@@ -6,7 +6,7 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, radarActive, airstrikeReady, airstrikeArmed, ctfState, infectionState, amIInfected, gunLocked } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, radarActive, airstrikeReady, airstrikeArmed, ctfState, infectionState, amIInfected, gunLocked, activeGunMode } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes } from '../stores/map.js';
   import { startSimulator, stopSimulator, setSimulatorMode } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
@@ -16,7 +16,7 @@
   let showScores = false;
   let bleConnecting = false;
   let bleError = '';
-  let gunMode = 'auto'; // key of GUN_MODES
+  $: gunMode = $activeGunMode;
 
   let hitFlashActive = false;
   let hitFlashTimer = null;
@@ -27,16 +27,17 @@
   }
 
   async function cycleGunMode() {
-    const i = GUN_MODE_CYCLE.indexOf(gunMode);
-    gunMode = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
+    const i = GUN_MODE_CYCLE.indexOf($activeGunMode);
+    const next = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
     if (usingBle) {
       try {
-        await setGunMode(gunMode);
+        await setGunMode(next); // setGunMode updates activeGunMode store internally
       } catch (e) {
         bleError = bleErrorMessage(e);
       }
     } else {
-      setSimulatorMode(gunMode);
+      activeGunMode.set(next);
+      setSimulatorMode(next);
     }
   }
 
