@@ -297,9 +297,18 @@ async function _writeWeaponProfile(
 function _onTrigger() {
   const game = useGameStore.getState();
   if (game.isReloading || !game.isAlive) return;
-  // Pass the active mode and the rounds currently loaded — plasma damage scales
-  // with the latter (loaded ammo * PLASMA_DAMAGE_PER_AMMO on the server).
-  sendFire(_activeMode, game.ammo);
+  if (_activeMode === 'plasma') {
+    // Plasma fires a variable number of rounds depending on charge time (4 rounds/period).
+    // triggerBtn and setAmmo are processed in the same telemetry packet but triggerBtn fires
+    // first, so game.ammo is still pre-shot here. Defer until setAmmo has run, then send
+    // rounds actually fired (ammoBefore - ammoAfter) as the damage input.
+    const ammoBefore = game.ammo;
+    Promise.resolve().then(() =>
+      sendFire('plasma', ammoBefore - useGameStore.getState().ammo),
+    );
+  } else {
+    sendFire(_activeMode, game.ammo);
+  }
 }
 
 function _onReload() {

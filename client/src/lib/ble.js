@@ -140,9 +140,16 @@ function _onResetBtn() {
 
 function _onTrigger() {
   if (get(isReloading) || !get(isAlive) || get(gunLocked)) return;
-  // Pass the active mode and the rounds currently loaded — plasma damage scales
-  // with the latter (loaded ammo * PLASMA_DAMAGE_PER_AMMO on the server).
-  sendFire(_activeMode, get(ammo));
+  if (_activeMode === 'plasma') {
+    // Plasma fires a variable number of rounds depending on charge time (4 rounds/period).
+    // triggerBtn and ammoChanged arrive in the same BLE packet but triggerBtn fires first,
+    // so get(ammo) is still pre-shot here. Defer until ammoChanged has updated the store,
+    // then send rounds actually fired (ammoBefore - ammoAfter) as the damage input.
+    const ammoBefore = get(ammo);
+    Promise.resolve().then(() => sendFire('plasma', ammoBefore - get(ammo)));
+  } else {
+    sendFire(_activeMode, get(ammo));
+  }
 }
 
 function _onReload() {
