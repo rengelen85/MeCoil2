@@ -124,6 +124,26 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mec
 |------|-------------|
 | **Free for All (FFA)** | Every player for themselves, highest kills wins |
 | **Team Deathmatch (TDM)** | Red vs Blue, auto-balanced teams |
+| **Capture the Flag (CTF)** | Two-team mode: capture the enemy flag and return it to your base. Bases are set by the host using GPS, flags are picked up automatically when in proximity, and respawn happens by walking back to your own base |
+| **Infection** | Asymmetric survival: one random player starts infected and must tag survivors. Non-infected shots are ignored. Survivors win if they survive the timer; infected win if everyone is tagged. Only immunity power-ups spawn (one immunity absorbs a shot and grants a 20-second grace period) |
+
+#### Capture the Flag Details
+
+- **Setup**: Host sets red and blue base locations on the lobby screen using their GPS position (one base per team)
+- **Objective**: Carry the enemy flag and touch your own base to capture it
+- **Flag mechanics**: Flags are automatically picked up when you enter a 10m radius of the enemy flag, dropped when killed, and auto-returned to base if a teammate steps on them
+- **Respawn**: Location-based — walk back to your own base (marked as a 15m circle on the map) to respawn, no timer
+- **Scoring**: Each successful capture increments your team's score; the HUD displays a red vs blue capture score bar
+- **Map display**: Colored base circles mark each team's base; flag icons change state (🚩 at base, 🏃 carried, 📍 dropped)
+
+#### Infection Details
+
+- **Setup**: One random player starts as "Patient Zero" (infected), all others are survivors
+- **Objective**: Infected players must tag all survivors by hitting them; survivors must avoid infection until time runs out
+- **Combat mechanics**: Only infected players can deal damage; survivor shots are completely ignored by the server. All players are always visible on the map
+- **Immunity**: The only power-up that spawns is immunity (💉). One immunity token absorbs a single shot and grants a 20-second grace period to evade re-infection. Survivors' guns are locked (🔒 GUN LOCKED badge) until they pick up immunity
+- **Winning**: Infected team wins if all players are tagged; survivors win if the time limit expires
+- **HUD display**: Shows 🧟 INFECTED or 🧍 SURVIVOR status, with 🛡️ IMMUNE indicator when holding an immunity token
 
 ### Power-ups
 
@@ -178,7 +198,9 @@ MeCoil/
 │   └── modes/
 │       ├── BaseMode.js       # Shared: timer, kill feed, position broadcast, power-ups
 │       ├── FFA.js            # Free for All win condition
-│       └── TeamDeathmatch.js # Team scoring and win condition
+│       ├── TeamDeathmatch.js # Team scoring and win condition
+│       ├── CaptureTheFlag.js # Flag capture with base proximity, location-based respawn
+│       └── Infection.js      # Asymmetric survival, infected vs survivors
 ├── client/
 │   ├── src/
 │   │   ├── App.svelte        # Screen router
