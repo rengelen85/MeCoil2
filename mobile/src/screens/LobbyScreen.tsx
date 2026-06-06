@@ -65,7 +65,7 @@ export default function LobbyScreen(_props: Props) {
             {isRoomHost ? ' ★' : ''}
             {isMe ? ' (you)' : ''}
           </Text>
-          {gameConfig.mode !== GAME_MODES.FFA && (
+          {gameConfig.mode !== GAME_MODES.FFA && gameConfig.mode !== GAME_MODES.INFECTION && (
             <Text
               style={[
                 styles.playerTeam,

@@ -1,7 +1,7 @@
 import { gun } from './recoilweapon.js';
 import { sendFire, sendHit } from './network.js';
 import { playReload } from './audio.js';
-import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId } from '../stores/game.js';
+import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId, gunLocked } from '../stores/game.js';
 import { get } from 'svelte/store';
 
 // Muzzle-flash (FlashLED1) modes — see docs/Recoil_Gun_Firmware_Config_Guide.md.
@@ -130,7 +130,7 @@ export async function setGunMode(mode) {
 }
 
 function _onTrigger() {
-  if (get(isReloading) || !get(isAlive)) return;
+  if (get(isReloading) || !get(isAlive) || get(gunLocked)) return;
   // Pass the active mode and the rounds currently loaded — plasma damage scales
   // with the latter (loaded ammo * PLASMA_DAMAGE_PER_AMMO on the server).
   sendFire(_activeMode, get(ammo));

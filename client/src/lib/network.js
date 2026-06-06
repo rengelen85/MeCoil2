@@ -8,8 +8,9 @@ import {
   hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
+  ctfState, infectionState,
 } from '../stores/game.js';
-import { teammates, firingEnemies, powerups, airstrikes, graves } from '../stores/map.js';
+import { teammates, firingEnemies, powerups, airstrikes, graves, ctfBases, ctfFlags } from '../stores/map.js';
 import { playKilled, playRespawn, playAirstrikeWarning } from './audio.js';
 
 let ws = null;
@@ -84,6 +85,10 @@ export function sendCollect(powerupId) {
 
 export function sendDeployAirstrike(lat, lng) {
   send({ type: C2S.DEPLOY_AIRSTRIKE, lat, lng });
+}
+
+export function sendSetBase(team, lat, lng) {
+  send({ type: C2S.SET_BASE, team, lat, lng });
 }
 
 export function sendStopGame() {
@@ -163,6 +168,8 @@ function _handle(msg) {
       powerups.set([]);
       airstrikes.set([]);
       graves.set([]);
+      ctfBases.set({ red: null, blue: null });
+      ctfFlags.set({ red: null, blue: null });
       screen.set('ingame');
       break;
     }
@@ -173,6 +180,14 @@ function _handle(msg) {
       if (msg.killFeed) killFeed.set(msg.killFeed);
       if (msg.event?.powerupCollected?.playerId === get(myId)) {
         _applyLocalPowerupFeedback(msg.event.powerupCollected);
+      }
+      if (msg.ctfState) {
+        ctfState.set(msg.ctfState);
+        ctfBases.set(msg.ctfState.bases ?? { red: null, blue: null });
+        ctfFlags.set(msg.ctfState.flags ?? { red: null, blue: null });
+      }
+      if (msg.infectionState) {
+        infectionState.set(msg.infectionState);
       }
       break;
 
@@ -219,7 +234,10 @@ function _handle(msg) {
         isAlive.set(false);
         killedBy.set(msg.killerName ?? null);
         playKilled();
-        _startRespawnCountdown(msg.respawnIn ?? 10);
+        // CTF uses location-based respawn (respawnIn === null); skip countdown
+        if (msg.respawnIn != null) {
+          _startRespawnCountdown(msg.respawnIn);
+        }
       }
       break;
 

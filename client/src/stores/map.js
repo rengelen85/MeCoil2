@@ -9,6 +9,10 @@ export const graves = writable([]);        // [{ id, username, lat, lng }] each 
 export const gpsError = writable(null);
 export const heading = writable(null);    // degrees clockwise from North, null if unavailable
 
+// CTF map overlays
+export const ctfBases = writable({ red: null, blue: null });  // { red: { lat, lng } | null, blue: ... }
+export const ctfFlags = writable({ red: null, blue: null });  // { red: { state, lat, lng, carrierId } | null, blue: ... }
+
 let watchId = null;
 let _headingCleanup = null;
 

@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading } from '../stores/map.js';
+  import { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading, ctfBases, ctfFlags } from '../stores/map.js';
   import { airstrikeArmed, airstrikeReady } from '../stores/game.js';
   import { sendCollect, sendDeployAirstrike } from '../lib/network.js';
 
@@ -15,6 +15,8 @@
   const powerupMarkers = new Map();
   const airstrikeMarkers = new Map(); // id -> { circle, marker }
   const graveMarkers = new Map();     // playerId -> tombstone marker
+  const ctfBaseCircles = new Map();   // team -> { circle }
+  const ctfFlagMarkers = new Map();   // team -> marker
 
   // Accumulated rotation avoids the wrap-around jump when heading crosses 0°/360°
   let _prevHeading = null;
@@ -97,7 +99,7 @@
     });
 
     function powerupIcon(type) {
-      const emoji = { fullReload: '🔋', healthPack: '🩹', shield: '🛡️', stealth: '👻', radar: '📡', airstrike: '🚀' }[type] ?? '📦';
+      const emoji = { fullReload: '🔋', healthPack: '🩹', shield: '🛡️', stealth: '👻', radar: '📡', airstrike: '🚀', immunity: '💉' }[type] ?? '📦';
       return L.divIcon({
         className: '',
         html: `<div class="dot dot-powerup" title="${type}">${emoji}</div>`,
@@ -110,6 +112,16 @@
         className: '',
         html: '<div class="airstrike-target">💥</div>',
         iconSize: [30, 30], iconAnchor: [15, 15],
+      });
+    }
+
+    function flagIcon(team, state) {
+      const emoji = state === 'carried' ? '🏃' : state === 'dropped' ? '📍' : '🚩';
+      const color = team === 'red' ? '#ff5252' : '#448aff';
+      return L.divIcon({
+        className: '',
+        html: `<div class="ctf-flag" style="color:${color}">${emoji}</div>`,
+        iconSize: [28, 28], iconAnchor: [14, 14],
       });
     }
 
@@ -229,16 +241,62 @@
       }
     });
 
+    const CTF_BASE_COLORS = { red: '#ff5252', blue: '#448aff' };
+    const CTF_BASE_RADIUS_M = 15;
+
+    const unsubCtfBases = ctfBases.subscribe(bases => {
+      for (const team of ['red', 'blue']) {
+        const base = bases[team];
+        if (base && !ctfBaseCircles.has(team)) {
+          const circle = L.circle([base.lat, base.lng], {
+            radius: CTF_BASE_RADIUS_M,
+            color: CTF_BASE_COLORS[team],
+            weight: 2,
+            fillColor: CTF_BASE_COLORS[team],
+            fillOpacity: 0.15,
+          }).addTo(map);
+          ctfBaseCircles.set(team, circle);
+        } else if (base && ctfBaseCircles.has(team)) {
+          ctfBaseCircles.get(team).setLatLng([base.lat, base.lng]);
+        } else if (!base && ctfBaseCircles.has(team)) {
+          ctfBaseCircles.get(team).remove();
+          ctfBaseCircles.delete(team);
+        }
+      }
+    });
+
+    const unsubCtfFlags = ctfFlags.subscribe(flags => {
+      for (const team of ['red', 'blue']) {
+        const flag = flags[team];
+        if (flag && flag.lat !== null) {
+          if (!ctfFlagMarkers.has(team)) {
+            ctfFlagMarkers.set(team, L.marker([flag.lat, flag.lng], { icon: flagIcon(team, flag.state) }).addTo(map));
+          } else {
+            const m = ctfFlagMarkers.get(team);
+            m.setLatLng([flag.lat, flag.lng]);
+            m.setIcon(flagIcon(team, flag.state));
+          }
+        } else if (ctfFlagMarkers.has(team)) {
+          ctfFlagMarkers.get(team).remove();
+          ctfFlagMarkers.delete(team);
+        }
+      }
+    });
+
     // NOTE: this onMount callback is async, so a returned cleanup function
     // would be silently ignored by Svelte. Register teardown via onDestroy
     // instead, otherwise these subscriptions leak across games and fire on a
     // removed Leaflet map (throwing and freezing the whole UI on round 2+).
-    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes, unsubGraves];
+    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes, unsubGraves, unsubCtfBases, unsubCtfFlags];
   });
 
   onDestroy(() => {
     for (const unsub of unsubscribers) unsub();
     unsubscribers = [];
+    for (const c of ctfBaseCircles.values()) c.remove();
+    ctfBaseCircles.clear();
+    for (const m of ctfFlagMarkers.values()) m.remove();
+    ctfFlagMarkers.clear();
     map?.remove();
   });
 </script>
@@ -378,6 +436,15 @@
     text-align: center;
     filter: drop-shadow(0 0 6px rgba(255,23,68,0.9));
     animation: enemy-pulse 0.5s ease-in-out infinite alternate;
+  }
+
+  /* CTF flag marker */
+  :global(.ctf-flag) {
+    font-size: 20px;
+    line-height: 1;
+    text-align: center;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
+    animation: enemy-pulse 1s ease-in-out infinite alternate;
   }
 
   /* Tombstone marker at a player's last death spot */

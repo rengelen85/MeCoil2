@@ -5,7 +5,7 @@
  * In Phase 2 this module is replaced by ble.js.
  */
 import { sendFire, sendHit } from './network.js';
-import { ammo, isReloading, isAlive, maxAmmo, reloadDelaySecs } from '../stores/game.js';
+import { ammo, isReloading, isAlive, maxAmmo, reloadDelaySecs, gunLocked } from '../stores/game.js';
 import { get } from 'svelte/store';
 import { playReload } from './audio.js';
 
@@ -44,6 +44,7 @@ function _onKey(e) {
 
 function _fire() {
   if (!get(isAlive)) return; // can't fire while dead
+  if (get(gunLocked)) return; // Infection: non-infected can't fire
   const current = get(ammo);
   if (current <= 0 || get(isReloading)) return;
   if (_activeMode === 'plasma') {

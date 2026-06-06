@@ -3,7 +3,7 @@ import { POWERUP_TYPES } from '../shared/messages.js';
 const POWERUP_INTERVAL_MS = 30_000;
 const COLLECTION_RADIUS_M = 15;
 const SPAWN_RADIUS_M = 100;
-const ALL_TYPES = Object.values(POWERUP_TYPES);
+const ALL_STANDARD_TYPES = Object.values(POWERUP_TYPES).filter(t => t !== POWERUP_TYPES.IMMUNITY);
 
 let nextId = 1;
 
@@ -34,9 +34,10 @@ export class PowerupManager {
     this._centerLng = null;
   }
 
-  start(centerLat, centerLng) {
+  start(centerLat, centerLng, allowedTypes = null) {
     this._centerLat = centerLat;
     this._centerLng = centerLng;
+    this._allowedTypes = allowedTypes ?? ALL_STANDARD_TYPES;
     this._spawn();
     this._timer = setInterval(() => this._spawn(), POWERUP_INTERVAL_MS);
   }
@@ -49,11 +50,12 @@ export class PowerupManager {
   _spawn() {
     if (this._centerLat === null) return;
     const { dLat, dLng } = randomOffset(Math.random() * SPAWN_RADIUS_M);
+    const types = this._allowedTypes ?? ALL_STANDARD_TYPES;
     const pkg = {
       id: nextId++,
       lat: this._centerLat + dLat,
       lng: this._centerLng + dLng,
-      type: ALL_TYPES[Math.floor(Math.random() * ALL_TYPES.length)],
+      type: types[Math.floor(Math.random() * types.length)],
     };
     this.packages.set(pkg.id, pkg);
     this.onUpdate();

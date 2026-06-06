@@ -3,6 +3,8 @@ import { S2C, C2S, GAME_STATES, GAME_MODES, TEAMS } from '../shared/messages.js'
 import { PowerupManager } from './PowerupManager.js';
 import { FFA } from './modes/FFA.js';
 import { TeamDeathmatch } from './modes/TeamDeathmatch.js';
+import { CaptureTheFlag } from './modes/CaptureTheFlag.js';
+import { Infection } from './modes/Infection.js';
 
 const COUNTDOWN_SECS = 5;
 const POWERUP_BROADCAST_INTERVAL_MS = 2_000;
@@ -92,6 +94,18 @@ export class GameManager {
       case C2S.POSITION:
         player.lat = msg.lat;
         player.lng = msg.lng;
+        if (this.state === GAME_STATES.PLAYING) {
+          this._mode?.onPositionUpdate?.(player);
+        }
+        break;
+
+      case C2S.SET_BASE:
+        if (player.id !== this._hostId) return;
+        if (this.config.mode !== GAME_MODES.CAPTURE_THE_FLAG) return;
+        if (msg.team !== TEAMS.RED && msg.team !== TEAMS.BLUE) return;
+        if (typeof msg.lat !== 'number' || typeof msg.lng !== 'number') return;
+        this.config[msg.team === TEAMS.RED ? 'redBase' : 'blueBase'] = { lat: msg.lat, lng: msg.lng };
+        this._broadcastLobby();
         break;
 
       case C2S.FIRE:
@@ -131,7 +145,7 @@ export class GameManager {
   }
 
   _assignTeam(player) {
-    if (this.config.mode === GAME_MODES.FFA) return;
+    if (this.config.mode === GAME_MODES.FFA || this.config.mode === GAME_MODES.INFECTION) return;
     const counts = { [TEAMS.RED]: 0, [TEAMS.BLUE]: 0 };
     for (const p of this.players.values()) {
       if (p.team !== TEAMS.NONE) counts[p.team]++;
@@ -188,7 +202,11 @@ export class GameManager {
       ...this._gameplaySettings(),
     });
 
-    const ModeClass = this.config.mode === GAME_MODES.TEAM_DEATHMATCH ? TeamDeathmatch : FFA;
+    const ModeClass = {
+      [GAME_MODES.TEAM_DEATHMATCH]: TeamDeathmatch,
+      [GAME_MODES.CAPTURE_THE_FLAG]: CaptureTheFlag,
+      [GAME_MODES.INFECTION]: Infection,
+    }[this.config.mode] ?? FFA;
     this._mode = new ModeClass(
       this.players,
       this.config,

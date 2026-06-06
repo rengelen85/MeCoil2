@@ -6,7 +6,7 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, radarActive, airstrikeReady, airstrikeArmed } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, radarActive, airstrikeReady, airstrikeArmed, ctfState, infectionState, amIInfected, gunLocked } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes } from '../stores/map.js';
   import { startSimulator, stopSimulator, setSimulatorMode } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
@@ -102,7 +102,17 @@
 
   $: modeLabel = $gameConfig.mode === GAME_MODES.FFA ? 'FFA'
                : $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH ? 'TDM'
-               : 'CTF';
+               : $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ? 'CTF'
+               : 'INF';
+
+  // CTF: captures from the score for quick display in the top bar
+  $: ctfCaptures = $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG && $ctfState
+    ? $ctfState.captures
+    : null;
+
+  // Infection: immunity state for the local player
+  $: myImmunity = $infectionState?.immunePlayers?.[$myId] ?? null;
+  $: immunityActive = myImmunity?.hasImmunity || (myImmunity?.gracePeriodUntil && Date.now() < myImmunity.gracePeriodUntil);
 </script>
 
 <div class="ingame">
@@ -135,6 +145,28 @@
     <div class="radar-badge">📡 RADAR</div>
   {/if}
 
+  <!-- CTF: flag capture scores -->
+  {#if ctfCaptures !== null}
+    <div class="ctf-bar">
+      <span class="ctf-red">🚩 RED {ctfCaptures.red ?? 0}</span>
+      <span class="ctf-sep">—</span>
+      <span class="ctf-blue">BLUE {ctfCaptures.blue ?? 0} 🚩</span>
+    </div>
+  {/if}
+
+  <!-- Infection: role indicator + gun lock -->
+  {#if $gameConfig.mode === GAME_MODES.INFECTION && $infectionState}
+    <div class="inf-role" class:inf-infected={$amIInfected} class:inf-survivor={!$amIInfected}>
+      {$amIInfected ? '🧟 INFECTED' : '🧍 SURVIVOR'}
+      {#if immunityActive}
+        <span class="inf-immune">🛡 IMMUNE</span>
+      {/if}
+    </div>
+    {#if $gunLocked}
+      <div class="gun-locked">🔒 GUN LOCKED</div>
+    {/if}
+  {/if}
+
   <!-- Bottom-right: HP bar above, personal stats below -->
   <div class="hud-bottom-right">
     <div class="health-wrap">
@@ -159,7 +191,11 @@
       {#if $killedBy}
         <div class="respawn-killer">Killed by <span class="killer-name">{$killedBy}</span></div>
       {/if}
-      <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
+      {#if $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG}
+        <div class="respawn-count">Return to your base to respawn</div>
+      {:else}
+        <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
+      {/if}
     </div>
   {/if}
 
@@ -464,6 +500,72 @@
     font-size: 12px;
     font-weight: 700;
     color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .ctf-bar {
+    position: absolute;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: rgba(0,0,0,0.75);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 4px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .ctf-red { color: #ff5252; }
+  .ctf-blue { color: #448aff; }
+  .ctf-sep { color: rgba(255,255,255,0.3); }
+
+  .inf-role {
+    position: absolute;
+    top: 56px;
+    left: 12px;
+    z-index: 1000;
+    background: rgba(0,0,0,0.75);
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .inf-role.inf-infected {
+    border: 1px solid rgba(255,82,82,0.6);
+    color: #ff5252;
+  }
+  .inf-role.inf-survivor {
+    border: 1px solid rgba(0,200,83,0.6);
+    color: #00c853;
+  }
+  .inf-immune {
+    font-size: 11px;
+    color: #ffd740;
+    letter-spacing: 0.5px;
+  }
+
+  .gun-locked {
+    position: absolute;
+    top: 92px;
+    left: 12px;
+    z-index: 1000;
+    background: rgba(40,0,0,0.8);
+    border: 1px solid rgba(255,82,82,0.5);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #ff5252;
     letter-spacing: 1px;
   }
 

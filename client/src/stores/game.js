@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import { GAME_STATES, GAME_MODES, TEAMS } from '../../../shared/messages.js';
+import { GAME_STATES, GAME_MODES } from '../../../shared/messages.js';
 
 export const screen = writable('setup'); // 'setup' | 'lobby' | 'ingame' | 'end'
 
@@ -55,6 +55,12 @@ export const reloadDelaySecs = writable(3);
 export const bleConnected = writable(false);
 export const gunSlotId = writable(0);
 
+// CTF mode state
+export const ctfState = writable(null); // { flags: { red, blue }, captures: { red, blue }, bases: { red, blue } }
+
+// Infection mode state
+export const infectionState = writable(null); // { infectedIds: [], immunePlayers: {} }
+
 // Multi-room state
 export const rooms = writable([]);     // [{ id, name, playerCount, state }]
 export const roomName = writable('');
@@ -63,7 +69,7 @@ export const myPlayer = derived([players, myId], ([$players, $myId]) =>
   $players.find(p => p.id === $myId) ?? null
 );
 
-// My live score entry, resolved across FFA (flat) and TDM (nested teams) shapes.
+// My live score entry, resolved across FFA (flat) and TDM/CTF/Infection (nested teams) shapes.
 export const myScore = derived([scores, myId], ([$scores, $myId]) => {
   for (const entry of $scores) {
     if (entry.players) {
@@ -74,6 +80,20 @@ export const myScore = derived([scores, myId], ([$scores, $myId]) => {
     }
   }
   return null;
+});
+
+// True when the local player is infected (Infection mode only)
+export const amIInfected = derived([gameConfig, infectionState, myId], ([$gameConfig, $infectionState, $myId]) => {
+  if ($gameConfig?.mode !== GAME_MODES.INFECTION) return false;
+  if (!$infectionState) return false;
+  return $infectionState.infectedIds.includes($myId);
+});
+
+// True when the local player cannot fire (non-infected in Infection mode)
+export const gunLocked = derived([gameConfig, infectionState, myId], ([$gameConfig, $infectionState, $myId]) => {
+  if ($gameConfig?.mode !== GAME_MODES.INFECTION) return false;
+  if (!$infectionState) return false; // before first tick, allow firing
+  return !$infectionState.infectedIds.includes($myId);
 });
 
 export function resetGame() {
@@ -94,6 +114,8 @@ export function resetGame() {
   respawnCountdown.set(null);
   killedBy.set(null);
   lastHitAt.set(null);
+  ctfState.set(null);
+  infectionState.set(null);
 }
 
 export function saveSession(name) {

@@ -1,9 +1,11 @@
 <script>
   import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt, roomName, gameId } from '../stores/game.js';
-  import { sendReady, sendGameConfig, sendStartGame, sendLeaveRoom } from '../lib/network.js';
-  import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
+  import { sendReady, sendGameConfig, sendStartGame, sendLeaveRoom, sendSetBase } from '../lib/network.js';
+  import { GAME_MODES, GAME_STATES, TEAMS } from '../../../shared/messages.js';
 
   let ready = false;
+  let settingBase = false;
+  let baseSetError = '';
 
   $: countdown = $gameState === GAME_STATES.COUNTDOWN ? Math.max(0, Math.ceil(($countdownAt - Date.now()) / 1000)) : null;
   $: iAmHost = $myId === $hostId;
@@ -28,6 +30,30 @@
     tick = setInterval(() => { countdown = Math.max(0, Math.ceil(($countdownAt - Date.now()) / 1000)); }, 200);
   } else {
     clearInterval(tick);
+  }
+
+  async function setBase(team) {
+    if (!navigator.geolocation) { baseSetError = 'Geolocation not supported'; return; }
+    settingBase = true;
+    baseSetError = '';
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        sendSetBase(team, pos.coords.latitude, pos.coords.longitude);
+        settingBase = false;
+      },
+      err => {
+        baseSetError = err.message;
+        settingBase = false;
+      },
+      { enableHighAccuracy: true, timeout: 10_000 }
+    );
+  }
+
+  function modeName(mode) {
+    return mode === GAME_MODES.FFA ? 'Free for All'
+         : mode === GAME_MODES.TEAM_DEATHMATCH ? 'Team Deathmatch'
+         : mode === GAME_MODES.CAPTURE_THE_FLAG ? 'Capture the Flag'
+         : 'Infection';
   }
 </script>
 
@@ -70,6 +96,8 @@
           <select on:change={e => updateConfig('mode', e.target.value)} value={$gameConfig.mode}>
             <option value={GAME_MODES.FFA}>Free for All</option>
             <option value={GAME_MODES.TEAM_DEATHMATCH}>Team Deathmatch</option>
+            <option value={GAME_MODES.CAPTURE_THE_FLAG}>Capture the Flag</option>
+            <option value={GAME_MODES.INFECTION}>Infection</option>
           </select>
         </label>
 
@@ -78,10 +106,12 @@
             on:change={e => updateConfig('timeLimit', e.target.value)} />
         </label>
 
-        <label>Score limit (kills)
-          <input type="number" min="1" max="200" value={$gameConfig.scoreLimit}
-            on:change={e => updateConfig('scoreLimit', e.target.value)} />
-        </label>
+        {#if $gameConfig.mode !== GAME_MODES.INFECTION}
+          <label>{$gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ? 'Flag captures to win' : 'Score limit (kills)'}
+            <input type="number" min="1" max="200" value={$gameConfig.scoreLimit}
+              on:change={e => updateConfig('scoreLimit', e.target.value)} />
+          </label>
+        {/if}
 
         {#if $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH}
           <label class="label-checkbox">
@@ -89,6 +119,22 @@
               on:change={e => updateConfig('friendlyFire', e.target.checked)} />
             Friendly fire
           </label>
+        {/if}
+
+        {#if $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG}
+          <h2 class="subhead">Base Setup</h2>
+          <p class="base-hint">Walk to each team's base location and tap the button to set it from your GPS position.</p>
+          <div class="base-btns">
+            <button class="btn-base btn-base-red" on:click={() => setBase(TEAMS.RED)} disabled={settingBase}>
+              {$gameConfig.redBase ? '✓ Red base set' : 'Set Red Base'}
+            </button>
+            <button class="btn-base btn-base-blue" on:click={() => setBase(TEAMS.BLUE)} disabled={settingBase}>
+              {$gameConfig.blueBase ? '✓ Blue base set' : 'Set Blue Base'}
+            </button>
+          </div>
+          {#if baseSetError}
+            <p class="base-error">{baseSetError}</p>
+          {/if}
         {/if}
 
         <h2 class="subhead">Combat Settings</h2>
@@ -118,16 +164,30 @@
     {:else}
       <section class="card config-card config-readonly">
         <h2>Game Settings</h2>
-        <div class="config-row"><span>Mode</span><span>{$gameConfig.mode === GAME_MODES.FFA ? 'Free for All' : 'Team Deathmatch'}</span></div>
+        <div class="config-row"><span>Mode</span><span>{modeName($gameConfig.mode)}</span></div>
         <div class="config-row"><span>Time</span><span>{$gameConfig.timeLimit} min</span></div>
-        <div class="config-row"><span>Score limit</span><span>{$gameConfig.scoreLimit} kills</span></div>
+        {#if $gameConfig.mode !== GAME_MODES.INFECTION}
+          <div class="config-row">
+            <span>{$gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ? 'Captures to win' : 'Score limit'}</span>
+            <span>{$gameConfig.scoreLimit}</span>
+          </div>
+        {/if}
         {#if $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH}
           <div class="config-row"><span>Friendly fire</span><span>{$gameConfig.friendlyFire ? 'On' : 'Off'}</span></div>
+        {/if}
+        {#if $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG}
+          <div class="config-row"><span>Red base</span><span>{$gameConfig.redBase ? 'Set' : 'Not set'}</span></div>
+          <div class="config-row"><span>Blue base</span><span>{$gameConfig.blueBase ? 'Set' : 'Not set'}</span></div>
+        {/if}
+        {#if $gameConfig.mode === GAME_MODES.INFECTION}
+          <div class="config-row"><span>Power-ups</span><span>Immunity only</span></div>
         {/if}
         <div class="config-row"><span>Magazine</span><span>{$gameConfig.bulletsPerMag} rounds</span></div>
         <div class="config-row"><span>HP / player</span><span>{$gameConfig.hpPerPlayer}</span></div>
         <div class="config-row"><span>Reload</span><span>{$gameConfig.reloadDelaySecs}s</span></div>
-        <div class="config-row"><span>Respawn</span><span>{$gameConfig.respawnDelaySecs}s</span></div>
+        {#if $gameConfig.mode !== GAME_MODES.CAPTURE_THE_FLAG}
+          <div class="config-row"><span>Respawn</span><span>{$gameConfig.respawnDelaySecs}s</span></div>
+        {/if}
       </section>
     {/if}
   </div>
@@ -307,6 +367,45 @@
     font-family: inherit;
   }
   .btn-leave:hover { color: #ff5252; }
+
+  .base-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.5;
+  }
+  .base-btns {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-base {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: uppercase;
+  }
+  .btn-base:disabled { opacity: 0.5; cursor: default; }
+  .btn-base-red {
+    background: rgba(255,82,82,0.15);
+    border: 1px solid rgba(255,82,82,0.5);
+    color: #ff5252;
+  }
+  .btn-base-blue {
+    background: rgba(68,138,255,0.15);
+    border: 1px solid rgba(68,138,255,0.5);
+    color: #448aff;
+  }
+  .base-error {
+    font-size: 12px;
+    color: #ff5252;
+    margin: 0;
+  }
 
   .sim-hint { font-size: 12px; color: var(--text-muted); }
   kbd {

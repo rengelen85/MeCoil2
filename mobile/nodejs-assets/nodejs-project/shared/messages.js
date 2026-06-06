@@ -15,6 +15,7 @@ export const C2S = {
   HIT: 'hit',
   COLLECT: 'collect',
   DEPLOY_AIRSTRIKE: 'deployAirstrike', // player calls in a held airstrike at a chosen point
+  SET_BASE: 'setBase',                 // CTF: host sets a team's base location
 };
 
 export const S2C = {
@@ -41,6 +42,7 @@ export const GAME_MODES = {
   FFA: 'ffa',
   TEAM_DEATHMATCH: 'tdm',
   CAPTURE_THE_FLAG: 'ctf',
+  INFECTION: 'infection',
 };
 
 export const GAME_STATES = {
@@ -73,4 +75,5 @@ export const POWERUP_TYPES = {
   STEALTH: 'stealth',
   RADAR: 'radar',            // reveals every living enemy on the collector's map for a while
   AIRSTRIKE: 'airstrike',    // a held strike the collector can later place on the map
+  IMMUNITY: 'immunity',      // Infection only: absorbs one shot; if hit while active, grants 20s grace window
 };

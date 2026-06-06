@@ -2,11 +2,42 @@
   import { scores, gameConfig, myId } from '../stores/game.js';
   import { GAME_MODES } from '../../../shared/messages.js';
 
-  $: isTDM = $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH;
+  $: mode = $gameConfig.mode;
+  $: isTDM = mode === GAME_MODES.TEAM_DEATHMATCH;
+  $: isCTF = mode === GAME_MODES.CAPTURE_THE_FLAG;
+  $: isInfection = mode === GAME_MODES.INFECTION;
 </script>
 
 <div class="scoreboard">
-  {#if isTDM}
+  {#if isCTF}
+    {#each $scores as team}
+      <div class="team-row team-{team.team}">
+        <span class="team-label">{team.team.toUpperCase()}</span>
+        <span class="team-captures">🚩 {team.captures}</span>
+        <div class="player-list">
+          {#each team.players as p}
+            <span class="player" class:is-me={p.id === $myId} class:dead={p.isAlive === false}>
+              {p.username}{p.hasFlag ? ' 🚩' : ''} {p.kills}/{p.deaths}
+            </span>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  {:else if isInfection}
+    {#each $scores as group}
+      <div class="inf-group inf-{group.team}">
+        <span class="inf-label">{group.team === 'infected' ? '🧟 INFECTED' : '🧍 SURVIVORS'}</span>
+        <span class="inf-count">{group.count}</span>
+        <div class="player-list">
+          {#each group.players as p}
+            <span class="player" class:is-me={p.id === $myId}>
+              {p.username}{group.team === 'infected' ? ` (${p.kills})` : ''}
+            </span>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  {:else if isTDM}
     {#each $scores as team}
       <div class="team-row team-{team.team}">
         <span class="team-label">{team.team.toUpperCase()}</span>
@@ -67,7 +98,14 @@
   .team-row.team-blue .team-label { color: #448aff; }
   .team-label { font-weight: 700; font-size: 11px; letter-spacing: 1px; }
   .team-kills { float: right; font-weight: 700; font-size: 15px; }
+  .team-captures { float: right; font-weight: 700; font-size: 15px; }
   .player-list { display: flex; flex-direction: column; gap: 2px; margin-top: 3px; }
   .player { font-size: 12px; color: #bbb; }
   .player.is-me { color: #fff; font-weight: 700; }
+
+  .inf-group { padding: 4px 0; }
+  .inf-label { font-weight: 700; font-size: 11px; letter-spacing: 1px; }
+  .inf-count { float: right; font-weight: 700; font-size: 15px; }
+  .inf-group.inf-infected .inf-label { color: #ff5252; }
+  .inf-group.inf-survivors .inf-label { color: #00c853; }
 </style>
