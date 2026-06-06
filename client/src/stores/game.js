@@ -47,6 +47,7 @@ export const isAlive = writable(true);
 export const respawnCountdown = writable(null); // seconds left while dead, else null
 export const killedBy = writable(null);         // username of last killer, null when alive
 export const lastHitAt = writable(null);        // timestamp of last damage hit (for flash)
+export const lastShotHitAt = writable(null);    // timestamp of last confirmed outgoing hit (for HIT indicator)
 
 // Host-tunable gameplay settings consumed by the gun/simulator
 export const bulletsPerMag = writable(30);
@@ -117,6 +118,7 @@ export function resetGame() {
   respawnCountdown.set(null);
   killedBy.set(null);
   lastHitAt.set(null);
+  lastShotHitAt.set(null);
   ctfState.set(null);
   infectionState.set(null);
 }

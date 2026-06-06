@@ -6,7 +6,7 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, radarActive, airstrikeReady, airstrikeArmed, ctfState, infectionState, amIInfected, gunLocked, activeGunMode } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, radarActive, airstrikeReady, airstrikeArmed, ctfState, infectionState, amIInfected, gunLocked, activeGunMode } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes } from '../stores/map.js';
   import { startSimulator, stopSimulator, setSimulatorMode } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
@@ -24,6 +24,14 @@
     hitFlashActive = true;
     if (hitFlashTimer) clearTimeout(hitFlashTimer);
     hitFlashTimer = setTimeout(() => { hitFlashActive = false; }, 350);
+  }
+
+  let shotHitActive = false;
+  let shotHitTimer = null;
+  $: if ($lastShotHitAt) {
+    shotHitActive = true;
+    if (shotHitTimer) clearTimeout(shotHitTimer);
+    shotHitTimer = setTimeout(() => { shotHitActive = false; }, 600);
   }
 
   async function cycleGunMode() {
@@ -183,6 +191,11 @@
   <!-- Hit flash overlay -->
   {#if hitFlashActive}
     <div class="hit-flash"></div>
+  {/if}
+
+  <!-- Shot hit indicator -->
+  {#if shotHitActive}
+    <div class="shot-hit">HIT</div>
   {/if}
 
   <!-- Respawn overlay -->
@@ -367,6 +380,25 @@
   @keyframes hitfade {
     from { opacity: 1; }
     to   { opacity: 0; }
+  }
+
+  .shot-hit {
+    position: absolute;
+    top: 42%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1300;
+    color: #00e676;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 5px;
+    text-shadow: 0 0 16px rgba(0, 230, 118, 0.8);
+    pointer-events: none;
+    animation: shothit 0.6s ease-out forwards;
+  }
+  @keyframes shothit {
+    0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-14px); }
   }
 
   .respawn-overlay {

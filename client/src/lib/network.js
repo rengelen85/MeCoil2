@@ -5,7 +5,7 @@ import {
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
   ammo, maxAmmo, shieldActive, stealthActive, stealthCountdown, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
-  hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, bulletsPerMag, reloadDelaySecs,
+  hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
   ctfState, infectionState,
@@ -218,6 +218,9 @@ function _handle(msg) {
         if (msg.hp < get(hp)) lastHitAt.set(Date.now());
         hp.set(msg.hp);
         maxHp.set(msg.maxHp);
+      }
+      if (msg.shooterId === get(myId)) {
+        lastShotHitAt.set(Date.now());
       }
       break;
 
