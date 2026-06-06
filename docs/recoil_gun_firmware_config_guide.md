@@ -1,31 +1,6 @@
 # RecoilGun Firmware Configuration Guide
 
-| Version | Author | Date | Notes |
-|---|---|---|---|
-| **1.1** | **Matteo Scordino** | **24 May 2017** | **Initial Version** |
-
-## Table of Contents
-
-- [RecoilGun Firmware Configuration Guide](#recoilgun-firmware-configuration-guide)
-- [Introduction](#introduction)
-- [Configuration parameters](#configuration-parameters)
-- [Weapon Definition](#weapon-definition)
-  - [ID](#id)
-  - [Trigger Mode](#trigger-mode)
-  - [Rate of Fire](#rate-of-fire)
-  - [PowerIR1 (long-range)](#powerir1-long-range)
-  - [PowerIR2 (short-range)](#powerir2-short-range)
-  - [PowerLED1 (muzzle)](#powerled1-muzzle)
-  - [PowerLED2 (power LED)](#powerled2-power-led)
-  - [PowerMotor](#powermotor)
-  - [FlashLED1 (muzzle)](#flashled1-muzzle)
-  - [FlashLED2](#flashled2)
-  - [Flash Parameter 1](#flash-parameter-1)
-  - [Flash Parameter 2](#flash-parameter-2)
-- [Global parameters](#global-parameters)
-  - [Shot Config](#shot-config)
-  - [IR Config](#ir-config)
-- [Configuration via the Test App](#configuration-via-the-test-app)
+Markdown based RecoilGun Firmware Configuration Guide, extracted from https://github.com/SkyRocketToys/Recoil_Documentation/blob/master/Recoil_Gun_Firmware_Config_Guide.docx
 
 ## Introduction
 
