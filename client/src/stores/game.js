@@ -41,6 +41,7 @@ export const stealthCountdown = writable(null); // seconds remaining while steal
 export const fastReloadActive = writable(false);
 export const fastReloadCountdown = writable(null); // seconds remaining while fast reload is active
 export const radarActive = writable(false);     // enemies revealed on my map
+export const radarCountdown = writable(null);   // seconds remaining while radar is active
 export const airstrikeReady = writable(0);       // held airstrikes available to deploy
 export const airstrikeArmed = writable(false);   // armed: next map tap places a preview circle
 export const airstrikePreview = writable(null);  // { lat, lng } pending confirmation, or null

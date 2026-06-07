@@ -4,7 +4,7 @@ import {
   myId, isHost, players, gameConfig, hostId,
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
-  ammo, maxAmmo, shieldActive, shieldCountdown, stealthActive, stealthCountdown, fastReloadActive, fastReloadCountdown, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
+  ammo, maxAmmo, shieldActive, shieldCountdown, stealthActive, stealthCountdown, fastReloadActive, fastReloadCountdown, radarActive, radarCountdown, airstrikeReady, airstrikeArmed, gunSlotId,
   hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
@@ -362,11 +362,7 @@ function _applyLocalPowerupFeedback({ type }) {
     case 'healthPack': hp.set(get(maxHp)); break;
     case 'shield': _startShieldCountdown(120); break;
     case 'stealth': _startStealthCountdown(120); break;
-    case 'radar':
-      radarActive.set(true);
-      // Radar lasts one minute server-side; clear the indicator to match.
-      setTimeout(() => radarActive.set(false), 60_000);
-      break;
+    case 'radar': _startRadarCountdown(60); break;
     case 'airstrike': airstrikeReady.update(n => n + 1); break;
   }
 }
@@ -447,6 +443,32 @@ function _stopFastReloadCountdown() {
   }
   fastReloadActive.set(false);
   fastReloadCountdown.set(null);
+}
+
+// Local 1-second ticker that drives the radar badge countdown.
+let _radarTimer = null;
+
+function _startRadarCountdown(secs) {
+  _stopRadarCountdown();
+  radarActive.set(true);
+  radarCountdown.set(secs);
+  _radarTimer = setInterval(() => {
+    radarCountdown.update(v => {
+      if (v === null) return null;
+      const next = v - 1;
+      if (next <= 0) { _stopRadarCountdown(); return null; }
+      return next;
+    });
+  }, 1_000);
+}
+
+function _stopRadarCountdown() {
+  if (_radarTimer) {
+    clearInterval(_radarTimer);
+    _radarTimer = null;
+  }
+  radarActive.set(false);
+  radarCountdown.set(null);
 }
 
 // Local 1-second ticker that drives the on-screen respawn countdown while dead.

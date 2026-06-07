@@ -6,7 +6,7 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, radarActive, airstrikeReady, airstrikeArmed, airstrikePreview, ctfState, infectionState, amIInfected, gunLocked, activeGunMode, gameArea } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, radarActive, radarCountdown, airstrikeReady, airstrikeArmed, airstrikePreview, ctfState, infectionState, amIInfected, gunLocked, activeGunMode, gameArea } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes, myPosition } from '../stores/map.js';
   import { isInArea } from '../lib/geometry.js';
   import { startSimulator, stopSimulator, setSimulatorMode } from '../lib/simulator.js';
@@ -174,7 +174,7 @@
 
   <!-- Radar active indicator -->
   {#if $radarActive}
-    <div class="radar-badge">📡 RADAR</div>
+    <div class="radar-badge">📡 RADAR {$radarCountdown !== null ? `${Math.floor($radarCountdown / 60)}:${String($radarCountdown % 60).padStart(2, '0')}` : ''}</div>
   {/if}
 
   <!-- CTF: flag capture scores -->
