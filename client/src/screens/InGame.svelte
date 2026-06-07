@@ -230,6 +230,9 @@
       {/if}
       {#if $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG}
         <div class="respawn-count">Return to your base to respawn</div>
+        {#if $respawnCountdown != null}
+          <div class="respawn-count respawn-ctf-timer">{$respawnCountdown}s</div>
+        {/if}
       {:else}
         <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
       {/if}
@@ -434,7 +437,7 @@
     position: absolute;
     inset: 0;
     z-index: 1500;
-    background: rgba(20,0,0,0.78);
+    background: rgba(20,0,0,0.45);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -462,6 +465,13 @@
     color: #fff;
     letter-spacing: 1px;
     font-variant-numeric: tabular-nums;
+  }
+  .respawn-ctf-timer {
+    font-size: 42px;
+    font-weight: 900;
+    color: #ff5252;
+    text-shadow: 0 0 16px rgba(255,82,82,0.6);
+    letter-spacing: 2px;
   }
 
   .scores-overlay {
