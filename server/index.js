@@ -46,6 +46,12 @@ wss.on('connection', ws => {
     try { msg = JSON.parse(raw); } catch { return; }
 
     if (!player) {
+      if (msg.type === C2S.REJOIN) {
+        const rejoined = roomManager.rejoin(ws, msg.playerId, msg.username);
+        if (rejoined) player = rejoined;
+        // On failure, rejoin() already sent REJOIN_FAILED — client will re-register
+        return;
+      }
       if (msg.type !== C2S.REGISTER || !msg.username?.trim()) return;
       player = new Player(ws, msg.username.trim());
       roomManager.register(player);
@@ -56,7 +62,11 @@ wss.on('connection', ws => {
   });
 
   ws.on('close', () => {
-    if (player) roomManager.removePlayer(player);
+    // Only handle disconnect if this ws is the player's active connection.
+    // After a reconnect, the old ws's close handler will fire but we should ignore it.
+    if (player && player.ws === ws) {
+      roomManager.handleDisconnect(player);
+    }
   });
 });
 

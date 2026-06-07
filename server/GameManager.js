@@ -59,8 +59,46 @@ export class GameManager {
   removePlayer(player) {
     this.players.delete(player.id);
     if (player.id === this._hostId) {
-      this._hostId = this.players.keys().next().value ?? null;
+      // Prefer a connected player as the new host
+      this._hostId = [...this.players.values()].find(p => !p.disconnected)?.id
+        ?? this.players.keys().next().value
+        ?? null;
     }
+    this._broadcastLobby();
+  }
+
+  // Called by RoomManager when a disconnected player's WebSocket is restored within
+  // the grace period. Re-delivers current game state without touching their stats.
+  onPlayerRejoined(player) {
+    player.send({
+      type: S2C.JOINED,
+      playerId: player.id,
+      isHost: player.id === this._hostId,
+      lobbyState: this._lobbyState(),
+    });
+
+    if (this.state === GAME_STATES.PLAYING) {
+      // Preserve kills/deaths/hits across the rejoin reset
+      const { kills, deaths, hits, timesHit } = player;
+      player.resetForGame(player.maxHp);
+      player.kills = kills;
+      player.deaths = deaths;
+      player.hits = hits;
+      player.timesHit = timesHit;
+
+      player.send({
+        type: S2C.GAME_STARTED,
+        gameId: this.gameId,
+        roundId: this._roundId,
+        mode: this.config.mode,
+        timeLimit: this.config.timeLimit,
+        scoreLimit: this.config.scoreLimit,
+        gunAssignments: { [player.id]: player.gunSlotId },
+        gameArea: this.config.gameArea ?? null,
+        ...this._gameplaySettings(),
+      });
+    }
+
     this._broadcastLobby();
   }
 

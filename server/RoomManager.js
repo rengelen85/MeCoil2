@@ -1,13 +1,17 @@
+import { randomUUID } from 'node:crypto';
 import { S2C, C2S } from '../shared/messages.js';
 import { GameManager } from './GameManager.js';
+
+const RECONNECT_GRACE_MS = 30_000;
 
 let nextRoomId = 1;
 
 export class RoomManager {
   constructor() {
-    this._rooms = new Map();       // roomId -> { id, name, manager }
-    this._playerRoom = new Map();  // player.id -> roomId
-    this._unroomedWs = new Set();  // ws sockets not yet in a room
+    this._rooms = new Map();            // roomId -> { id, name, manager }
+    this._playerRoom = new Map();       // player.id -> roomId
+    this._unroomedWs = new Set();       // ws sockets not yet in a room
+    this._pendingReconnect = new Map(); // player.id -> { player, roomId, timer }
   }
 
   // Called when a player first connects and sends REGISTER
@@ -46,26 +50,56 @@ export class RoomManager {
     if (room) room.manager.handleMessage(player, msg);
   }
 
-  // Called on WebSocket close
-  removePlayer(player) {
+  // Called on WebSocket close — starts a 30s grace period before removing the player.
+  // If they reconnect in time and send REJOIN, their session is restored transparently.
+  handleDisconnect(player) {
     const roomId = this._playerRoom.get(player.id);
-    if (roomId !== undefined) {
-      const room = this._rooms.get(roomId);
-      if (room) {
-        room.manager.removePlayer(player);
-        if (room.manager.players.size === 0) {
-          room.manager.destroy();
-          this._rooms.delete(roomId);
-        }
-      }
-      this._playerRoom.delete(player.id);
-    } else {
+    if (roomId === undefined) {
+      // Player was on the room-select screen — no session to preserve
       this._unroomedWs.delete(player.ws);
+      this._broadcastRoomList();
+      return;
     }
+
+    player.disconnected = true;
+    const timer = setTimeout(() => {
+      this._pendingReconnect.delete(player.id);
+      this._immediateRemove(player, roomId);
+      this._broadcastRoomList();
+    }, RECONNECT_GRACE_MS);
+    this._pendingReconnect.set(player.id, { player, roomId, timer });
+
+    // Show the disconnected indicator to the other players in the room
+    const room = this._rooms.get(roomId);
+    if (room) room.manager._broadcastLobby();
     this._broadcastRoomList();
   }
 
-  _leaveRoom(player, roomId) {
+  // Called when a new WebSocket sends C2S.REJOIN.
+  // Returns the restored Player on success, or null on failure (sends REJOIN_FAILED).
+  rejoin(ws, playerId, username) {
+    const pending = this._pendingReconnect.get(playerId);
+    if (!pending || pending.player.username !== username) {
+      ws.send(JSON.stringify({ type: S2C.REJOIN_FAILED }));
+      return null;
+    }
+
+    clearTimeout(pending.timer);
+    this._pendingReconnect.delete(playerId);
+
+    const { player, roomId } = pending;
+    player.ws = ws;
+    player.disconnected = false;
+
+    const room = this._rooms.get(roomId);
+    if (room) {
+      room.manager.onPlayerRejoined(player);
+    }
+    this._broadcastRoomList();
+    return player;
+  }
+
+  _immediateRemove(player, roomId) {
     const room = this._rooms.get(roomId);
     if (room) {
       room.manager.removePlayer(player);
@@ -75,6 +109,16 @@ export class RoomManager {
       }
     }
     this._playerRoom.delete(player.id);
+  }
+
+  _leaveRoom(player, roomId) {
+    // Cancel any pending reconnect grace timer
+    const pending = this._pendingReconnect.get(player.id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this._pendingReconnect.delete(player.id);
+    }
+    this._immediateRemove(player, roomId);
     this._unroomedWs.add(player.ws);
     player.send({ type: S2C.LEFT_ROOM, rooms: this._getPublicList() });
     this._broadcastRoomList();

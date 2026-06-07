@@ -28,6 +28,9 @@ export class Player {
     this.isAlive = true;
     this.respawnTimer = null;
 
+    // Reconnect state
+    this.disconnected = false; // true during the 30s grace period after WebSocket close
+
     // Map state
     this.lat = null;
     this.lng = null;
@@ -77,6 +80,7 @@ export class Player {
       hp: this.hp,
       maxHp: this.maxHp,
       isAlive: this.isAlive,
+      disconnected: this.disconnected,
     };
   }
 }

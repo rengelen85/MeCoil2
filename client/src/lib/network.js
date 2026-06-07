@@ -10,11 +10,18 @@ import {
   gameId, roundId,
   ctfState, infectionState,
   gameArea,
+  isReconnecting,
 } from '../stores/game.js';
 import { teammates, firingEnemies, powerups, airstrikes, graves, ctfBases, ctfFlags } from '../stores/map.js';
 import { playKilled, playRespawn, playAirstrikeWarning } from './audio.js';
 
 let ws = null;
+let _serverUrl = null;
+let _reconnectAttempts = 0;
+let _reconnectTimer = null;
+const RECONNECT_MAX_ATTEMPTS = 8;
+const RECONNECT_BASE_DELAY_MS = 1_000;
+
 let _getPosition = () => ({ lat: null, lng: null });
 
 export function setPositionGetter(fn) {
@@ -22,15 +29,62 @@ export function setPositionGetter(fn) {
 }
 
 export function connect(serverUrl) {
+  _serverUrl = serverUrl;
   return new Promise((resolve, reject) => {
-    ws = new WebSocket(serverUrl);
-    ws.onopen = () => resolve();
-    ws.onerror = () => reject(new Error('WebSocket connection failed'));
-    ws.onmessage = e => _handle(JSON.parse(e.data));
-    ws.onclose = () => {
-      gameState.set(GAME_STATES.WAITING);
+    const newWs = new WebSocket(serverUrl);
+    newWs.onopen = () => {
+      ws = newWs;
+      ws.onclose = () => _handleClose();
+      resolve();
     };
+    newWs.onerror = () => {};
+    newWs.onmessage = e => _handle(JSON.parse(e.data));
+    // Before onopen fires, a close means the initial connection failed
+    newWs.onclose = () => reject(new Error('WebSocket connection failed'));
   });
+}
+
+function _handleClose() {
+  const s = get(screen);
+  if (s === 'ingame' || s === 'lobby' || s === 'roomselect') {
+    isReconnecting.set(true);
+    _scheduleReconnect();
+  } else {
+    gameState.set(GAME_STATES.WAITING);
+  }
+}
+
+function _scheduleReconnect() {
+  clearTimeout(_reconnectTimer);
+  if (_reconnectAttempts >= RECONNECT_MAX_ATTEMPTS) {
+    isReconnecting.set(false);
+    gameState.set(GAME_STATES.WAITING);
+    screen.set('setup');
+    return;
+  }
+  const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** _reconnectAttempts, 15_000);
+  _reconnectAttempts++;
+  _reconnectTimer = setTimeout(_doReconnect, delay);
+}
+
+function _doReconnect() {
+  const newWs = new WebSocket(_serverUrl);
+  newWs.onopen = () => {
+    ws = newWs;
+    ws.onclose = () => _handleClose();
+    _reconnectAttempts = 0;
+    // Try to restore the previous session; fall back to fresh register
+    const pid = get(myId);
+    const uname = get(username);
+    if (pid && uname) {
+      newWs.send(JSON.stringify({ type: C2S.REJOIN, playerId: pid, username: uname }));
+    } else {
+      newWs.send(JSON.stringify({ type: C2S.REGISTER, username: uname }));
+    }
+  };
+  newWs.onerror = () => {};
+  newWs.onmessage = e => _handle(JSON.parse(e.data));
+  newWs.onclose = () => _scheduleReconnect();
 }
 
 export function send(obj) {
@@ -111,9 +165,16 @@ export function sendLeaveRoom() {
 function _handle(msg) {
   switch (msg.type) {
     case S2C.REGISTERED:
+      isReconnecting.set(false);
       myId.set(msg.playerId);
       saveSession(get(username));
       screen.set('roomselect');
+      break;
+
+    case S2C.REJOIN_FAILED:
+      // Grace period expired — send REGISTER to start a fresh session
+      isReconnecting.set(false);
+      send({ type: C2S.REGISTER, username: get(username) });
       break;
 
     case S2C.ROOMS_LIST:
@@ -121,6 +182,7 @@ function _handle(msg) {
       break;
 
     case S2C.JOINED:
+      isReconnecting.set(false);
       myId.set(msg.playerId);
       isHost.set(msg.isHost);
       players.set(msg.lobbyState.players);

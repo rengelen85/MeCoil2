@@ -195,6 +195,10 @@ The current mode is displayed as a colored badge in the bottom-left HUD (`SEMI`,
 - **Force Start**: skips the ready-up wait and starts immediately (host only, in lobby)
 - **End Game**: opens the score overlay (⊞ button) to reveal the **End Game** button — ends the match and returns everyone to the end screen
 
+### WiFi Drop Management
+
+When a player's WiFi drops, the client automatically reconnects with exponential backoff (1s → 2s → 4s … 15s max). While reconnecting, a spinner overlay appears but gameplay continues in the background — the server holds the player's session for 30 seconds, preserving their kills, deaths, ammo, and gun configuration. On reconnect success, the player is restored to the game instantly. If reconnection fails, they fall back to re-registering as a new player. BLE state is unaffected by the disconnect.
+
 ---
 
 ## Project Structure

@@ -2,6 +2,7 @@ import { writable, derived } from 'svelte/store';
 import { GAME_STATES, GAME_MODES } from '../../../shared/messages.js';
 
 export const screen = writable('setup'); // 'setup' | 'lobby' | 'ingame' | 'end'
+export const isReconnecting = writable(false); // true while auto-reconnect is in progress
 
 export const myId = writable(null);
 export const isHost = writable(false);

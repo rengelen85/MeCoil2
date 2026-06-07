@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { screen, username, loadSession } from './stores/game.js';
+  import { screen, username, loadSession, isReconnecting } from './stores/game.js';
   import { connect, sendRegister } from './lib/network.js';
   import Setup from './screens/Setup.svelte';
   import RoomSelect from './screens/RoomSelect.svelte';
@@ -35,3 +35,54 @@
 {:else if $screen === 'end'}
   <EndScreen />
 {/if}
+
+{#if $isReconnecting}
+  <div class="reconnect-overlay">
+    <div class="reconnect-box">
+      <div class="spinner"></div>
+      <p>Reconnecting…</p>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .reconnect-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .reconnect-box {
+    background: #1a1a2e;
+    border: 1px solid #444;
+    border-radius: 12px;
+    padding: 2rem 3rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    color: #fff;
+    font-size: 1.1rem;
+  }
+
+  .reconnect-box p {
+    margin: 0;
+  }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>

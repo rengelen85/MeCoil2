@@ -2,6 +2,7 @@
 
 export const C2S = {
   REGISTER: 'register',
+  REJOIN: 'rejoin',       // { playerId, username } — resume session after WiFi drop
   LIST_ROOMS: 'listRooms',
   CREATE_ROOM: 'createRoom',
   JOIN_ROOM: 'joinRoom',
@@ -22,6 +23,7 @@ export const C2S = {
 
 export const S2C = {
   REGISTERED: 'registered',
+  REJOIN_FAILED: 'rejoinFailed', // session not found or expired — client should re-register
   ROOMS_LIST: 'roomsList',
   JOINED: 'joined',
   LOBBY_UPDATE: 'lobbyUpdate',
