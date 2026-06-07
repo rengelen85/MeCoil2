@@ -17,8 +17,9 @@ import {
   sendGameConfig,
   sendStartGame,
   sendLeaveRoom,
+  sendSwitchTeam,
 } from '../lib/network.js';
-import { GAME_MODES } from 'shared/messages.js';
+import { GAME_MODES, GAME_STATES } from 'shared/messages.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Lobby'>;
 
@@ -32,7 +33,7 @@ const COMBAT_SETTINGS: { key: keyof GameConfig; label: string; fallback: number 
 
 export default function LobbyScreen(_props: Props) {
   const {
-    players, myId, isHost, hostId, roomName, gameConfig,
+    players, myId, isHost, hostId, roomName, gameConfig, gameState,
   } = useGameStore();
 
   const me = players.find(p => p.id === myId);
@@ -57,6 +58,8 @@ export default function LobbyScreen(_props: Props) {
   function renderPlayer({ item }: { item: PlayerInfo }) {
     const isMe = item.id === myId;
     const isRoomHost = item.id === hostId;
+    const isTeamMode = gameConfig.mode !== GAME_MODES.FFA && gameConfig.mode !== GAME_MODES.INFECTION;
+    const canSwitch = isMe && isTeamMode && item.team && item.team !== 'none' && gameState === GAME_STATES.WAITING;
     return (
       <View style={[styles.playerRow, isMe && styles.playerRowMe]}>
         <View style={styles.playerInfo}>
@@ -65,14 +68,21 @@ export default function LobbyScreen(_props: Props) {
             {isRoomHost ? ' ★' : ''}
             {isMe ? ' (you)' : ''}
           </Text>
-          {gameConfig.mode !== GAME_MODES.FFA && gameConfig.mode !== GAME_MODES.INFECTION && (
-            <Text
-              style={[
-                styles.playerTeam,
-                item.team === 'red' ? styles.teamRed : styles.teamBlue,
-              ]}>
-              {item.team}
-            </Text>
+          {isTeamMode && (
+            <View style={styles.teamRow}>
+              <Text
+                style={[
+                  styles.playerTeam,
+                  item.team === 'red' ? styles.teamRed : styles.teamBlue,
+                ]}>
+                {item.team}
+              </Text>
+              {canSwitch && (
+                <TouchableOpacity style={styles.switchTeamBtn} onPress={sendSwitchTeam}>
+                  <Text style={styles.switchTeamText}>⇄ switch</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
         <Text style={[styles.readyBadge, item.ready && styles.readyBadgeOn]}>
@@ -225,9 +235,18 @@ const styles = StyleSheet.create({
   },
   playerInfo: { gap: 2 },
   playerName: { color: '#fff', fontSize: 15, fontWeight: '500' },
+  teamRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   playerTeam: { fontSize: 12, textTransform: 'uppercase', fontWeight: '600' },
   teamRed: { color: '#e63946' },
   teamBlue: { color: '#457b9d' },
+  switchTeamBtn: {
+    borderWidth: 1,
+    borderColor: '#444',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  switchTeamText: { color: '#888', fontSize: 11 },
   readyBadge: {
     fontSize: 11,
     fontWeight: '700',

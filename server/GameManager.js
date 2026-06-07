@@ -153,6 +153,16 @@ export class GameManager {
         this._tryCollect(player, msg.powerupId);
         break;
 
+      case C2S.SWITCH_TEAM:
+        if (this.state !== GAME_STATES.WAITING) return;
+        if (this.config.mode !== GAME_MODES.TEAM_DEATHMATCH && this.config.mode !== GAME_MODES.CAPTURE_THE_FLAG) return;
+        if (player.team === TEAMS.RED) player.team = TEAMS.BLUE;
+        else if (player.team === TEAMS.BLUE) player.team = TEAMS.RED;
+        else return;
+        player.ready = false;
+        this._broadcastLobby();
+        break;
+
       case C2S.DEPLOY_AIRSTRIKE:
         if (this.state !== GAME_STATES.PLAYING) return;
         this._mode?.deployAirstrike(player, msg.lat, msg.lng);

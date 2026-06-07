@@ -1,7 +1,7 @@
 <script>
   import { onDestroy, tick } from 'svelte';
   import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt, roomName, gameId, gameArea, bleConnected } from '../stores/game.js';
-  import { sendReady, sendGameConfig, sendStartGame, sendLeaveRoom, sendSetBase, sendSetGameArea } from '../lib/network.js';
+  import { sendReady, sendGameConfig, sendStartGame, sendLeaveRoom, sendSetBase, sendSetGameArea, sendSwitchTeam } from '../lib/network.js';
   import { connectBle, isBleAvailable, bleErrorMessage } from '../lib/ble.js';
   import { GAME_MODES, GAME_STATES, TEAMS } from '../../../shared/messages.js';
 
@@ -359,6 +359,9 @@
             <span class="name">{p.username}</span>
             {#if p.id === $hostId}<span class="tag">HOST</span>{/if}
             {#if p.team && p.team !== 'none'}<span class="team-badge team-{p.team}">{p.team}</span>{/if}
+            {#if p.id === $myId && p.team && p.team !== 'none' && $gameState === GAME_STATES.WAITING}
+              <button class="btn-switch-team" on:click={sendSwitchTeam}>⇄</button>
+            {/if}
             <span class="ready-label">{p.ready ? 'Ready' : 'Not ready'}</span>
           </li>
         {/each}
@@ -651,6 +654,18 @@
   }
   .team-badge.team-red { background: rgba(255,82,82,0.2); color: #ff5252; }
   .team-badge.team-blue { background: rgba(68,138,255,0.2); color: #448aff; }
+  .btn-switch-team {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 1px 6px;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.4;
+  }
+  .btn-switch-team:hover { border-color: var(--accent); color: var(--accent); }
   .ready-label { font-size: 12px; color: var(--text-muted); }
 
   .config-card { display: flex; flex-direction: column; gap: 12px; }

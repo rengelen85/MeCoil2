@@ -67,6 +67,10 @@ export function sendStartGame() {
   send({ type: C2S.START_GAME });
 }
 
+export function sendSwitchTeam() {
+  send({ type: C2S.SWITCH_TEAM });
+}
+
 export function sendPosition(lat, lng) {
   send({ type: C2S.POSITION, lat, lng });
 }

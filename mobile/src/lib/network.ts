@@ -48,6 +48,7 @@ export const sendReady = (ready: boolean) => send({ type: C2S.READY, ready });
 export const sendGameConfig = (config: object) =>
   send({ type: C2S.GAME_CONFIG, ...config });
 export const sendStartGame = () => send({ type: C2S.START_GAME });
+export const sendSwitchTeam = () => send({ type: C2S.SWITCH_TEAM });
 export const sendStopGame = () => send({ type: C2S.STOP_GAME });
 export const sendPosition = (lat: number, lng: number) =>
   send({ type: C2S.POSITION, lat, lng });
