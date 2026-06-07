@@ -103,7 +103,7 @@
     });
 
     function powerupIcon(type) {
-      const emoji = { fullReload: '🔋', healthPack: '🩹', shield: '🛡️', stealth: '👻', radar: '📡', airstrike: '🚀', immunity: '💉' }[type] ?? '📦';
+      const emoji = { fastReload: '🔋', healthPack: '🩹', shield: '🛡️', stealth: '👻', radar: '📡', airstrike: '🚀', immunity: '💉' }[type] ?? '📦';
       return L.divIcon({
         className: '',
         html: `<div class="dot dot-powerup" title="${type}">${emoji}</div>`,

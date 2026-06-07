@@ -1,7 +1,7 @@
 import { gun } from './recoilweapon.js';
 import { sendFire, sendHit } from './network.js';
 import { playReload } from './audio.js';
-import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId, gunLocked, activeGunMode } from '../stores/game.js';
+import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId, gunLocked, activeGunMode, fastReloadActive } from '../stores/game.js';
 import { get } from 'svelte/store';
 
 // Muzzle-flash (FlashLED1) modes — see docs/Recoil_Gun_Firmware_Config_Guide.md.
@@ -156,6 +156,11 @@ function _onReload() {
   if (get(isReloading)) return;
   isReloading.set(true);
   playReload();
+  if (get(fastReloadActive)) {
+    gun.loadClip(magazineSize());
+    isReloading.set(false);
+    return;
+  }
   // Plasma (TriggerMode 0) fires on trigger *release* and keeps charging through
   // the normal "reload mode" control action, so the gun fires continuously for
   // the whole reload window. Force the clip empty instead (ammo 0): the firmware

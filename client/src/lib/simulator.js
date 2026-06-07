@@ -5,7 +5,7 @@
  * In Phase 2 this module is replaced by ble.js.
  */
 import { sendFire, sendHit } from './network.js';
-import { ammo, isReloading, isAlive, maxAmmo, reloadDelaySecs, gunLocked } from '../stores/game.js';
+import { ammo, isReloading, isAlive, maxAmmo, reloadDelaySecs, gunLocked, fastReloadActive } from '../stores/game.js';
 import { get } from 'svelte/store';
 import { playReload } from './audio.js';
 
@@ -61,6 +61,11 @@ function _reload() {
   if (get(isReloading)) return;
   isReloading.set(true);
   playReload();
+  if (get(fastReloadActive)) {
+    ammo.set(get(maxAmmo));
+    isReloading.set(false);
+    return;
+  }
   setTimeout(() => {
     ammo.set(get(maxAmmo));
     isReloading.set(false);

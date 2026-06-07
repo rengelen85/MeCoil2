@@ -4,7 +4,7 @@ import {
   myId, isHost, players, gameConfig, hostId,
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
-  ammo, maxAmmo, shieldActive, shieldCountdown, stealthActive, stealthCountdown, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
+  ammo, maxAmmo, shieldActive, shieldCountdown, stealthActive, stealthCountdown, fastReloadActive, fastReloadCountdown, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
   hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
@@ -358,7 +358,7 @@ function _handle(msg) {
 function _applyLocalPowerupFeedback({ type }) {
   // Update local store state so UI reflects the effect immediately
   switch (type) {
-    case 'fullReload': ammo.set(get(maxAmmo)); break;
+    case 'fastReload': _startFastReloadCountdown(120); break;
     case 'healthPack': hp.set(get(maxHp)); break;
     case 'shield': _startShieldCountdown(120); break;
     case 'stealth': _startStealthCountdown(120); break;
@@ -421,6 +421,32 @@ function _stopStealthCountdown() {
   }
   stealthActive.set(false);
   stealthCountdown.set(null);
+}
+
+// Local 1-second ticker that drives the fast reload badge countdown.
+let _fastReloadTimer = null;
+
+function _startFastReloadCountdown(secs) {
+  _stopFastReloadCountdown();
+  fastReloadActive.set(true);
+  fastReloadCountdown.set(secs);
+  _fastReloadTimer = setInterval(() => {
+    fastReloadCountdown.update(v => {
+      if (v === null) return null;
+      const next = v - 1;
+      if (next <= 0) { _stopFastReloadCountdown(); return null; }
+      return next;
+    });
+  }, 1_000);
+}
+
+function _stopFastReloadCountdown() {
+  if (_fastReloadTimer) {
+    clearInterval(_fastReloadTimer);
+    _fastReloadTimer = null;
+  }
+  fastReloadActive.set(false);
+  fastReloadCountdown.set(null);
 }
 
 // Local 1-second ticker that drives the on-screen respawn countdown while dead.

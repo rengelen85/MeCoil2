@@ -256,8 +256,8 @@ export class BaseMode {
 
   applyPowerup(player, pkg) {
     switch (pkg.type) {
-      case POWERUP_TYPES.FULL_RELOAD:
-        player.ammo = this.config.bulletsPerMag ?? 30;
+      case POWERUP_TYPES.FAST_RELOAD:
+        // Effect is client-side only (instant reload for 2 min) — nothing to update server-side.
         break;
       case POWERUP_TYPES.HEALTH_PACK:
         player.hp = player.maxHp;

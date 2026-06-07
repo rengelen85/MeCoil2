@@ -38,6 +38,8 @@ export const shieldActive = writable(false);
 export const shieldCountdown = writable(null); // seconds remaining while shield is active
 export const stealthActive = writable(false);
 export const stealthCountdown = writable(null); // seconds remaining while stealth is active
+export const fastReloadActive = writable(false);
+export const fastReloadCountdown = writable(null); // seconds remaining while fast reload is active
 export const radarActive = writable(false);     // enemies revealed on my map
 export const airstrikeReady = writable(0);       // held airstrikes available to deploy
 export const airstrikeArmed = writable(false);   // armed: next map tap places a preview circle
@@ -118,6 +120,8 @@ export function resetGame() {
   shieldCountdown.set(null);
   stealthActive.set(false);
   stealthCountdown.set(null);
+  fastReloadActive.set(false);
+  fastReloadCountdown.set(null);
   radarActive.set(false);
   airstrikeReady.set(0);
   airstrikeArmed.set(false);

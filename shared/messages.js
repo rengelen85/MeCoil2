@@ -77,7 +77,7 @@ export const PLASMA_DAMAGE_PER_AMMO = 3; // plasma damage = loaded ammo * this
 export const AIRSTRIKE_RADIUS_M = 30;
 
 export const POWERUP_TYPES = {
-  FULL_RELOAD: 'fullReload',
+  FAST_RELOAD: 'fastReload',
   HEALTH_PACK: 'healthPack', // restores the collector to full HP
   SHIELD: 'shield',          // grants bonus HP on top of max
   STEALTH: 'stealth',

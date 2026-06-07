@@ -151,9 +151,9 @@ Power-ups spawn periodically around the play area. Walk onto one (or tap it on t
 
 | Power-up | Icon | Effect |
 |----------|------|--------|
-| **Full Reload** | 🔋 | Instantly refills your magazine |
+| **Fast Reload** | 🔋 | When reloading, instantly refill your magazine without any delay for 2 minutes |
 | **Health Pack** | 🩹 | Restores you to full HP |
-| **Shield** | 🛡️ | Halves inflicted damage for a duration of 2 minutes. After respawning the player also receives a shield of 20 seconds. |
+| **Shield** | 🛡️ | Halves inflicted damage for 2 minutes. After respawning each player also receives a shield for 20 seconds |
 | **Stealth** | 👻 | Hides you from enemy maps for 2 minutes |
 | **Radar** | 📡 | Reveals **every** living enemy on your map for 1 minute (even stealthed ones) |
 | **Airstrike** | 🚀 | Held until you call it in: arm it, tap a spot on the map, and after a short warning everyone in the blast radius is killed. All players see an **INCOMING AIRSTRIKE** alert with a countdown and must clear the zone |
@@ -176,7 +176,7 @@ Once a gun is paired, you can switch fire modes:
 
 | Control | Action |
 |---------|--------|
-| Power button (back) | Cycle through SEMI → BURST → AUTO → PLASMA |
+| Power button | Cycle through SEMI → BURST → AUTO → PLASMA |
 | On-screen button | Tap the mode badge in the HUD to cycle (same as power button) |
 
 The current mode is displayed as a colored badge in the bottom-left HUD (`SEMI`, `BURST`, `AUTO`, or `PLASMA`). Each mode has different firing behavior and damage characteristics.
