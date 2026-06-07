@@ -25,6 +25,46 @@ function randomOffset(meters) {
   return { dLat: Math.cos(angle) * deg, dLng: Math.sin(angle) * deg };
 }
 
+function isInPolygon(lat, lng, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = points[i].lng, yi = points[i].lat;
+    const xj = points[j].lng, yj = points[j].lat;
+    const intersect = yi > lat !== yj > lat &&
+      lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function randomSpawnPoint(centerLat, centerLng, gameArea) {
+  if (gameArea?.type === 'circle') {
+    const r = Math.random() * gameArea.radiusM;
+    const { dLat, dLng } = randomOffset(r);
+    return { lat: gameArea.lat + dLat, lng: gameArea.lng + dLng };
+  }
+  if (gameArea?.type === 'polygon' && gameArea.points.length >= 3) {
+    const lats = gameArea.points.map(p => p.lat);
+    const lngs = gameArea.points.map(p => p.lng);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    // Rejection sampling: pick random point in bounding box, retry if outside polygon
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const lat = minLat + Math.random() * (maxLat - minLat);
+      const lng = minLng + Math.random() * (maxLng - minLng);
+      if (isInPolygon(lat, lng, gameArea.points)) return { lat, lng };
+    }
+    // Fallback to centroid if sampling keeps missing (very thin/concave polygon)
+    return {
+      lat: lats.reduce((a, b) => a + b, 0) / lats.length,
+      lng: lngs.reduce((a, b) => a + b, 0) / lngs.length,
+    };
+  }
+  // No area set: use the first-player center with a 100m radius
+  const { dLat, dLng } = randomOffset(Math.random() * SPAWN_RADIUS_M);
+  return { lat: centerLat + dLat, lng: centerLng + dLng };
+}
+
 export class PowerupManager {
   constructor(onUpdate) {
     this.packages = new Map();
@@ -34,10 +74,11 @@ export class PowerupManager {
     this._centerLng = null;
   }
 
-  start(centerLat, centerLng, allowedTypes = null) {
+  start(centerLat, centerLng, allowedTypes = null, gameArea = null) {
     this._centerLat = centerLat;
     this._centerLng = centerLng;
     this._allowedTypes = allowedTypes ?? ALL_STANDARD_TYPES;
+    this._gameArea = gameArea;
     this._spawn();
     this._timer = setInterval(() => this._spawn(), POWERUP_INTERVAL_MS);
   }
@@ -49,12 +90,12 @@ export class PowerupManager {
 
   _spawn() {
     if (this._centerLat === null) return;
-    const { dLat, dLng } = randomOffset(Math.random() * SPAWN_RADIUS_M);
+    const { lat, lng } = randomSpawnPoint(this._centerLat, this._centerLng, this._gameArea);
     const types = this._allowedTypes ?? ALL_STANDARD_TYPES;
     const pkg = {
       id: nextId++,
-      lat: this._centerLat + dLat,
-      lng: this._centerLng + dLng,
+      lat,
+      lng,
       type: types[Math.floor(Math.random() * types.length)],
     };
     this.packages.set(pkg.id, pkg);

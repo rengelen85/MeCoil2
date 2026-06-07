@@ -9,6 +9,7 @@ import {
   rooms, roomName, username, saveSession,
   gameId, roundId,
   ctfState, infectionState,
+  gameArea,
 } from '../stores/game.js';
 import { teammates, firingEnemies, powerups, airstrikes, graves, ctfBases, ctfFlags } from '../stores/map.js';
 import { playKilled, playRespawn, playAirstrikeWarning } from './audio.js';
@@ -91,6 +92,10 @@ export function sendSetBase(team, lat, lng) {
   send({ type: C2S.SET_BASE, team, lat, lng });
 }
 
+export function sendSetGameArea(area) {
+  send({ type: C2S.SET_GAME_AREA, area });
+}
+
 export function sendStopGame() {
   send({ type: C2S.STOP_GAME });
 }
@@ -116,6 +121,7 @@ function _handle(msg) {
       isHost.set(msg.isHost);
       players.set(msg.lobbyState.players);
       gameConfig.set(msg.lobbyState.config);
+      gameArea.set(msg.lobbyState.config.gameArea ?? null);
       hostId.set(msg.lobbyState.hostId);
       roomName.set(msg.lobbyState.roomName ?? '');
       if (msg.lobbyState.gameId) gameId.set(msg.lobbyState.gameId);
@@ -126,6 +132,7 @@ function _handle(msg) {
     case S2C.LOBBY_UPDATE:
       players.set(msg.players);
       gameConfig.set(msg.config);
+      gameArea.set(msg.config.gameArea ?? null);
       hostId.set(msg.hostId);
       if (msg.gameId) gameId.set(msg.gameId);
       if (msg.state) gameState.set(msg.state);
@@ -148,6 +155,7 @@ function _handle(msg) {
         reloadDelaySecs: msg.reloadDelaySecs ?? 3,
         respawnDelaySecs: msg.respawnDelaySecs ?? 10,
       });
+      gameArea.set(msg.gameArea ?? null);
       if (msg.roundId) roundId.set(msg.roundId);
       gameState.set(GAME_STATES.PLAYING);
       resetGame();

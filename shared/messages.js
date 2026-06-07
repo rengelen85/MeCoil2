@@ -16,6 +16,7 @@ export const C2S = {
   COLLECT: 'collect',
   DEPLOY_AIRSTRIKE: 'deployAirstrike', // player calls in a held airstrike at a chosen point
   SET_BASE: 'setBase',                 // CTF: host sets a team's base location
+  SET_GAME_AREA: 'setGameArea',        // host sets optional play area boundary (circle or polygon)
 };
 
 export const S2C = {

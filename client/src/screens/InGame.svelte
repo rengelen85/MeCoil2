@@ -6,8 +6,9 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, radarActive, airstrikeReady, airstrikeArmed, ctfState, infectionState, amIInfected, gunLocked, activeGunMode } from '../stores/game.js';
-  import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes } from '../stores/map.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, radarActive, airstrikeReady, airstrikeArmed, ctfState, infectionState, amIInfected, gunLocked, activeGunMode, gameArea } from '../stores/game.js';
+  import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes, myPosition } from '../stores/map.js';
+  import { isInArea } from '../lib/geometry.js';
   import { startSimulator, stopSimulator, setSimulatorMode } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
   import { sendPosition, sendStopGame, sendLeaveRoom } from '../lib/network.js';
@@ -109,6 +110,10 @@
     if (!usingBle) stopSimulator();
   });
 
+  $: outOfBounds = $gameArea && $myPosition
+    ? !isInArea($myPosition.lat, $myPosition.lng, $gameArea)
+    : false;
+
   $: modeLabel = $gameConfig.mode === GAME_MODES.FFA ? 'FFA'
                : $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH ? 'TDM'
                : $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ? 'CTF'
@@ -147,6 +152,11 @@
       ⚠ INCOMING AIRSTRIKE
       <span class="airstrike-count">{incomingStrike}s — CLEAR THE ZONE</span>
     </div>
+  {/if}
+
+  <!-- Out-of-bounds warning -->
+  {#if outOfBounds}
+    <div class="oob-warning">⚠ OUT OF BOUNDS — RETURN TO PLAY AREA</div>
   {/if}
 
   <!-- Radar active indicator -->
@@ -519,6 +529,26 @@
     letter-spacing: 0.5px;
     color: #fff;
     margin-top: 2px;
+  }
+
+  .oob-warning {
+    position: absolute;
+    top: 126px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1400;
+    background: rgba(40, 25, 0, 0.9);
+    border: 1px solid #ff9800;
+    border-radius: 8px;
+    padding: 6px 14px;
+    color: #ff9800;
+    font-weight: 900;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+    animation: pulse 0.8s ease-in-out infinite alternate;
   }
 
   .radar-badge {

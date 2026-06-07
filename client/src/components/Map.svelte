@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading, ctfBases, ctfFlags } from '../stores/map.js';
-  import { airstrikeArmed, airstrikeReady } from '../stores/game.js';
+  import { airstrikeArmed, airstrikeReady, gameArea } from '../stores/game.js';
   import { sendCollect, sendDeployAirstrike } from '../lib/network.js';
 
   let mapEl;
@@ -17,6 +17,7 @@
   const graveMarkers = new Map();     // playerId -> tombstone marker
   const ctfBaseCircles = new Map();   // team -> { circle }
   const ctfFlagMarkers = new Map();   // team -> marker
+  let gameAreaLayer = null;           // L.circle or L.polygon for the play boundary
 
   // Accumulated rotation avoids the wrap-around jump when heading crosses 0°/360°
   let _prevHeading = null;
@@ -294,11 +295,30 @@
       }
     });
 
+    const GAME_AREA_STYLE = {
+      color: '#ff9800',
+      weight: 2.5,
+      dashArray: '8 6',
+      fillColor: '#ff9800',
+      fillOpacity: 0.06,
+      className: 'game-area-boundary',
+    };
+
+    const unsubGameArea = gameArea.subscribe(area => {
+      if (gameAreaLayer) { gameAreaLayer.remove(); gameAreaLayer = null; }
+      if (!area) return;
+      if (area.type === 'circle') {
+        gameAreaLayer = L.circle([area.lat, area.lng], { radius: area.radiusM, ...GAME_AREA_STYLE }).addTo(map);
+      } else if (area.type === 'polygon' && area.points.length >= 3) {
+        gameAreaLayer = L.polygon(area.points.map(p => [p.lat, p.lng]), GAME_AREA_STYLE).addTo(map);
+      }
+    });
+
     // NOTE: this onMount callback is async, so a returned cleanup function
     // would be silently ignored by Svelte. Register teardown via onDestroy
     // instead, otherwise these subscriptions leak across games and fire on a
     // removed Leaflet map (throwing and freezing the whole UI on round 2+).
-    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes, unsubGraves, unsubCtfBases, unsubCtfFlags];
+    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes, unsubGraves, unsubCtfBases, unsubCtfFlags, unsubGameArea];
   });
 
   onDestroy(() => {
@@ -308,6 +328,7 @@
     ctfBaseCircles.clear();
     for (const m of ctfFlagMarkers.values()) m.remove();
     ctfFlagMarkers.clear();
+    if (gameAreaLayer) { gameAreaLayer.remove(); gameAreaLayer = null; }
     map?.remove();
   });
 </script>
@@ -456,6 +477,15 @@
     text-align: center;
     filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
     animation: enemy-pulse 1s ease-in-out infinite alternate;
+  }
+
+  /* Play area boundary — dashed orange outline */
+  :global(.game-area-boundary) {
+    animation: area-pulse 3s ease-in-out infinite alternate;
+  }
+  @keyframes area-pulse {
+    from { stroke-opacity: 0.9; }
+    to   { stroke-opacity: 0.4; }
   }
 
   /* Tombstone marker at a player's last death spot */

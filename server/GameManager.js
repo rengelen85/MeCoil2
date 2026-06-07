@@ -26,6 +26,8 @@ export class GameManager {
       hpPerPlayer: 100,
       reloadDelaySecs: 3,
       respawnDelaySecs: 10,
+      // Optional play area: null | { type:'circle', lat, lng, radiusM } | { type:'polygon', points:[{lat,lng}] }
+      gameArea: null,
     };
     this._mode = null;
     this._roundId = null;
@@ -107,6 +109,27 @@ export class GameManager {
         this.config[msg.team === TEAMS.RED ? 'redBase' : 'blueBase'] = { lat: msg.lat, lng: msg.lng };
         this._broadcastLobby();
         break;
+
+      case C2S.SET_GAME_AREA: {
+        if (player.id !== this._hostId) return;
+        const area = msg.area ?? null;
+        if (area === null) {
+          this.config.gameArea = null;
+        } else if (area.type === 'circle') {
+          if (typeof area.lat !== 'number' || typeof area.lng !== 'number' || typeof area.radiusM !== 'number') return;
+          if (area.radiusM <= 0 || area.radiusM > 10_000) return;
+          this.config.gameArea = { type: 'circle', lat: area.lat, lng: area.lng, radiusM: area.radiusM };
+        } else if (area.type === 'polygon') {
+          if (!Array.isArray(area.points) || area.points.length < 3) return;
+          const points = area.points.map(p => ({ lat: Number(p.lat), lng: Number(p.lng) }));
+          if (points.some(p => isNaN(p.lat) || isNaN(p.lng))) return;
+          this.config.gameArea = { type: 'polygon', points };
+        } else {
+          return;
+        }
+        this._broadcastLobby();
+        break;
+      }
 
       case C2S.FIRE:
         if (this.state !== GAME_STATES.PLAYING) return;
@@ -199,6 +222,7 @@ export class GameManager {
       timeLimit: this.config.timeLimit,
       scoreLimit: this.config.scoreLimit,
       gunAssignments,
+      gameArea: this.config.gameArea ?? null,
       ...this._gameplaySettings(),
     });
 
@@ -256,6 +280,7 @@ export class GameManager {
       timeLimit: this.config.timeLimit,
       scoreLimit: this.config.scoreLimit,
       gunAssignments: { [player.id]: slot },
+      gameArea: this.config.gameArea ?? null,
       ...this._gameplaySettings(),
     });
   }

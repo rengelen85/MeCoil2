@@ -1,11 +1,95 @@
 <script>
-  import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt, roomName, gameId } from '../stores/game.js';
-  import { sendReady, sendGameConfig, sendStartGame, sendLeaveRoom, sendSetBase } from '../lib/network.js';
+  import { players, gameConfig, myId, isHost, hostId, gameState, countdownAt, roomName, gameId, gameArea } from '../stores/game.js';
+  import { sendReady, sendGameConfig, sendStartGame, sendLeaveRoom, sendSetBase, sendSetGameArea } from '../lib/network.js';
   import { GAME_MODES, GAME_STATES, TEAMS } from '../../../shared/messages.js';
 
   let ready = false;
   let settingBase = false;
   let baseSetError = '';
+
+  // Game area editing state (host only)
+  let areaType = 'none';         // 'none' | 'circle' | 'polygon'
+  let areaRadius = 200;          // metres for circle
+  let areaCorners = [];          // [{lat, lng}] for polygon
+  let settingAreaCenter = false;
+  let addingCorner = false;
+  let areaError = '';
+
+  // Sync local UI state when gameArea changes from server
+  $: {
+    const a = $gameArea;
+    if (!a) {
+      areaType = 'none';
+    } else if (a.type === 'circle') {
+      areaType = 'circle';
+      areaRadius = a.radiusM;
+    } else if (a.type === 'polygon') {
+      areaType = 'polygon';
+      areaCorners = [...a.points];
+    }
+  }
+
+  function applyAreaType(type) {
+    areaType = type;
+    areaError = '';
+    if (type === 'none') {
+      sendSetGameArea(null);
+    }
+    // circle and polygon are sent when the host confirms (center/corners are set)
+  }
+
+  async function setCircleCenter() {
+    if (!navigator.geolocation) { areaError = 'Geolocation not supported'; return; }
+    settingAreaCenter = true;
+    areaError = '';
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        sendSetGameArea({ type: 'circle', lat: pos.coords.latitude, lng: pos.coords.longitude, radiusM: areaRadius });
+        settingAreaCenter = false;
+      },
+      err => { areaError = err.message; settingAreaCenter = false; },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }
+
+  function updateCircleRadius(value) {
+    areaRadius = Number(value);
+    // Only re-send if a center is already set
+    if ($gameArea?.type === 'circle') {
+      sendSetGameArea({ type: 'circle', lat: $gameArea.lat, lng: $gameArea.lng, radiusM: areaRadius });
+    }
+  }
+
+  async function addCorner() {
+    if (!navigator.geolocation) { areaError = 'Geolocation not supported'; return; }
+    addingCorner = true;
+    areaError = '';
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        areaCorners = [...areaCorners, { lat: pos.coords.latitude, lng: pos.coords.longitude }];
+        addingCorner = false;
+        if (areaCorners.length >= 3) {
+          sendSetGameArea({ type: 'polygon', points: areaCorners });
+        }
+      },
+      err => { areaError = err.message; addingCorner = false; },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }
+
+  function removeCorner(i) {
+    areaCorners = areaCorners.filter((_, idx) => idx !== i);
+    if (areaCorners.length >= 3) {
+      sendSetGameArea({ type: 'polygon', points: areaCorners });
+    } else {
+      sendSetGameArea(null);
+    }
+  }
+
+  function clearArea() {
+    areaCorners = [];
+    sendSetGameArea(null);
+  }
 
   $: countdown = $gameState === GAME_STATES.COUNTDOWN ? Math.max(0, Math.ceil(($countdownAt - Date.now()) / 1000)) : null;
   $: iAmHost = $myId === $hostId;
@@ -159,6 +243,60 @@
             on:change={e => updateConfig('respawnDelaySecs', e.target.value)} />
         </label>
 
+        <h2 class="subhead">Game Area</h2>
+        <p class="base-hint">Optionally restrict play to a defined area. Players outside will be warned; power-ups only spawn inside.</p>
+
+        <div class="area-type-row">
+          {#each ['none', 'circle', 'polygon'] as t}
+            <button
+              class="btn-area-type"
+              class:active={areaType === t}
+              on:click={() => applyAreaType(t)}
+            >{t === 'none' ? 'No limit' : t === 'circle' ? 'Circle' : 'Polygon'}</button>
+          {/each}
+        </div>
+
+        {#if areaType === 'circle'}
+          <label>Radius (metres)
+            <input type="number" min="10" max="10000" value={areaRadius}
+              on:change={e => updateCircleRadius(e.target.value)} />
+          </label>
+          <button class="btn-base btn-base-area" on:click={setCircleCenter} disabled={settingAreaCenter}>
+            {$gameArea?.type === 'circle' ? '✓ Center set — tap to move' : 'Set center here (GPS)'}
+          </button>
+        {/if}
+
+        {#if areaType === 'polygon'}
+          <p class="base-hint">Walk to each corner and tap "Add corner here". Need at least 3 corners.</p>
+          {#if areaCorners.length > 0}
+            <ul class="corner-list">
+              {#each areaCorners as corner, i}
+                <li class="corner-row">
+                  <span class="corner-label">#{i + 1} {corner.lat.toFixed(5)}, {corner.lng.toFixed(5)}</span>
+                  <button class="btn-remove-corner" on:click={() => removeCorner(i)}>✕</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+          <div class="base-btns">
+            <button class="btn-base btn-base-area" on:click={addCorner} disabled={addingCorner}>
+              {addingCorner ? 'Getting GPS…' : 'Add corner here'}
+            </button>
+            {#if areaCorners.length > 0}
+              <button class="btn-base btn-base-clear" on:click={clearArea}>Clear all</button>
+            {/if}
+          </div>
+          {#if areaCorners.length > 0 && areaCorners.length < 3}
+            <p class="base-hint" style="color:#ff9800">Add {3 - areaCorners.length} more corner{3 - areaCorners.length > 1 ? 's' : ''} to activate</p>
+          {:else if areaCorners.length >= 3}
+            <p class="base-hint" style="color:#00c853">✓ Polygon active ({areaCorners.length} corners)</p>
+          {/if}
+        {/if}
+
+        {#if areaError}
+          <p class="base-error">{areaError}</p>
+        {/if}
+
         <button class="btn-secondary" on:click={sendStartGame}>Force Start</button>
       </section>
     {:else}
@@ -188,6 +326,15 @@
         {#if $gameConfig.mode !== GAME_MODES.CAPTURE_THE_FLAG}
           <div class="config-row"><span>Respawn</span><span>{$gameConfig.respawnDelaySecs}s</span></div>
         {/if}
+        <div class="config-row">
+          <span>Game area</span>
+          <span>
+            {#if !$gameArea}No limit
+            {:else if $gameArea.type === 'circle'}Circle {$gameArea.radiusM}m
+            {:else if $gameArea.type === 'polygon'}Polygon ({$gameArea.points.length} pts)
+            {:else}Set{/if}
+          </span>
+        </div>
       </section>
     {/if}
   </div>
@@ -405,6 +552,73 @@
     font-size: 12px;
     color: #ff5252;
     margin: 0;
+  }
+
+  .area-type-row {
+    display: flex;
+    gap: 6px;
+  }
+  .btn-area-type {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    font-family: inherit;
+    text-transform: uppercase;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .btn-area-type.active {
+    background: rgba(255, 152, 0, 0.15);
+    border-color: rgba(255, 152, 0, 0.6);
+    color: #ff9800;
+  }
+  .btn-base-area {
+    background: rgba(255, 152, 0, 0.12);
+    border: 1px solid rgba(255, 152, 0, 0.5);
+    color: #ff9800;
+    flex: 1;
+  }
+  .btn-base-clear {
+    background: rgba(255, 82, 82, 0.1);
+    border: 1px solid rgba(255, 82, 82, 0.4);
+    color: #ff5252;
+    flex: 1;
+  }
+
+  .corner-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+  .corner-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-family: monospace;
+    color: var(--text-muted);
+    padding: 2px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .corner-label { flex: 1; }
+  .btn-remove-corner {
+    background: none;
+    border: none;
+    color: #ff5252;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 4px;
+    font-family: inherit;
   }
 
   .sim-hint { font-size: 12px; color: var(--text-muted); }

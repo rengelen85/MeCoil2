@@ -64,6 +64,9 @@ export const ctfState = writable(null); // { flags: { red, blue }, captures: { r
 // Infection mode state
 export const infectionState = writable(null); // { infectedIds: [], immunePlayers: {} }
 
+// Optional play area boundary — null | { type:'circle', lat, lng, radiusM } | { type:'polygon', points:[{lat,lng}] }
+export const gameArea = writable(null);
+
 // Multi-room state
 export const rooms = writable([]);     // [{ id, name, playerCount, state }]
 export const roomName = writable('');

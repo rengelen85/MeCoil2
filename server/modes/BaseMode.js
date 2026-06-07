@@ -80,7 +80,7 @@ export class BaseMode {
     if (this._powerupsStarted) return;
     const first = [...this.players.values()].find(p => p.lat !== null);
     if (!first) return;
-    this.powerupManager.start(first.lat, first.lng);
+    this.powerupManager.start(first.lat, first.lng, null, this.config.gameArea ?? null);
     this._powerupsStarted = true;
   }
 
