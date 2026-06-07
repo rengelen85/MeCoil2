@@ -6,12 +6,12 @@
   import AmmoBar from '../components/AmmoBar.svelte';
   import HealthBar from '../components/HealthBar.svelte';
   import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, radarActive, airstrikeReady, airstrikeArmed, ctfState, infectionState, amIInfected, gunLocked, activeGunMode, gameArea } from '../stores/game.js';
+  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, radarActive, airstrikeReady, airstrikeArmed, airstrikePreview, ctfState, infectionState, amIInfected, gunLocked, activeGunMode, gameArea } from '../stores/game.js';
   import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes, myPosition } from '../stores/map.js';
   import { isInArea } from '../lib/geometry.js';
   import { startSimulator, stopSimulator, setSimulatorMode } from '../lib/simulator.js';
   import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
-  import { sendPosition, sendStopGame, sendLeaveRoom } from '../lib/network.js';
+  import { sendPosition, sendStopGame, sendLeaveRoom, sendDeployAirstrike } from '../lib/network.js';
   import { GAME_MODES } from '../../../shared/messages.js';
 
   let showScores = false;
@@ -88,7 +88,20 @@
 
   function toggleAirstrike() {
     if ($airstrikeReady <= 0) return;
+    airstrikePreview.set(null);
     airstrikeArmed.update(v => !v);
+  }
+
+  function confirmAirstrike() {
+    const pos = get(airstrikePreview);
+    if (!pos) return;
+    sendDeployAirstrike(pos.lat, pos.lng);
+    airstrikePreview.set(null);
+    airstrikeReady.update(n => Math.max(0, n - 1));
+  }
+
+  function cancelAirstrike() {
+    airstrikePreview.set(null);
   }
 
   onMount(() => {
@@ -247,12 +260,18 @@
   <!-- Bottom HUD -->
   <div class="hud-bottom">
     <AmmoBar />
-    {#if $airstrikeReady > 0}
+    {#if $airstrikePreview}
+      <div class="airstrike-confirm-row">
+        <button class="btn-confirm-strike" on:click={confirmAirstrike}>✓ Confirm Strike</button>
+        <button class="btn-cancel-strike" on:click={cancelAirstrike}>✗ Cancel</button>
+      </div>
+      <div class="airstrike-hint">Tap the map to reposition · confirm when ready</div>
+    {:else if $airstrikeReady > 0}
       <button class="btn-airstrike" class:armed={$airstrikeArmed} on:click={toggleAirstrike}>
         🚀 Airstrike ({$airstrikeReady})
       </button>
       {#if $airstrikeArmed}
-        <div class="airstrike-hint">Tap the map to call the strike</div>
+        <div class="airstrike-hint">Tap the map to place the strike zone</div>
       {/if}
     {/if}
     {#if $gpsError}
@@ -653,6 +672,34 @@
     font-size: 11px;
     color: #ff8a80;
     letter-spacing: 0.5px;
+  }
+  .airstrike-confirm-row {
+    display: flex;
+    gap: 8px;
+  }
+  .btn-confirm-strike {
+    background: #ff9800;
+    border: none;
+    border-radius: 8px;
+    color: #000;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 0.5px;
+    animation: pulse 0.6s ease-in-out infinite alternate;
+  }
+  .btn-cancel-strike {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    color: #aaa;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: inherit;
   }
 
   .hud-bottom {

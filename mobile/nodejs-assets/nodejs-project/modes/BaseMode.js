@@ -1,4 +1,4 @@
-import { S2C, POWERUP_TYPES, GUN_MODE_DAMAGE, PLASMA_DAMAGE_PER_AMMO } from '../shared/messages.js';
+import { S2C, POWERUP_TYPES, GUN_MODE_DAMAGE, PLASMA_DAMAGE_PER_AMMO, AIRSTRIKE_RADIUS_M } from '../shared/messages.js';
 
 const STATE_INTERVAL_MS = 1_000;
 const POSITION_INTERVAL_MS = 1_000;
@@ -6,7 +6,6 @@ const ENEMY_VISIBLE_MS = 3_000;
 const RADAR_DURATION_MS = 60_000;   // radar reveals all enemies for one minute
 const SHIELD_PICKUP_MS = 120_000;   // shield from a power-up lasts 2 minutes
 const SHIELD_RESPAWN_MS = 20_000;   // shield granted on respawn lasts 20 seconds
-const AIRSTRIKE_RADIUS_M = 30;      // lethal blast radius
 const AIRSTRIKE_WARNING_MS = 8_000; // evacuation window before detonation
 
 function haversineMeters(lat1, lng1, lat2, lng2) {

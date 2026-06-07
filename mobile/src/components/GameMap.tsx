@@ -3,7 +3,7 @@ import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Circle, LatLng, PROVIDER_DEFAULT, MapPressEvent } from 'react-native-maps';
 import { useMapStore } from '../stores/map.js';
 import { useGameStore } from '../stores/game.js';
-import { sendDeployAirstrike } from '../lib/network.js';
+import { AIRSTRIKE_RADIUS_M } from 'shared/messages.js';
 
 const POWERUP_EMOJI: Record<string, string> = {
   fullReload: '🔋',
@@ -16,15 +16,15 @@ const POWERUP_EMOJI: Record<string, string> = {
 
 export default function GameMap() {
   const { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading } = useMapStore();
-  const { airstrikeArmed, airstrikeReady, setAirstrikeArmed, setAirstrikeReady } = useGameStore();
+  const { airstrikeArmed, airstrikePreview, setAirstrikeArmed, setAirstrikePreview } = useGameStore();
 
-  // When an airstrike is armed, the next map tap calls it in at that point.
+  // Tapping while armed (or while a preview is already placed) positions / moves
+  // the pending preview circle. The actual strike deploys only on Confirm.
   function onMapPress(e: MapPressEvent) {
-    if (!airstrikeArmed) return;
+    if (!airstrikeArmed && !airstrikePreview) return;
     const { latitude, longitude } = e.nativeEvent.coordinate;
-    sendDeployAirstrike(latitude, longitude);
-    setAirstrikeArmed(false);
-    setAirstrikeReady(Math.max(0, airstrikeReady - 1));
+    setAirstrikePreview({ lat: latitude, lng: longitude });
+    if (airstrikeArmed) setAirstrikeArmed(false);
   }
 
   if (!myPosition) {
@@ -114,6 +114,25 @@ export default function GameMap() {
         </Marker>
       ))}
 
+      {/* Pending-confirmation airstrike preview (orange, before Confirm is pressed) */}
+      {airstrikePreview && (
+        <React.Fragment>
+          <Circle
+            center={{ latitude: airstrikePreview.lat, longitude: airstrikePreview.lng }}
+            radius={AIRSTRIKE_RADIUS_M}
+            strokeColor="#ff9800"
+            strokeWidth={2}
+            lineDashPattern={[8, 5]}
+            fillColor="rgba(255,152,0,0.18)"
+          />
+          <Marker
+            coordinate={{ latitude: airstrikePreview.lat, longitude: airstrikePreview.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}>
+            <Text style={styles.airstrikePreviewTarget}>🎯</Text>
+          </Marker>
+        </React.Fragment>
+      )}
+
       {/* Inbound airstrikes: blast zone + target marker */}
       {airstrikes.map(a => (
         <React.Fragment key={`as-${a.id}`}>
@@ -185,6 +204,9 @@ const styles = StyleSheet.create({
   },
   powerupEmoji: {
     fontSize: 14,
+  },
+  airstrikePreviewTarget: {
+    fontSize: 24,
   },
   airstrikeTarget: {
     fontSize: 24,

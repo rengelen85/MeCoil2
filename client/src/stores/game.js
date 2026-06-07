@@ -39,7 +39,8 @@ export const stealthActive = writable(false);
 export const stealthCountdown = writable(null); // seconds remaining while stealth is active
 export const radarActive = writable(false);     // enemies revealed on my map
 export const airstrikeReady = writable(0);       // held airstrikes available to deploy
-export const airstrikeArmed = writable(false);   // armed: next map tap calls the strike
+export const airstrikeArmed = writable(false);   // armed: next map tap places a preview circle
+export const airstrikePreview = writable(null);  // { lat, lng } pending confirmation, or null
 
 // Health / respawn state (host-tunable, set from GAME_STARTED)
 export const hp = writable(100);
@@ -119,6 +120,7 @@ export function resetGame() {
   radarActive.set(false);
   airstrikeReady.set(0);
   airstrikeArmed.set(false);
+  airstrikePreview.set(null);
   isAlive.set(true);
   respawnCountdown.set(null);
   killedBy.set(null);

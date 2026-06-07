@@ -83,6 +83,7 @@ interface GameStore {
   radarActive: boolean;
   airstrikeReady: number;
   airstrikeArmed: boolean;
+  airstrikePreview: { lat: number; lng: number } | null;
   hp: number;
   maxHp: number;
   isAlive: boolean;
@@ -119,6 +120,7 @@ interface GameStore {
   setRadarActive: (v: boolean) => void;
   setAirstrikeReady: (n: number) => void;
   setAirstrikeArmed: (v: boolean) => void;
+  setAirstrikePreview: (pos: { lat: number; lng: number } | null) => void;
   setHp: (n: number) => void;
   setMaxHp: (n: number) => void;
   setIsAlive: (v: boolean) => void;
@@ -166,6 +168,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   radarActive: false,
   airstrikeReady: 0,
   airstrikeArmed: false,
+  airstrikePreview: null,
   hp: 100,
   maxHp: 100,
   isAlive: true,
@@ -203,6 +206,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setRadarActive: v => set({ radarActive: v }),
   setAirstrikeReady: n => set({ airstrikeReady: n }),
   setAirstrikeArmed: v => set({ airstrikeArmed: v }),
+  setAirstrikePreview: pos => set({ airstrikePreview: pos }),
   setHp: n => set({ hp: n }),
   setMaxHp: n => set({ maxHp: n }),
   setIsAlive: v => set({ isAlive: v }),
@@ -230,6 +234,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
       radarActive: false,
       airstrikeReady: 0,
       airstrikeArmed: false,
+      airstrikePreview: null,
       isAlive: true,
       respawnCountdown: null,
     }),

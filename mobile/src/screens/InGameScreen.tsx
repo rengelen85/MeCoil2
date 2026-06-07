@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/index.js';
 import { useGameStore, ScoreEntry } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
-import { sendPosition, sendStopGame } from '../lib/network.js';
+import { sendPosition, sendStopGame, sendDeployAirstrike } from '../lib/network.js';
 import { applyGunAssignment, connectBle, setGunMode, GUN_MODES, GUN_MODE_CYCLE, GunMode } from '../lib/ble.js';
 import GameMap from '../components/GameMap.js';
 
@@ -26,7 +26,8 @@ function findMyScore(scores: ScoreEntry[], myId: number | null): ScoreEntry | nu
 export default function InGameScreen(_props: Props) {
   const {
     ammo, maxAmmo, isReloading, shieldActive, stealthActive,
-    radarActive, airstrikeReady, airstrikeArmed, setAirstrikeArmed,
+    radarActive, airstrikeReady, airstrikeArmed, airstrikePreview,
+    setAirstrikeArmed, setAirstrikePreview, setAirstrikeReady,
     timeRemaining, scores, myId, isHost, bleConnected, gunSlotId,
     killFeed, hp, maxHp, isAlive, respawnCountdown,
   } = useGameStore();
@@ -50,7 +51,19 @@ export default function InGameScreen(_props: Props) {
 
   function toggleAirstrike() {
     if (airstrikeReady <= 0) return;
+    setAirstrikePreview(null);
     setAirstrikeArmed(!airstrikeArmed);
+  }
+
+  function confirmAirstrike() {
+    if (!airstrikePreview) return;
+    sendDeployAirstrike(airstrikePreview.lat, airstrikePreview.lng);
+    setAirstrikePreview(null);
+    setAirstrikeReady(Math.max(0, airstrikeReady - 1));
+  }
+
+  function cancelAirstrike() {
+    setAirstrikePreview(null);
   }
 
   const onPosition = useCallback(
@@ -112,12 +125,21 @@ export default function InGameScreen(_props: Props) {
         </View>
       )}
 
-      {/* Airstrike armed hint */}
-      {airstrikeArmed && (
-        <View style={styles.airstrikeArmedHint} pointerEvents="none">
-          <Text style={styles.airstrikeArmedHintText}>Tap the map to call the strike</Text>
+      {/* Airstrike: armed hint or pending-confirm prompt */}
+      {airstrikePreview ? (
+        <View style={styles.airstrikeConfirmBar}>
+          <TouchableOpacity style={styles.btnConfirmStrike} onPress={confirmAirstrike}>
+            <Text style={styles.btnConfirmStrikeText}>✓ Confirm Strike</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btnCancelStrike} onPress={cancelAirstrike}>
+            <Text style={styles.btnCancelStrikeText}>✗ Cancel</Text>
+          </TouchableOpacity>
         </View>
-      )}
+      ) : airstrikeArmed ? (
+        <View style={styles.airstrikeArmedHint} pointerEvents="none">
+          <Text style={styles.airstrikeArmedHintText}>Tap the map to place the strike zone</Text>
+        </View>
+      ) : null}
 
       {/* Top HUD */}
       <View style={styles.topHud}>
@@ -441,6 +463,38 @@ const styles = StyleSheet.create({
   airstrikeArmedHintText: {
     color: '#ff8a80',
     fontSize: 12,
+  },
+  airstrikeConfirmBar: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    zIndex: 50,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  btnConfirmStrike: {
+    backgroundColor: '#ff9800',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  btnConfirmStrikeText: {
+    color: '#000',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  btnCancelStrike: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  btnCancelStrikeText: {
+    color: '#aaa',
+    fontWeight: '700',
+    fontSize: 14,
   },
   bleWarning: {
     color: '#f4c430',

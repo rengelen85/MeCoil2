@@ -70,6 +70,10 @@ export const GUN_MODE_DAMAGE = {
 };
 export const PLASMA_DAMAGE_PER_AMMO = 3; // plasma damage = loaded ammo * this
 
+// Lethal blast radius for an airstrike (metres). Shared so the client can
+// render an accurate preview circle before the server confirms deployment.
+export const AIRSTRIKE_RADIUS_M = 30;
+
 export const POWERUP_TYPES = {
   FULL_RELOAD: 'fullReload',
   HEALTH_PACK: 'healthPack', // restores the collector to full HP

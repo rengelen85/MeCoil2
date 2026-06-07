@@ -2,8 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading, ctfBases, ctfFlags } from '../stores/map.js';
-  import { airstrikeArmed, airstrikeReady, gameArea } from '../stores/game.js';
-  import { sendCollect, sendDeployAirstrike } from '../lib/network.js';
+  import { airstrikeArmed, airstrikePreview, gameArea } from '../stores/game.js';
+  import { sendCollect } from '../lib/network.js';
+  import { AIRSTRIKE_RADIUS_M } from '../../../shared/messages.js';
 
   let mapEl;
   let map;
@@ -15,6 +16,8 @@
   const powerupMarkers = new Map();
   const airstrikeMarkers = new Map(); // id -> { circle, marker }
   const graveMarkers = new Map();     // playerId -> tombstone marker
+  let previewCircle = null;           // pending-confirmation airstrike preview
+  let previewMarker = null;
   const ctfBaseCircles = new Map();   // team -> { circle }
   const ctfFlagMarkers = new Map();   // team -> marker
   let gameAreaLayer = null;           // L.circle or L.polygon for the play boundary
@@ -148,12 +151,46 @@
       });
     }
 
-    // Arming an airstrike turns the next map tap into a strike call.
+    // The map container is CSS-rotated for heading-up mode but Leaflet doesn't
+    // know about that rotation. When rotated, getBoundingClientRect() returns the
+    // bounding box of the rotated element, so Leaflet's e.latlng is wrong. We
+    // correct by un-rotating the screen offset around the visual map centre.
+    function correctedLatLng(e) {
+      if (_accRotation === 0) return { lat: e.latlng.lat, lng: e.latlng.lng };
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      const dx = e.originalEvent.clientX - cx;
+      const dy = e.originalEvent.clientY - cy;
+      const rad = _accRotation * Math.PI / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const ux = dx * cos - dy * sin;
+      const uy = dx * sin + dy * cos;
+      const half = mapEl.offsetWidth / 2;
+      const pt = map.containerPointToLatLng(L.point(half + ux, half + uy));
+      return { lat: pt.lat, lng: pt.lng };
+    }
+
+    function previewIcon() {
+      return L.divIcon({
+        className: '',
+        html: '<div class="airstrike-preview-target">🎯</div>',
+        iconSize: [30, 30], iconAnchor: [15, 15],
+      });
+    }
+
+    // Clicking while armed (or while a preview is already placed) sets / moves
+    // the preview circle. The actual strike is only called in on Confirm.
     map.on('click', e => {
-      if (!get(airstrikeArmed)) return;
-      sendDeployAirstrike(e.latlng.lat, e.latlng.lng);
-      airstrikeArmed.set(false);
-      airstrikeReady.update(n => Math.max(0, n - 1));
+      if (!get(airstrikeArmed) && !get(airstrikePreview)) return;
+      const latlng = correctedLatLng(e);
+      airstrikePreview.set(latlng);
+      if (get(airstrikeArmed)) airstrikeArmed.set(false);
+    });
+
+    // Keep the map cursor in sync with the armed / preview state.
+    const unsubCursor = airstrikeArmed.subscribe(armed => {
+      if (map) map.getContainer().style.cursor = armed ? 'crosshair' : '';
     });
 
     const unsubPos = myPosition.subscribe(pos => {
@@ -232,6 +269,27 @@
       }
       for (const [id, m] of airstrikeMarkers) {
         if (!seen.has(id)) { m.circle.remove(); m.marker.remove(); airstrikeMarkers.delete(id); }
+      }
+    });
+
+    const unsubPreview = airstrikePreview.subscribe(pos => {
+      if (previewCircle) { previewCircle.remove(); previewCircle = null; }
+      if (previewMarker) { previewMarker.remove(); previewMarker = null; }
+      if (pos) {
+        previewCircle = L.circle([pos.lat, pos.lng], {
+          radius: AIRSTRIKE_RADIUS_M,
+          color: '#ff9800',
+          weight: 2,
+          dashArray: '8 5',
+          fillColor: '#ff9800',
+          fillOpacity: 0.15,
+          interactive: false,
+          className: 'airstrike-preview-zone',
+        }).addTo(map);
+        previewMarker = L.marker([pos.lat, pos.lng], {
+          icon: previewIcon(),
+          interactive: false,
+        }).addTo(map);
       }
     });
 
@@ -318,7 +376,7 @@
     // would be silently ignored by Svelte. Register teardown via onDestroy
     // instead, otherwise these subscriptions leak across games and fire on a
     // removed Leaflet map (throwing and freezing the whole UI on round 2+).
-    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes, unsubGraves, unsubCtfBases, unsubCtfFlags, unsubGameArea];
+    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes, unsubPreview, unsubGraves, unsubCtfBases, unsubCtfFlags, unsubGameArea, unsubCursor];
   });
 
   onDestroy(() => {
@@ -328,6 +386,8 @@
     ctfBaseCircles.clear();
     for (const m of ctfFlagMarkers.values()) m.remove();
     ctfFlagMarkers.clear();
+    if (previewCircle) { previewCircle.remove(); previewCircle = null; }
+    if (previewMarker) { previewMarker.remove(); previewMarker = null; }
     if (gameAreaLayer) { gameAreaLayer.remove(); gameAreaLayer = null; }
     map?.remove();
   });
@@ -468,6 +528,22 @@
     text-align: center;
     filter: drop-shadow(0 0 6px rgba(255,23,68,0.9));
     animation: enemy-pulse 0.5s ease-in-out infinite alternate;
+  }
+
+  /* Pending-confirmation airstrike preview (orange, dashed) */
+  :global(.airstrike-preview-zone) {
+    animation: preview-pulse 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes preview-pulse {
+    from { stroke-opacity: 0.9; fill-opacity: 0.10; }
+    to   { stroke-opacity: 0.5; fill-opacity: 0.25; }
+  }
+  :global(.airstrike-preview-target) {
+    font-size: 22px;
+    line-height: 1;
+    text-align: center;
+    filter: drop-shadow(0 0 6px rgba(255,152,0,0.9));
+    animation: enemy-pulse 0.7s ease-in-out infinite alternate;
   }
 
   /* CTF flag marker */
