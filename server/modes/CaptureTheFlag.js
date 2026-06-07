@@ -91,11 +91,13 @@ export class CaptureTheFlag extends BaseMode {
       }
     }
 
-    // Capture: carrying enemy flag and touching own base
+    // Capture: carrying enemy flag and touching own base, but only if own flag is home
     if (enemyFlag.carrierId === player.id && ownBase) {
       const dist = haversineMeters(player.lat, player.lng, ownBase.lat, ownBase.lng);
       if (dist <= BASE_RADIUS_M) {
-        this._captureFlag(player, enemyTeam, enemyBase);
+        if (ownFlag.state === FLAG_STATE.AT_BASE) {
+          this._captureFlag(player, enemyTeam, enemyBase);
+        }
         return;
       }
     }

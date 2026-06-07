@@ -125,7 +125,14 @@
       if (state === 'carried') {
         content = `<span style="font-size:20px">🏃</span>`;
       } else if (state === 'dropped') {
-        content = `<span style="font-size:20px">📍</span>`;
+        // Team-colored flag lying on the ground — X mark signals "not at base"
+        content = `<svg viewBox="0 0 24 28" width="24" height="28">
+          <line x1="4" y1="3" x2="4" y2="25" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+          <polygon points="4,3 19,9 4,15" fill="${color}" opacity="0.6"/>
+          <line x1="1" y1="23" x2="9" y2="23" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="16" y1="19" x2="22" y2="25" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+          <line x1="22" y1="19" x2="16" y2="25" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
+        </svg>`;
       } else {
         // SVG flag so the color is actually applied (🚩 emoji ignores CSS color)
         content = `<svg viewBox="0 0 20 26" width="20" height="26">
@@ -339,12 +346,19 @@
       for (const team of ['red', 'blue']) {
         const flag = flags[team];
         if (flag && flag.lat !== null) {
+          const label = `${team === 'red' ? 'Red' : 'Blue'} flag${flag.state === 'dropped' ? ' — DROPPED!' : ''}`;
+          const tooltipOpts = { direction: 'top', permanent: flag.state === 'dropped' };
           if (!ctfFlagMarkers.has(team)) {
-            ctfFlagMarkers.set(team, L.marker([flag.lat, flag.lng], { icon: flagIcon(team, flag.state) }).addTo(map));
+            const m = L.marker([flag.lat, flag.lng], { icon: flagIcon(team, flag.state) })
+              .bindTooltip(label, tooltipOpts)
+              .addTo(map);
+            ctfFlagMarkers.set(team, m);
           } else {
             const m = ctfFlagMarkers.get(team);
             m.setLatLng([flag.lat, flag.lng]);
             m.setIcon(flagIcon(team, flag.state));
+            m.unbindTooltip();
+            m.bindTooltip(label, tooltipOpts);
           }
         } else if (ctfFlagMarkers.has(team)) {
           ctfFlagMarkers.get(team).remove();
