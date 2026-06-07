@@ -238,6 +238,7 @@ export class BaseMode {
   _respawn(player) {
     player.respawnTimer = null;
     player.hp = player.maxHp;
+    player.ammo = this.config.bulletsPerMag ?? 30;
     player.isAlive = true;
     player.shieldUntil = Date.now() + SHIELD_RESPAWN_MS;
     this.broadcast({
@@ -245,6 +246,7 @@ export class BaseMode {
       playerId: player.id,
       hp: player.hp,
       maxHp: player.maxHp,
+      ammo: player.ammo,
       shieldMs: SHIELD_RESPAWN_MS,
     });
   }

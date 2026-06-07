@@ -261,6 +261,7 @@ function _handle(msg) {
       if (msg.playerId === get(myId)) {
         hp.set(msg.hp);
         maxHp.set(msg.maxHp);
+        if (msg.ammo != null) ammo.set(msg.ammo);
         isAlive.set(true);
         killedBy.set(null);
         playRespawn();

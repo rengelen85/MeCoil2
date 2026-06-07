@@ -220,6 +220,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       if (msg.playerId === game.myId) {
         game.setHp(msg.hp as number);
         game.setMaxHp(msg.maxHp as number);
+        if (msg.ammo != null) game.setAmmo(msg.ammo as number);
         game.setIsAlive(true);
         playRespawn();
         _stopRespawnCountdown();
