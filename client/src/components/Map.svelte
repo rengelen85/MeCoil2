@@ -203,7 +203,7 @@
     const unsubPos = myPosition.subscribe(pos => {
       if (!pos) return;
       if (!myMarker) {
-        myMarker = L.marker([pos.lat, pos.lng], { icon: myIcon }).addTo(map);
+        myMarker = L.marker([pos.lat, pos.lng], { icon: myIcon, interactive: false }).addTo(map);
         map.setView([pos.lat, pos.lng], 19);
       } else {
         myMarker.setLatLng([pos.lat, pos.lng]);
