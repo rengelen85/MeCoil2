@@ -1,5 +1,5 @@
 <script>
-  import { ammo, maxAmmo, isReloading, shieldActive, stealthActive, stealthCountdown } from '../stores/game.js';
+  import { ammo, maxAmmo, isReloading, shieldActive, shieldCountdown, stealthActive, stealthCountdown } from '../stores/game.js';
 
   $: pct = Math.round(($ammo / $maxAmmo) * 100);
   $: ammoColor = pct > 50 ? '#00e676' : pct > 20 ? '#ffeb3b' : '#ff5252';
@@ -29,7 +29,7 @@
   </div>
 
   {#if $shieldActive}
-    <div class="status shield">🛡 SHIELD</div>
+    <div class="status shield">🛡 SHIELD {fmtCountdown($shieldCountdown)}</div>
   {/if}
   {#if $stealthActive}
     <div class="status stealth">👻 STEALTH {fmtCountdown($stealthCountdown)}</div>

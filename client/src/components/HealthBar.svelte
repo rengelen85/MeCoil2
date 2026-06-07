@@ -1,9 +1,7 @@
 <script>
-  import { hp, maxHp } from '../stores/game.js';
+  import { hp, maxHp, shieldActive } from '../stores/game.js';
 
-  // Clamp display to 100% even when shields push HP above max.
   $: pct = $maxHp > 0 ? Math.min(100, Math.round(($hp / $maxHp) * 100)) : 0;
-  $: hasBonus = $hp > $maxHp;
   $: hpColor = pct > 50 ? '#00e676' : pct > 25 ? '#ffeb3b' : '#ff5252';
 </script>
 
@@ -13,10 +11,10 @@
     <span class="count">{$hp}</span>
     <span class="sep">/</span>
     <span class="max">{$maxHp}</span>
-    {#if hasBonus}<span class="shield-tag">🛡</span>{/if}
+    {#if $shieldActive}<span class="shield-tag">🛡</span>{/if}
   </div>
   <div class="bar-track">
-    <div class="bar-fill" class:bonus={hasBonus} style="width:{pct}%; background:{hpColor}"></div>
+    <div class="bar-fill" class:shielded={$shieldActive} style="width:{pct}%; background:{hpColor}"></div>
   </div>
 </div>
 
@@ -54,7 +52,7 @@
     border-radius: 4px;
     transition: width 0.25s ease, background 0.3s;
   }
-  .bar-fill.bonus {
+  .bar-fill.shielded {
     box-shadow: 0 0 8px 1px rgba(130, 177, 255, 0.8);
   }
 </style>

@@ -78,6 +78,7 @@ interface GameStore {
   maxAmmo: number;
   isReloading: boolean;
   shieldActive: boolean;
+  shieldCountdown: number | null;
   stealthActive: boolean;
   radarActive: boolean;
   airstrikeReady: number;
@@ -113,6 +114,7 @@ interface GameStore {
   setMaxAmmo: (n: number) => void;
   setIsReloading: (v: boolean) => void;
   setShieldActive: (v: boolean) => void;
+  setShieldCountdown: (n: number | null) => void;
   setStealthActive: (v: boolean) => void;
   setRadarActive: (v: boolean) => void;
   setAirstrikeReady: (n: number) => void;
@@ -159,6 +161,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   maxAmmo: 30,
   isReloading: false,
   shieldActive: false,
+  shieldCountdown: null,
   stealthActive: false,
   radarActive: false,
   airstrikeReady: 0,
@@ -195,6 +198,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setMaxAmmo: n => set({ maxAmmo: n }),
   setIsReloading: v => set({ isReloading: v }),
   setShieldActive: v => set({ shieldActive: v }),
+  setShieldCountdown: n => set({ shieldCountdown: n }),
   setStealthActive: v => set({ stealthActive: v }),
   setRadarActive: v => set({ radarActive: v }),
   setAirstrikeReady: n => set({ airstrikeReady: n }),
@@ -221,6 +225,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
       ammo: 30,
       isReloading: false,
       shieldActive: false,
+      shieldCountdown: null,
       stealthActive: false,
       radarActive: false,
       airstrikeReady: 0,

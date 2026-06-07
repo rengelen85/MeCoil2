@@ -4,7 +4,7 @@ import {
   myId, isHost, players, gameConfig, hostId,
   gameState, scores, timeRemaining, killFeed,
   countdownAt, screen, finalScores, winner, resetGame,
-  ammo, maxAmmo, shieldActive, stealthActive, stealthCountdown, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
+  ammo, maxAmmo, shieldActive, shieldCountdown, stealthActive, stealthCountdown, radarActive, airstrikeReady, airstrikeArmed, gunSlotId,
   hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, bulletsPerMag, reloadDelaySecs,
   rooms, roomName, username, saveSession,
   gameId, roundId,
@@ -248,6 +248,7 @@ function _handle(msg) {
         hp.set(0);
         isAlive.set(false);
         killedBy.set(msg.killerName ?? null);
+        _stopShieldCountdown();
         playKilled();
         // CTF uses location-based respawn (respawnIn === null); skip countdown
         if (msg.respawnIn != null) {
@@ -265,6 +266,7 @@ function _handle(msg) {
         playRespawn();
         _stopRespawnCountdown();
         respawnCountdown.set(null);
+        if (msg.shieldMs) _startShieldCountdown(Math.round(msg.shieldMs / 1_000));
       }
       break;
 
@@ -295,7 +297,7 @@ function _applyLocalPowerupFeedback({ type }) {
   switch (type) {
     case 'fullReload': ammo.set(get(maxAmmo)); break;
     case 'healthPack': hp.set(get(maxHp)); break;
-    case 'shield': shieldActive.set(true); break;
+    case 'shield': _startShieldCountdown(120); break;
     case 'stealth': _startStealthCountdown(120); break;
     case 'radar':
       radarActive.set(true);
@@ -304,6 +306,32 @@ function _applyLocalPowerupFeedback({ type }) {
       break;
     case 'airstrike': airstrikeReady.update(n => n + 1); break;
   }
+}
+
+// Local 1-second ticker that drives the shield badge countdown.
+let _shieldTimer = null;
+
+function _startShieldCountdown(secs) {
+  _stopShieldCountdown();
+  shieldActive.set(true);
+  shieldCountdown.set(secs);
+  _shieldTimer = setInterval(() => {
+    shieldCountdown.update(v => {
+      if (v === null) return null;
+      const next = v - 1;
+      if (next <= 0) { _stopShieldCountdown(); return null; }
+      return next;
+    });
+  }, 1_000);
+}
+
+function _stopShieldCountdown() {
+  if (_shieldTimer) {
+    clearInterval(_shieldTimer);
+    _shieldTimer = null;
+  }
+  shieldActive.set(false);
+  shieldCountdown.set(null);
 }
 
 // Local 1-second ticker that drives the stealth badge countdown.

@@ -4,6 +4,8 @@ const STATE_INTERVAL_MS = 1_000;
 const POSITION_INTERVAL_MS = 1_000;
 const ENEMY_VISIBLE_MS = 3_000;
 const RADAR_DURATION_MS = 60_000;   // radar reveals all enemies for one minute
+const SHIELD_PICKUP_MS = 120_000;   // shield from a power-up lasts 2 minutes
+const SHIELD_RESPAWN_MS = 20_000;   // shield granted on respawn lasts 20 seconds
 const AIRSTRIKE_RADIUS_M = 30;      // lethal blast radius
 const AIRSTRIKE_WARNING_MS = 8_000; // evacuation window before detonation
 
@@ -164,7 +166,8 @@ export class BaseMode {
     if (!shooter.isAlive || !victim.isAlive) return; // dead players neither deal nor take damage
     if (!this.config.friendlyFire && this._areTeammates(shooter, victim)) return;
 
-    const hpCost = this._damageFor(shooter);
+    let hpCost = this._damageFor(shooter);
+    if (Date.now() < victim.shieldUntil) hpCost = Math.ceil(hpCost / 2);
     victim.hp = Math.max(0, victim.hp - hpCost);
     shooter.hits++;
     victim.timesHit++;
@@ -203,6 +206,7 @@ export class BaseMode {
     const credited = killer && killer.id !== victim.id;
     victim.deaths++;
     victim.isAlive = false;
+    victim.shieldUntil = 0;
     if (credited) killer.kills++;
     this.killFeed.push({
       at: Date.now(),
@@ -236,11 +240,13 @@ export class BaseMode {
     player.respawnTimer = null;
     player.hp = player.maxHp;
     player.isAlive = true;
+    player.shieldUntil = Date.now() + SHIELD_RESPAWN_MS;
     this.broadcast({
       type: S2C.PLAYER_RESPAWN,
       playerId: player.id,
       hp: player.hp,
       maxHp: player.maxHp,
+      shieldMs: SHIELD_RESPAWN_MS,
     });
   }
 
@@ -262,14 +268,7 @@ export class BaseMode {
         });
         break;
       case POWERUP_TYPES.SHIELD:
-        // Shields stack bonus HP on top of max (can exceed maxHp).
-        player.hp += Math.floor(player.maxHp * 0.5);
-        this.broadcast({
-          type: S2C.PLAYER_HP,
-          playerId: player.id,
-          hp: player.hp,
-          maxHp: player.maxHp,
-        });
+        player.shieldUntil = Date.now() + SHIELD_PICKUP_MS;
         break;
       case POWERUP_TYPES.STEALTH:
         player.stealthUntil = Date.now() + 120_000;

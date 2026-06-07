@@ -34,6 +34,7 @@ export const ammo = writable(30);
 export const maxAmmo = writable(30);
 export const isReloading = writable(false);
 export const shieldActive = writable(false);
+export const shieldCountdown = writable(null); // seconds remaining while shield is active
 export const stealthActive = writable(false);
 export const stealthCountdown = writable(null); // seconds remaining while stealth is active
 export const radarActive = writable(false);     // enemies revealed on my map
@@ -112,6 +113,7 @@ export function resetGame() {
   ammo.set(30);
   isReloading.set(false);
   shieldActive.set(false);
+  shieldCountdown.set(null);
   stealthActive.set(false);
   stealthCountdown.set(null);
   radarActive.set(false);

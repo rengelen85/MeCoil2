@@ -19,6 +19,7 @@ export class Player {
     this.ammo = 0;
     this.stealthUntil = 0;
     this.radarUntil = 0;        // sees all enemies until this timestamp
+    this.shieldUntil = 0;       // damage is halved until this timestamp
     this.airstrikesAvailable = 0; // held airstrikes ready to deploy
 
     // Health / respawn
@@ -49,6 +50,7 @@ export class Player {
     this.ammo = 0;
     this.stealthUntil = 0;
     this.radarUntil = 0;
+    this.shieldUntil = 0;
     this.airstrikesAvailable = 0;
     this.maxHp = maxHp;
     this.hp = maxHp;

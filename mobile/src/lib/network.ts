@@ -210,6 +210,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       if (msg.playerId === game.myId) {
         game.setHp(0);
         game.setIsAlive(false);
+        _stopShieldCountdown();
         playKilled();
         _startRespawnCountdown((msg.respawnIn as number) ?? 10);
       }
@@ -223,6 +224,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
         playRespawn();
         _stopRespawnCountdown();
         game.setRespawnCountdown(null);
+        if (msg.shieldMs) _startShieldCountdown(Math.round((msg.shieldMs as number) / 1_000));
       }
       break;
 
@@ -258,7 +260,7 @@ function _applyLocalPowerupFeedback({ type }: { type: string }) {
       game.setHp(game.maxHp);
       break;
     case 'shield':
-      game.setShieldActive(true);
+      _startShieldCountdown(120);
       break;
     case 'stealth':
       game.setStealthActive(true);
@@ -272,6 +274,35 @@ function _applyLocalPowerupFeedback({ type }: { type: string }) {
       game.setAirstrikeReady(game.airstrikeReady + 1);
       break;
   }
+}
+
+// Local 1-second ticker that drives the shield badge countdown.
+let _shieldTimer: ReturnType<typeof setInterval> | null = null;
+
+function _startShieldCountdown(secs: number) {
+  _stopShieldCountdown();
+  const game = useGameStore.getState();
+  game.setShieldActive(true);
+  game.setShieldCountdown(secs);
+  _shieldTimer = setInterval(() => {
+    const current = useGameStore.getState().shieldCountdown;
+    if (current === null) { _stopShieldCountdown(); return; }
+    const next = current - 1;
+    if (next <= 0) {
+      _stopShieldCountdown();
+    } else {
+      useGameStore.getState().setShieldCountdown(next);
+    }
+  }, 1_000);
+}
+
+function _stopShieldCountdown() {
+  if (_shieldTimer) {
+    clearInterval(_shieldTimer);
+    _shieldTimer = null;
+  }
+  useGameStore.getState().setShieldActive(false);
+  useGameStore.getState().setShieldCountdown(null);
 }
 
 // Local 1-second ticker that drives the on-screen respawn countdown while dead.
