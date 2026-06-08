@@ -57,6 +57,9 @@ export class GameManager {
   }
 
   removePlayer(player) {
+    // Let the active mode clean up any state tied to this player (e.g. a CTF
+    // carrier leaving must drop its flag) before we forget about them.
+    this._mode?.onPlayerLeft?.(player);
     this.players.delete(player.id);
     if (player.id === this._hostId) {
       // Prefer a connected player as the new host

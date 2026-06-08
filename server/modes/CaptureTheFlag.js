@@ -194,6 +194,12 @@ export class CaptureTheFlag extends BaseMode {
     // No respawn timer — location-based respawn handled by onPositionUpdate
   }
 
+  // A player removed from the game (left, or dropped after the reconnect grace
+  // period) must not keep carrying a flag — drop it at their last position.
+  onPlayerLeft(player) {
+    this._dropFlagOf(player);
+  }
+
   _dropFlagOf(player) {
     for (const team of [TEAMS.RED, TEAMS.BLUE]) {
       const flag = this._flags[team];
@@ -229,7 +235,7 @@ export class CaptureTheFlag extends BaseMode {
       const flag = this._flags[team];
       if (flag.state === FLAG_STATE.CARRIED && flag.carrierId) {
         const carrier = this.players.get(flag.carrierId);
-        if (carrier?.lat !== null) {
+        if (carrier && carrier.lat != null) {
           flag.lat = carrier.lat;
           flag.lng = carrier.lng;
         }
