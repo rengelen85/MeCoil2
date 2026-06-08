@@ -215,16 +215,7 @@ export class CaptureTheFlag extends BaseMode {
   }
 
   _respawnAtBase(player) {
-    player.hp = player.maxHp;
-    player.ammo = this.config.bulletsPerMag ?? 30;
-    player.isAlive = true;
-    this.broadcast({
-      type: S2C.PLAYER_RESPAWN,
-      playerId: player.id,
-      hp: player.hp,
-      maxHp: player.maxHp,
-      ammo: player.ammo,
-    });
+    super._respawn(player);
   }
 
   _tick() {
