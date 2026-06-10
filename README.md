@@ -1,6 +1,6 @@
 # MeCoil
 
-Open-source self-hosted laser tag game server for **Goliath Recoil** BLE hardware. The original vendor app is discontinued — MeCoil replaces it entirely with a web-based server that runs on any machine on your local network, including a Raspberry Pi.
+Open-source self-hosted laser tag game server for **Goliath Recoil** BLE hardware. The original vendor app is discontinued. MeCoil replaces it entirely with a web-based server that runs on any machine on your local network, including a Raspberry Pi.
 
 Players connect from the browser on their phones. No app to install. A full native mobile app will follow later.
 
@@ -134,7 +134,7 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mec
 - **Flag mechanics**: Flags are automatically picked up when you enter a 10m radius of the enemy flag, dropped when killed, and auto-returned to base if a teammate steps on them
 - **Respawn**: Location-based — walk back to your own base (marked as a 15m circle on the map) to respawn, no timer
 - **Scoring**: Each successful capture increments your team's score; the HUD displays a red vs blue capture score bar
-- **Map display**: Colored base circles mark each team's base; flag icons change state (🚩 at base, 🏃 carried, 📍 dropped)
+- **Map display**: Colored base circles mark each team's base; flag icons change state (🚩 at base/dropped, 🏃 carried)
 
 #### Infection Details
 
@@ -151,12 +151,12 @@ Power-ups spawn periodically around the play area. Walk onto one (or tap it on t
 
 | Power-up | Icon | Effect |
 |----------|------|--------|
-| **Fast Reload** | 🔋 | When reloading, instantly refill your magazine without any delay for 2 minutes |
-| **Health Pack** | 🩹 | Restores you to full HP |
+| **Fast Reload** | 🔋 | When reloading, instantly refill player's magazine without any delay for 2 minutes |
+| **Health Pack** | 🩹 | Restores the player's health to full HP |
 | **Shield** | 🛡️ | Halves inflicted damage for 2 minutes. After respawning each player also receives a shield for 20 seconds |
-| **Stealth** | 👻 | Hides you from enemy maps for 2 minutes |
+| **Stealth** | 👻 | Hides player from enemy maps for 2 minutes |
 | **Radar** | 📡 | Reveals **every** living enemy on your map for 1 minute (even stealthed ones) |
-| **Airstrike** | 🚀 | Held until you call it in: arm it, tap a spot on the map, and after a short warning everyone in the blast radius is killed. All players see an **INCOMING AIRSTRIKE** alert with a countdown and must clear the zone |
+| **Airstrike** | 🚀 | Held until player calls it in: arm it, tap a spot on the map, and after a short warning everyone in the blast radius is killed. All players see an **INCOMING AIRSTRIKE** alert with a countdown and must clear the zone |
 
 > Airstrikes respect the friendly-fire setting — with it off, teammates (and the caller) inside the blast are spared.
 
@@ -205,75 +205,19 @@ When a player's WiFi drops, the client automatically reconnects with exponential
 
 ```
 MeCoil/
-├── server/
-│   ├── index.js              # Express + WebSocket server, HTTPS auto-detection
-│   ├── GameManager.js        # State machine: lobby → countdown → playing → end
-│   ├── Player.js             # Per-player model (kills, deaths, position, BLE slot)
-│   ├── PowerupManager.js     # Spawns and tracks map power-ups
-│   └── modes/
-│       ├── BaseMode.js       # Shared: timer, kill feed, position broadcast, power-ups
-│       ├── FFA.js            # Free for All win condition
-│       ├── TeamDeathmatch.js # Team scoring and win condition
-│       ├── CaptureTheFlag.js # Flag capture with base proximity, location-based respawn
-│       └── Infection.js      # Asymmetric survival, infected vs survivors
-├── client/
-│   ├── src/
-│   │   ├── App.svelte        # Screen router
-│   │   ├── screens/          # Setup, Lobby, InGame, EndScreen
-│   │   ├── components/       # Map, ScoreBoard, KillFeed, AmmoBar
-│   │   ├── lib/
-│   │   │   ├── ble.js        # Web Bluetooth wrapper (connect, fire, reload, hit)
-│   │   │   ├── recoilweapon.js  # Low-level Goliath BLE driver (ported from Scope project)
-│   │   │   ├── simulator.js  # Keyboard gun simulator
-│   │   │   ├── audio.js      # Synthesized sound effects (Web Audio, no assets)
-│   │   │   └── network.js    # WebSocket client and message dispatcher
-│   │   └── stores/
-│   │       ├── game.js       # Svelte stores: screen, players, scores, ammo, BLE state
-│   │       └── map.js        # GPS position, teammate/enemy positions, compass heading
-│   └── vite.config.js        # HTTPS auto-detection, WebSocket proxy
-├── shared/
-│   └── messages.js           # WebSocket message type constants (server + client)
-├── config/
-│   ├── game.json             # Game defaults (time limit, weapon, etc.)
-│   └── weapons/
-│       ├── rk-45.json        # Weapon profile: fire rate, IR power, motor, flash
-│       └── pistol.json
-├── certs/                    # mkcert output (gitignored)
-├── Makefile                  # Linux/macOS task runner
-└── tasks.ps1                 # Windows PowerShell task runner
+├── server/         # Node.js game server and game modes
+├── client/         # Vite + Svelte web client
+├── shared/         # Shared protocol constants
+├── docs/           # Hardware protocol documentation
+├── certs/          # HTTPS certificates (gitignored)
+├── Makefile        # Linux/macOS task runner
+├── README.md       # This file
+└── releasenotes.md # Version history and changelog
 ```
 
 ---
 
 ## Configuration
-
-### `config/game.json`
-
-```json
-{
-  "startOnReady": true,
-  "preStartCooldown": 5000,
-  "gameTimeMins": 7,
-  "defaultWeapon": "rk-45"
-}
-```
-
-### `config/weapons/*.json`
-
-Weapon profiles configure the physical gun behaviour over BLE. Each field maps to a byte in the 12-byte Config characteristic payload sent to the gun.
-
-```json
-{
-  "triggerMode": 254,
-  "rateOfFire": 0,
-  "narrowIrPower": 80,
-  "wideIrPower": 0,
-  "muzzleLedPower": 255,
-  "motorPower": 18,
-  "muzzleFlashMode": 0,
-  "flashParam2": 3
-}
-```
 
 ### Environment variables
 
@@ -362,9 +306,3 @@ Hardware protocol references are in [docs/](docs/):
 | [docs/recoil_protocol_BLE.md](docs/recoil_protocol_BLE.md) | Goliath Recoil BLE service/characteristic layout (ID, Telemetry, Control, Config) |
 | [docs/recoil_protocol_IR.md](docs/recoil_protocol_IR.md) | IR packet format, encoding, grenade protocol (MAN20A / NEC4) |
 | [docs/recoil_gun_firmware_config_guide.md](docs/recoil_gun_firmware_config_guide.md) | RecoilGun firmware configuration guide (weapon config parameters, firmware behavior) |
-
----
-
-## Credits
-
-BLE driver adapted from the [DroopCat/Scope](https://github.com/DroopCat/Scope) project (`recoilweapon.js`), which reverse-engineered the Goliath Recoil BLE protocol.
