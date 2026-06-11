@@ -16,10 +16,12 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 function isInPolygon(lat, lng, points) {
   let inside = false;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const xi = points[i].lng, yi = points[i].lat;
-    const xj = points[j].lng, yj = points[j].lat;
-    const intersect = yi > lat !== yj > lat &&
-      lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    const xi = points[i].lng,
+      yi = points[i].lat;
+    const xj = points[j].lng,
+      yj = points[j].lat;
+    const intersect =
+      yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
     if (intersect) inside = !inside;
   }
   return inside;

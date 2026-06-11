@@ -1,11 +1,17 @@
-import { S2C, POWERUP_TYPES, GUN_MODE_DAMAGE, PLASMA_DAMAGE_PER_AMMO, AIRSTRIKE_RADIUS_M } from '../../shared/messages.js';
+import {
+  AIRSTRIKE_RADIUS_M,
+  GUN_MODE_DAMAGE,
+  PLASMA_DAMAGE_PER_AMMO,
+  POWERUP_TYPES,
+  S2C,
+} from '../../shared/messages.js';
 
 const STATE_INTERVAL_MS = 1_000;
 const POSITION_INTERVAL_MS = 1_000;
 const ENEMY_VISIBLE_MS = 3_000;
-const RADAR_DURATION_MS = 60_000;   // radar reveals all enemies for one minute
-const SHIELD_PICKUP_MS = 120_000;   // shield from a power-up lasts 2 minutes
-const SHIELD_RESPAWN_MS = 20_000;   // shield granted on respawn lasts 20 seconds
+const RADAR_DURATION_MS = 60_000; // radar reveals all enemies for one minute
+const SHIELD_PICKUP_MS = 120_000; // shield from a power-up lasts 2 minutes
+const SHIELD_RESPAWN_MS = 20_000; // shield granted on respawn lasts 20 seconds
 const AIRSTRIKE_WARNING_MS = 8_000; // evacuation window before detonation
 
 function haversineMeters(lat1, lng1, lat2, lng2) {
@@ -79,9 +85,14 @@ export class BaseMode {
   // until a position is available, then the spawner runs for the rest of the game.
   _tryStartPowerups() {
     if (this._powerupsStarted) return;
-    const first = [...this.players.values()].find(p => p.lat !== null);
+    const first = [...this.players.values()].find((p) => p.lat !== null);
     if (!first) return;
-    this.powerupManager.start(first.lat, first.lng, null, this.config.gameArea ?? null);
+    this.powerupManager.start(
+      first.lat,
+      first.lng,
+      null,
+      this.config.gameArea ?? null,
+    );
     this._powerupsStarted = true;
   }
 
@@ -134,7 +145,9 @@ export class BaseMode {
         } else if (
           other.isAlive &&
           (hasRadar ||
-            (other.lastFireAt && now - other.lastFireAt < ENEMY_VISIBLE_MS && !this._isStealth(other)))
+            (other.lastFireAt &&
+              now - other.lastFireAt < ENEMY_VISIBLE_MS &&
+              !this._isStealth(other)))
         ) {
           firingEnemies.push({ id: other.id, lat: other.lat, lng: other.lng });
         }
@@ -153,17 +166,26 @@ export class BaseMode {
   }
 
   // Override in subclasses:
-  _areTeammates(_a, _b) { return false; }
-  _buildScores() { return []; }
-  _determineWinner() { return null; }
+  _areTeammates(_a, _b) {
+    return false;
+  }
+  _buildScores() {
+    return [];
+  }
+  _determineWinner() {
+    return null;
+  }
 
   // Called by GameManager when a hit is reported. Damage is HP-based; a kill is
   // only registered when HP reaches zero.
   registerHit(shooterWeaponId, victim) {
-    const shooter = [...this.players.values()].find(p => p.gunSlotId === shooterWeaponId);
+    const shooter = [...this.players.values()].find(
+      (p) => p.gunSlotId === shooterWeaponId,
+    );
     if (!shooter || shooter.id === victim.id) return;
     if (!shooter.isAlive || !victim.isAlive) return; // dead players neither deal nor take damage
-    if (!this.config.friendlyFire && this._areTeammates(shooter, victim)) return;
+    if (!this.config.friendlyFire && this._areTeammates(shooter, victim))
+      return;
 
     let hpCost = this._damageFor(shooter);
     if (Date.now() < victim.shieldUntil) hpCost = Math.ceil(hpCost / 2);
@@ -227,7 +249,10 @@ export class BaseMode {
       lng: victim.lng,
     });
 
-    victim.respawnTimer = setTimeout(() => this._respawn(victim), respawnSecs * 1_000);
+    victim.respawnTimer = setTimeout(
+      () => this._respawn(victim),
+      respawnSecs * 1_000,
+    );
 
     const scoreLimit = this.config.scoreLimit ?? Infinity;
     if (credited && this._checkWinCondition(killer, scoreLimit)) {
@@ -252,7 +277,9 @@ export class BaseMode {
   }
 
   // eslint-disable-next-line no-unused-vars
-  _checkWinCondition(_scorer, _limit) { return false; }
+  _checkWinCondition(_scorer, _limit) {
+    return false;
+  }
 
   applyPowerup(player, pkg) {
     switch (pkg.type) {
@@ -315,13 +342,24 @@ export class BaseMode {
     const victims = [];
     for (const p of this.players.values()) {
       if (!p.isAlive || p.lat === null) continue;
-      if (haversineMeters(lat, lng, p.lat, p.lng) > AIRSTRIKE_RADIUS_M) continue;
+      if (haversineMeters(lat, lng, p.lat, p.lng) > AIRSTRIKE_RADIUS_M)
+        continue;
       // Respect friendly fire: spare the caller and teammates unless it's enabled.
-      if (!this.config.friendlyFire && (p.id === deployer.id || this._areTeammates(deployer, p))) continue;
+      if (
+        !this.config.friendlyFire &&
+        (p.id === deployer.id || this._areTeammates(deployer, p))
+      )
+        continue;
       victims.push(p);
     }
 
-    this.broadcast({ type: S2C.AIRSTRIKE_HIT, id, lat, lng, radius: AIRSTRIKE_RADIUS_M });
+    this.broadcast({
+      type: S2C.AIRSTRIKE_HIT,
+      id,
+      lat,
+      lng,
+      radius: AIRSTRIKE_RADIUS_M,
+    });
 
     for (const victim of victims) {
       victim.hp = 0;

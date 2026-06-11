@@ -4,10 +4,19 @@
  *
  * In Phase 2 this module is replaced by ble.js.
  */
-import { sendFire, sendHit } from './network.js';
-import { ammo, isReloading, isAlive, maxAmmo, reloadDelaySecs, gunLocked, fastReloadActive } from '../stores/game.js';
+
 import { get } from 'svelte/store';
+import {
+  ammo,
+  fastReloadActive,
+  gunLocked,
+  isAlive,
+  isReloading,
+  maxAmmo,
+  reloadDelaySecs,
+} from '../stores/game.js';
 import { playReload } from './audio.js';
+import { sendFire, sendHit } from './network.js';
 
 const FAKE_SHOOTER_WEAPON_ID = 0;
 
@@ -35,10 +44,18 @@ function _onKey(e) {
   if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
 
   switch (e.key.toLowerCase()) {
-    case 't': _fire(); break;
-    case 'r': _reload(); break;
-    case 'h': _hit(); break;
-    case 'a': ammo.update(v => Math.min(v + 5, get(maxAmmo))); break;
+    case 't':
+      _fire();
+      break;
+    case 'r':
+      _reload();
+      break;
+    case 'h':
+      _hit();
+      break;
+    case 'a':
+      ammo.update((v) => Math.min(v + 5, get(maxAmmo)));
+      break;
   }
 }
 
@@ -52,7 +69,7 @@ function _fire() {
     ammo.set(0);
     sendFire('plasma', current);
   } else {
-    ammo.update(v => Math.max(0, v - 1));
+    ammo.update((v) => Math.max(0, v - 1));
     sendFire(_activeMode, current);
   }
 }

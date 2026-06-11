@@ -1,10 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { S2C, C2S, GAME_STATES, GAME_MODES, TEAMS } from '../shared/messages.js';
-import { PowerupManager } from './PowerupManager.js';
-import { FFA } from './modes/FFA.js';
-import { TeamDeathmatch } from './modes/TeamDeathmatch.js';
+import {
+  C2S,
+  GAME_MODES,
+  GAME_STATES,
+  S2C,
+  TEAMS,
+} from '../shared/messages.js';
 import { CaptureTheFlag } from './modes/CaptureTheFlag.js';
+import { FFA } from './modes/FFA.js';
 import { Infection } from './modes/Infection.js';
+import { TeamDeathmatch } from './modes/TeamDeathmatch.js';
+import { PowerupManager } from './PowerupManager.js';
 
 const COUNTDOWN_SECS = 5;
 const POWERUP_BROADCAST_INTERVAL_MS = 2_000;
@@ -63,9 +69,10 @@ export class GameManager {
     this.players.delete(player.id);
     if (player.id === this._hostId) {
       // Prefer a connected player as the new host
-      this._hostId = [...this.players.values()].find(p => !p.disconnected)?.id
-        ?? this.players.keys().next().value
-        ?? null;
+      this._hostId =
+        [...this.players.values()].find((p) => !p.disconnected)?.id ??
+        this.players.keys().next().value ??
+        null;
     }
     this._broadcastLobby();
   }
@@ -114,7 +121,7 @@ export class GameManager {
         if (this._allReady()) this._startCountdown();
         break;
 
-      case C2S.GAME_CONFIG:
+      case C2S.GAME_CONFIG: {
         if (player.id !== this._hostId) return;
         const prevMode = this.config.mode;
         this.config = { ...this.config, ...msg };
@@ -122,6 +129,7 @@ export class GameManager {
         if (this.config.mode !== prevMode) this._reassignTeams();
         this._broadcastLobby();
         break;
+      }
 
       case C2S.START_GAME:
         if (player.id !== this._hostId) return;
@@ -147,7 +155,10 @@ export class GameManager {
         if (this.config.mode !== GAME_MODES.CAPTURE_THE_FLAG) return;
         if (msg.team !== TEAMS.RED && msg.team !== TEAMS.BLUE) return;
         if (typeof msg.lat !== 'number' || typeof msg.lng !== 'number') return;
-        this.config[msg.team === TEAMS.RED ? 'redBase' : 'blueBase'] = { lat: msg.lat, lng: msg.lng };
+        this.config[msg.team === TEAMS.RED ? 'redBase' : 'blueBase'] = {
+          lat: msg.lat,
+          lng: msg.lng,
+        };
         this._broadcastLobby();
         break;
 
@@ -157,13 +168,26 @@ export class GameManager {
         if (area === null) {
           this.config.gameArea = null;
         } else if (area.type === 'circle') {
-          if (typeof area.lat !== 'number' || typeof area.lng !== 'number' || typeof area.radiusM !== 'number') return;
+          if (
+            typeof area.lat !== 'number' ||
+            typeof area.lng !== 'number' ||
+            typeof area.radiusM !== 'number'
+          )
+            return;
           if (area.radiusM <= 0 || area.radiusM > 10_000) return;
-          this.config.gameArea = { type: 'circle', lat: area.lat, lng: area.lng, radiusM: area.radiusM };
+          this.config.gameArea = {
+            type: 'circle',
+            lat: area.lat,
+            lng: area.lng,
+            radiusM: area.radiusM,
+          };
         } else if (area.type === 'polygon') {
           if (!Array.isArray(area.points) || area.points.length < 3) return;
-          const points = area.points.map(p => ({ lat: Number(p.lat), lng: Number(p.lng) }));
-          if (points.some(p => isNaN(p.lat) || isNaN(p.lng))) return;
+          const points = area.points.map((p) => ({
+            lat: Number(p.lat),
+            lng: Number(p.lng),
+          }));
+          if (points.some((p) => isNaN(p.lat) || isNaN(p.lng))) return;
           this.config.gameArea = { type: 'polygon', points };
         } else {
           return;
@@ -196,7 +220,11 @@ export class GameManager {
 
       case C2S.SWITCH_TEAM:
         if (this.state !== GAME_STATES.WAITING) return;
-        if (this.config.mode !== GAME_MODES.TEAM_DEATHMATCH && this.config.mode !== GAME_MODES.CAPTURE_THE_FLAG) return;
+        if (
+          this.config.mode !== GAME_MODES.TEAM_DEATHMATCH &&
+          this.config.mode !== GAME_MODES.CAPTURE_THE_FLAG
+        )
+          return;
         if (player.team === TEAMS.RED) player.team = TEAMS.BLUE;
         else if (player.team === TEAMS.BLUE) player.team = TEAMS.RED;
         else return;
@@ -219,12 +247,17 @@ export class GameManager {
   }
 
   _assignTeam(player) {
-    if (this.config.mode === GAME_MODES.FFA || this.config.mode === GAME_MODES.INFECTION) return;
+    if (
+      this.config.mode === GAME_MODES.FFA ||
+      this.config.mode === GAME_MODES.INFECTION
+    )
+      return;
     const counts = { [TEAMS.RED]: 0, [TEAMS.BLUE]: 0 };
     for (const p of this.players.values()) {
       if (p.team !== TEAMS.NONE) counts[p.team]++;
     }
-    player.team = counts[TEAMS.RED] <= counts[TEAMS.BLUE] ? TEAMS.RED : TEAMS.BLUE;
+    player.team =
+      counts[TEAMS.RED] <= counts[TEAMS.BLUE] ? TEAMS.RED : TEAMS.BLUE;
   }
 
   _reassignTeams() {
@@ -236,7 +269,7 @@ export class GameManager {
 
   _allReady() {
     if (this.players.size < 1) return false;
-    return [...this.players.values()].every(p => p.ready);
+    return [...this.players.values()].every((p) => p.ready);
   }
 
   _startCountdown() {
@@ -277,21 +310,25 @@ export class GameManager {
       ...this._gameplaySettings(),
     });
 
-    const ModeClass = {
-      [GAME_MODES.TEAM_DEATHMATCH]: TeamDeathmatch,
-      [GAME_MODES.CAPTURE_THE_FLAG]: CaptureTheFlag,
-      [GAME_MODES.INFECTION]: Infection,
-    }[this.config.mode] ?? FFA;
+    const ModeClass =
+      {
+        [GAME_MODES.TEAM_DEATHMATCH]: TeamDeathmatch,
+        [GAME_MODES.CAPTURE_THE_FLAG]: CaptureTheFlag,
+        [GAME_MODES.INFECTION]: Infection,
+      }[this.config.mode] ?? FFA;
     this._mode = new ModeClass(
       this.players,
       this.config,
-      msg => this.broadcast(msg),
+      (msg) => this.broadcast(msg),
       this._powerupManager,
       (finalScores, winner) => this._endGame(finalScores, winner),
     );
     this._mode.start();
 
-    this._powerupTimer = setInterval(() => this._broadcastPowerups(), POWERUP_BROADCAST_INTERVAL_MS);
+    this._powerupTimer = setInterval(
+      () => this._broadcastPowerups(),
+      POWERUP_BROADCAST_INTERVAL_MS,
+    );
   }
 
   _endGame(finalScores, winner) {
@@ -303,7 +340,13 @@ export class GameManager {
     this.state = GAME_STATES.WAITING;
     this._onStateChange?.();
     for (const p of this.players.values()) p.ready = false;
-    this.broadcast({ type: S2C.GAME_ENDED, gameId: this.gameId, roundId: this._roundId, finalScores, winner });
+    this.broadcast({
+      type: S2C.GAME_ENDED,
+      gameId: this.gameId,
+      roundId: this._roundId,
+      finalScores,
+      winner,
+    });
     this._roundId = null;
     // Small delay so GAME_ENDED arrives before LOBBY_UPDATE
     setTimeout(() => this._broadcastLobby(), 150);
@@ -317,7 +360,9 @@ export class GameManager {
 
   _joinMidGame(player) {
     const usedSlots = new Set(
-      [...this.players.values()].map(p => p.gunSlotId).filter(s => s !== null),
+      [...this.players.values()]
+        .map((p) => p.gunSlotId)
+        .filter((s) => s !== null),
     );
     let slot = 0;
     while (usedSlots.has(slot)) slot++;
@@ -348,12 +393,19 @@ export class GameManager {
   }
 
   _broadcastPowerups() {
-    this.broadcast({ type: S2C.POWERUPS, packages: this._powerupManager.getAll() });
+    this.broadcast({
+      type: S2C.POWERUPS,
+      packages: this._powerupManager.getAll(),
+    });
   }
 
   _tryCollect(player, powerupId) {
     if (player.lat === null) return;
-    const pkg = this._powerupManager.tryCollect(powerupId, player.lat, player.lng);
+    const pkg = this._powerupManager.tryCollect(
+      powerupId,
+      player.lat,
+      player.lng,
+    );
     if (!pkg) return;
     this._mode?.applyPowerup(player, pkg);
     this.broadcast({
@@ -361,7 +413,13 @@ export class GameManager {
       scores: this._mode?._buildScores() ?? [],
       timeRemaining: null,
       killFeed: [],
-      event: { powerupCollected: { playerId: player.id, username: player.username, type: pkg.type } },
+      event: {
+        powerupCollected: {
+          playerId: player.id,
+          username: player.username,
+          type: pkg.type,
+        },
+      },
     });
   }
 
@@ -369,7 +427,7 @@ export class GameManager {
     return {
       gameId: this.gameId,
       roomName: this.roomName,
-      players: [...this.players.values()].map(p => p.toPublic()),
+      players: [...this.players.values()].map((p) => p.toPublic()),
       config: this.config,
       hostId: this._hostId,
       state: this.state,

@@ -14,12 +14,12 @@ export class Player {
     // Game state (reset each match)
     this.kills = 0;
     this.deaths = 0;
-    this.hits = 0;        // shots that landed on an enemy
-    this.timesHit = 0;    // shots that landed on this player
+    this.hits = 0; // shots that landed on an enemy
+    this.timesHit = 0; // shots that landed on this player
     this.ammo = 0;
     this.stealthUntil = 0;
-    this.radarUntil = 0;        // sees all enemies until this timestamp
-    this.shieldUntil = 0;       // damage is halved until this timestamp
+    this.radarUntil = 0; // sees all enemies until this timestamp
+    this.shieldUntil = 0; // damage is halved until this timestamp
     this.airstrikesAvailable = 0; // held airstrikes ready to deploy
 
     // Health / respawn
@@ -36,7 +36,7 @@ export class Player {
     this.lng = null;
     this.lastFireAt = 0;
     this.lastFireMode = null; // gun mode of the most recent shot (drives hit damage)
-    this.lastFireAmmo = 0;    // rounds actually fired by the most recent plasma shot
+    this.lastFireAmmo = 0; // rounds actually fired by the most recent plasma shot
   }
 
   send(obj) {

@@ -1,24 +1,24 @@
 <script>
-  import { rooms, username, clearSession } from '../stores/game.js';
-  import { sendCreateRoom, sendJoinRoom } from '../lib/network.js';
-  import { GAME_STATES } from '../../../shared/messages.js';
+import { GAME_STATES } from '../../../shared/messages.js';
+import { sendCreateRoom, sendJoinRoom } from '../lib/network.js';
+import { clearSession, rooms, username } from '../stores/game.js';
 
-  let newRoomName = '';
+let newRoomName = '';
 
-  function create() {
-    sendCreateRoom(newRoomName.trim() || null);
-    newRoomName = '';
-  }
+function create() {
+  sendCreateRoom(newRoomName.trim() || null);
+  newRoomName = '';
+}
 
-  function onKey(e) {
-    if (e.key === 'Enter') create();
-  }
+function onKey(e) {
+  if (e.key === 'Enter') create();
+}
 
-  function stateLabel(state) {
-    if (state === GAME_STATES.PLAYING) return 'In Game';
-    if (state === GAME_STATES.COUNTDOWN) return 'Starting';
-    return 'Waiting';
-  }
+function stateLabel(state) {
+  if (state === GAME_STATES.PLAYING) return 'In Game';
+  if (state === GAME_STATES.COUNTDOWN) return 'Starting';
+  return 'Waiting';
+}
 </script>
 
 <div class="room-screen">

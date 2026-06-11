@@ -1,5 +1,5 @@
-import { BaseMode } from './BaseMode.js';
 import { TEAMS } from '../../shared/messages.js';
+import { BaseMode } from './BaseMode.js';
 
 export class TeamDeathmatch extends BaseMode {
   _areTeammates(a, b) {
@@ -8,17 +8,17 @@ export class TeamDeathmatch extends BaseMode {
 
   _teamKills(team) {
     return [...this.players.values()]
-      .filter(p => p.team === team)
+      .filter((p) => p.team === team)
       .reduce((sum, p) => sum + p.kills, 0);
   }
 
   _buildScores() {
-    const teams = [TEAMS.RED, TEAMS.BLUE].map(team => ({
+    const teams = [TEAMS.RED, TEAMS.BLUE].map((team) => ({
       team,
       kills: this._teamKills(team),
       players: [...this.players.values()]
-        .filter(p => p.team === team)
-        .map(p => ({
+        .filter((p) => p.team === team)
+        .map((p) => ({
           id: p.id,
           username: p.username,
           kills: p.kills,

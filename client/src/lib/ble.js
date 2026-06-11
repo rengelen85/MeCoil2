@@ -1,8 +1,20 @@
-import { gun } from './recoilweapon.js';
-import { sendFire, sendHit } from './network.js';
-import { playReload } from './audio.js';
-import { ammo, maxAmmo, isReloading, isAlive, bleConnected, bulletsPerMag, reloadDelaySecs, gunSlotId, gunLocked, activeGunMode, fastReloadActive } from '../stores/game.js';
 import { get } from 'svelte/store';
+import {
+  activeGunMode,
+  ammo,
+  bleConnected,
+  bulletsPerMag,
+  fastReloadActive,
+  gunLocked,
+  gunSlotId,
+  isAlive,
+  isReloading,
+  maxAmmo,
+  reloadDelaySecs,
+} from '../stores/game.js';
+import { playReload } from './audio.js';
+import { sendFire, sendHit } from './network.js';
+import { gun } from './recoilweapon.js';
 
 // Muzzle-flash (FlashLED1) modes — see docs/Recoil_Gun_Firmware_Config_Guide.md.
 //   square wave: flashParam1 = flashes per shot, flashParam2 = flash duration (100ms units)
@@ -20,33 +32,61 @@ const FLASH = { NONE: 0, SQUARE: 1, GLOW: 2, SOLID: 3 };
 const BURST_LENGTH = 3;
 export const GUN_MODES = {
   // label, TriggerMode/RateOfFire, plus per-mode muzzle flash (mode + params).
-  semi:   { label: 'SEMI',   triggerMode: 0x01,         rateOfFire: 20, flashMode: FLASH.SQUARE, flashParam1: 1,            flashParam2: 3 }, // single shot
-  burst:  { label: 'BURST',  triggerMode: BURST_LENGTH, rateOfFire: 2,  flashMode: FLASH.SQUARE, flashParam1: BURST_LENGTH, flashParam2: 3 }, // N rounds at full-auto cadence
-  auto:   { label: 'AUTO',   triggerMode: 0xfe,         rateOfFire: 2,  flashMode: FLASH.SQUARE, flashParam1: 4,            flashParam2: 3 }, // full auto, ~100ms cadence
-  plasma: { label: 'PLASMA', triggerMode: 0x00,         rateOfFire: 20, flashMode: FLASH.GLOW,   flashParam1: 15,           flashParam2: 4 }, // charge-up glow, fire on release
+  semi: {
+    label: 'SEMI',
+    triggerMode: 0x01,
+    rateOfFire: 20,
+    flashMode: FLASH.SQUARE,
+    flashParam1: 1,
+    flashParam2: 3,
+  }, // single shot
+  burst: {
+    label: 'BURST',
+    triggerMode: BURST_LENGTH,
+    rateOfFire: 2,
+    flashMode: FLASH.SQUARE,
+    flashParam1: BURST_LENGTH,
+    flashParam2: 3,
+  }, // N rounds at full-auto cadence
+  auto: {
+    label: 'AUTO',
+    triggerMode: 0xfe,
+    rateOfFire: 2,
+    flashMode: FLASH.SQUARE,
+    flashParam1: 4,
+    flashParam2: 3,
+  }, // full auto, ~100ms cadence
+  plasma: {
+    label: 'PLASMA',
+    triggerMode: 0x00,
+    rateOfFire: 20,
+    flashMode: FLASH.GLOW,
+    flashParam1: 15,
+    flashParam2: 4,
+  }, // charge-up glow, fire on release
 };
 // Order the in-game button cycles through.
 export const GUN_MODE_CYCLE = ['semi', 'burst', 'auto', 'plasma'];
 
 // Fallbacks used before a game starts and host settings arrive.
 const DEFAULT_MAGAZINE_SIZE = 10;
-const DEFAULT_RELOAD_MS     = 2_500;
+const DEFAULT_RELOAD_MS = 2_500;
 
 const magazineSize = () => get(bulletsPerMag) || DEFAULT_MAGAZINE_SIZE;
-const reloadMs     = () => (get(reloadDelaySecs) || 0) * 1_000 || DEFAULT_RELOAD_MS;
+const reloadMs = () => (get(reloadDelaySecs) || 0) * 1_000 || DEFAULT_RELOAD_MS;
 
 // Default weapon profile — RK-45 equivalent (matches the AUTO mode below).
 // Field names match recoilweapon.js _setWeaponProfile expectations.
 const DEFAULT_PROFILE = {
-  triggerMode:     0xfe, // full auto
-  rateOfFire:      2,    // 50ms units → ~10 rounds/sec; MUST be >0 or auto/burst never repeats
-  narrowIrPower:   80,
-  wideIrPower:     0,
-  muzzleLedPower:  255,
-  motorPower:      18,
+  triggerMode: 0xfe, // full auto
+  rateOfFire: 2, // 50ms units → ~10 rounds/sec; MUST be >0 or auto/burst never repeats
+  narrowIrPower: 80,
+  wideIrPower: 0,
+  muzzleLedPower: 255,
+  motorPower: 18,
   muzzleFlashMode: FLASH.SQUARE,
-  flashParam1:     4,
-  flashParam2:     3,
+  flashParam1: 4,
+  flashParam2: 3,
 };
 
 // The profile currently written to the active weapon slot. Tracked so a mode
@@ -76,10 +116,10 @@ export async function connectBle() {
   await gun.connect();
 
   gun.on('triggerBtn', _onTrigger);
-  gun.on('reloadBtn',  _onReload);
-  gun.on('powerBtn',   _onResetBtn);
-  gun.on('irEvent',    _onIrEvent);
-  gun.on('ammoChanged', count => {
+  gun.on('reloadBtn', _onReload);
+  gun.on('powerBtn', _onResetBtn);
+  gun.on('irEvent', _onIrEvent);
+  gun.on('ammoChanged', (count) => {
     ammo.set(count);
     maxAmmo.set(magazineSize());
   });
@@ -123,11 +163,11 @@ export async function setGunMode(mode) {
   activeGunMode.set(_activeMode);
   _activeProfile = {
     ..._activeProfile,
-    triggerMode:     cfg.triggerMode,
-    rateOfFire:      cfg.rateOfFire,
+    triggerMode: cfg.triggerMode,
+    rateOfFire: cfg.rateOfFire,
     muzzleFlashMode: cfg.flashMode,
-    flashParam1:     cfg.flashParam1,
-    flashParam2:     cfg.flashParam2,
+    flashParam1: cfg.flashParam1,
+    flashParam2: cfg.flashParam2,
   };
   await gun.setWeaponProfile(_activeProfile, get(gunSlotId));
 }

@@ -1,17 +1,17 @@
 import { writable } from 'svelte/store';
 
 export const myPosition = writable(null); // { lat, lng }
-export const teammates = writable([]);    // [{ id, username, lat, lng }]
+export const teammates = writable([]); // [{ id, username, lat, lng }]
 export const firingEnemies = writable([]); // [{ id, lat, lng }]
-export const powerups = writable([]);     // [{ id, lat, lng, type }]
-export const airstrikes = writable([]);   // [{ id, lat, lng, radius, detonateAt }] inbound strikes
-export const graves = writable([]);        // [{ id, username, lat, lng }] each player's most recent death spot
+export const powerups = writable([]); // [{ id, lat, lng, type }]
+export const airstrikes = writable([]); // [{ id, lat, lng, radius, detonateAt }] inbound strikes
+export const graves = writable([]); // [{ id, username, lat, lng }] each player's most recent death spot
 export const gpsError = writable(null);
-export const heading = writable(null);    // degrees clockwise from North, null if unavailable
+export const heading = writable(null); // degrees clockwise from North, null if unavailable
 
 // CTF map overlays
-export const ctfBases = writable({ red: null, blue: null });  // { red: { lat, lng } | null, blue: ... }
-export const ctfFlags = writable({ red: null, blue: null });  // { red: { state, lat, lng, carrierId } | null, blue: ... }
+export const ctfBases = writable({ red: null, blue: null }); // { red: { lat, lng } | null, blue: ... }
+export const ctfFlags = writable({ red: null, blue: null }); // { red: { state, lat, lng, carrierId } | null, blue: ... }
 
 let watchId = null;
 let _headingCleanup = null;
@@ -22,13 +22,13 @@ export function startGPS(onPosition) {
     return;
   }
   watchId = navigator.geolocation.watchPosition(
-    pos => {
+    (pos) => {
       const { latitude: lat, longitude: lng } = pos.coords;
       myPosition.set({ lat, lng });
       onPosition(lat, lng);
     },
-    err => gpsError.set(err.message),
-    { enableHighAccuracy: true, maximumAge: 1000 }
+    (err) => gpsError.set(err.message),
+    { enableHighAccuracy: true, maximumAge: 1000 },
   );
 }
 
@@ -55,11 +55,13 @@ export function startHeading() {
   // Android Chrome 83+ exposes absolute compass via this event
   if ('ondeviceorientationabsolute' in window) {
     window.addEventListener('deviceorientationabsolute', onOrientation);
-    _headingCleanup = () => window.removeEventListener('deviceorientationabsolute', onOrientation);
+    _headingCleanup = () =>
+      window.removeEventListener('deviceorientationabsolute', onOrientation);
   } else {
     // iOS uses standard deviceorientation with webkitCompassHeading
     window.addEventListener('deviceorientation', onOrientation);
-    _headingCleanup = () => window.removeEventListener('deviceorientation', onOrientation);
+    _headingCleanup = () =>
+      window.removeEventListener('deviceorientation', onOrientation);
   }
 }
 

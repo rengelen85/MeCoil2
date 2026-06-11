@@ -1,5 +1,5 @@
+import { POWERUP_TYPES, S2C } from '../../shared/messages.js';
 import { BaseMode } from './BaseMode.js';
-import { S2C, POWERUP_TYPES } from '../../shared/messages.js';
 
 const IMMUNITY_GRACE_MS = 20_000; // window after being shot while immune
 
@@ -24,7 +24,7 @@ export class Infection extends BaseMode {
   // Only spawn immunity power-ups in this mode
   _tryStartPowerups() {
     if (this._powerupsStarted) return;
-    const first = [...this.players.values()].find(p => p.lat !== null);
+    const first = [...this.players.values()].find((p) => p.lat !== null);
     if (!first) return;
     this.powerupManager.start(first.lat, first.lng, [POWERUP_TYPES.IMMUNITY]);
     this._powerupsStarted = true;
@@ -71,11 +71,13 @@ export class Infection extends BaseMode {
   // Completely replace hit handling: shots from non-infected do nothing;
   // shots from infected spread the infection (respecting immunity).
   registerHit(shooterWeaponId, victim) {
-    const shooter = [...this.players.values()].find(p => p.gunSlotId === shooterWeaponId);
+    const shooter = [...this.players.values()].find(
+      (p) => p.gunSlotId === shooterWeaponId,
+    );
     if (!shooter || shooter.id === victim.id) return;
     if (!shooter.isAlive || !victim.isAlive) return;
-    if (!this._isInfected(shooter)) return;  // non-infected shots are ignored
-    if (this._isInfected(victim)) return;    // can't re-infect
+    if (!this._isInfected(shooter)) return; // non-infected shots are ignored
+    if (this._isInfected(victim)) return; // can't re-infect
 
     const imm = this._immunity.get(victim.id);
 
@@ -118,13 +120,16 @@ export class Infection extends BaseMode {
 
   applyPowerup(player, pkg) {
     if (pkg.type !== POWERUP_TYPES.IMMUNITY) return; // all other powerups disabled
-    if (this._isInfected(player)) return;            // infected can't use immunity
+    if (this._isInfected(player)) return; // infected can't use immunity
 
     const existing = this._immunity.get(player.id);
     if (existing) {
       existing.hasImmunity = true;
     } else {
-      this._immunity.set(player.id, { hasImmunity: true, gracePeriodUntil: null });
+      this._immunity.set(player.id, {
+        hasImmunity: true,
+        gracePeriodUntil: null,
+      });
     }
     this._broadcastInfectionState();
   }
@@ -158,7 +163,10 @@ export class Infection extends BaseMode {
   _infectionPayload() {
     const immunePlayers = {};
     for (const [id, imm] of this._immunity) {
-      if (imm.hasImmunity || (imm.gracePeriodUntil && Date.now() < imm.gracePeriodUntil)) {
+      if (
+        imm.hasImmunity ||
+        (imm.gracePeriodUntil && Date.now() < imm.gracePeriodUntil)
+      ) {
         immunePlayers[id] = {
           hasImmunity: imm.hasImmunity,
           gracePeriodUntil: imm.gracePeriodUntil,
@@ -172,13 +180,17 @@ export class Infection extends BaseMode {
   }
 
   _buildScores() {
-    const infectedPlayers = [...this.players.values()].filter(p => this._isInfected(p));
-    const survivors = [...this.players.values()].filter(p => !this._isInfected(p));
+    const infectedPlayers = [...this.players.values()].filter((p) =>
+      this._isInfected(p),
+    );
+    const survivors = [...this.players.values()].filter(
+      (p) => !this._isInfected(p),
+    );
     return [
       {
         team: 'infected',
         count: infectedPlayers.length,
-        players: infectedPlayers.map(p => ({
+        players: infectedPlayers.map((p) => ({
           id: p.id,
           username: p.username,
           kills: p.kills,
@@ -189,7 +201,7 @@ export class Infection extends BaseMode {
       {
         team: 'survivors',
         count: survivors.length,
-        players: survivors.map(p => ({
+        players: survivors.map((p) => ({
           id: p.id,
           username: p.username,
           kills: 0,
@@ -201,11 +213,13 @@ export class Infection extends BaseMode {
   }
 
   _determineWinner() {
-    const survivors = [...this.players.values()].filter(p => !this._isInfected(p));
+    const survivors = [...this.players.values()].filter(
+      (p) => !this._isInfected(p),
+    );
     return survivors.length === 0 ? 'infected' : 'survivors';
   }
 
   _checkWinCondition() {
-    return [...this.players.values()].every(p => this._isInfected(p));
+    return [...this.players.values()].every((p) => this._isInfected(p));
   }
 }

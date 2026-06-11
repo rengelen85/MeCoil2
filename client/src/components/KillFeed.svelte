@@ -1,5 +1,5 @@
 <script>
-  import { killFeed } from '../stores/game.js';
+import { killFeed } from '../stores/game.js';
 </script>
 
 <div class="killfeed">

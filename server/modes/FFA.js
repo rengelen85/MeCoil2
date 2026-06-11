@@ -7,7 +7,7 @@ export class FFA extends BaseMode {
 
   _buildScores() {
     return [...this.players.values()]
-      .map(p => ({
+      .map((p) => ({
         id: p.id,
         username: p.username,
         kills: p.kills,

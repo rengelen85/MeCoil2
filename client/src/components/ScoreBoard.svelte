@@ -1,11 +1,11 @@
 <script>
-  import { scores, gameConfig, myId } from '../stores/game.js';
-  import { GAME_MODES } from '../../../shared/messages.js';
+import { GAME_MODES } from '../../../shared/messages.js';
+import { gameConfig, myId, scores } from '../stores/game.js';
 
-  $: mode = $gameConfig.mode;
-  $: isTDM = mode === GAME_MODES.TEAM_DEATHMATCH;
-  $: isCTF = mode === GAME_MODES.CAPTURE_THE_FLAG;
-  $: isInfection = mode === GAME_MODES.INFECTION;
+$: mode = $gameConfig.mode;
+$: isTDM = mode === GAME_MODES.TEAM_DEATHMATCH;
+$: isCTF = mode === GAME_MODES.CAPTURE_THE_FLAG;
+$: isInfection = mode === GAME_MODES.INFECTION;
 </script>
 
 <div class="scoreboard">

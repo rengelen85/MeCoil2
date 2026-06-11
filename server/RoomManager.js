@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { S2C, C2S } from '../shared/messages.js';
+import { C2S, S2C } from '../shared/messages.js';
 import { GameManager } from './GameManager.js';
 
 const RECONNECT_GRACE_MS = 30_000;
@@ -8,9 +8,9 @@ let nextRoomId = 1;
 
 export class RoomManager {
   constructor() {
-    this._rooms = new Map();            // roomId -> { id, name, manager }
-    this._playerRoom = new Map();       // player.id -> roomId
-    this._unroomedWs = new Set();       // ws sockets not yet in a room
+    this._rooms = new Map(); // roomId -> { id, name, manager }
+    this._playerRoom = new Map(); // player.id -> roomId
+    this._unroomedWs = new Set(); // ws sockets not yet in a room
     this._pendingReconnect = new Map(); // player.id -> { player, roomId, timer }
   }
 
@@ -148,7 +148,7 @@ export class RoomManager {
   }
 
   _getPublicList() {
-    return [...this._rooms.values()].map(r => ({
+    return [...this._rooms.values()].map((r) => ({
       id: r.id,
       name: r.name,
       playerCount: r.manager.players.size,
@@ -158,12 +158,17 @@ export class RoomManager {
 
   _sendRoomList(ws) {
     if (ws.readyState === 1) {
-      ws.send(JSON.stringify({ type: S2C.ROOMS_LIST, rooms: this._getPublicList() }));
+      ws.send(
+        JSON.stringify({ type: S2C.ROOMS_LIST, rooms: this._getPublicList() }),
+      );
     }
   }
 
   _broadcastRoomList() {
-    const msg = JSON.stringify({ type: S2C.ROOMS_LIST, rooms: this._getPublicList() });
+    const msg = JSON.stringify({
+      type: S2C.ROOMS_LIST,
+      rooms: this._getPublicList(),
+    });
     for (const ws of this._unroomedWs) {
       if (ws.readyState === 1) ws.send(msg);
     }

@@ -1,25 +1,25 @@
-import https from 'https';
-import http from 'http';
-import os from 'os';
+import express from 'express';
 import fs from 'fs';
+import http from 'http';
+import https from 'https';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import express from 'express';
 import { WebSocketServer } from 'ws';
-import { RoomManager } from './RoomManager.js';
-import { Player } from './Player.js';
 import { C2S } from '../shared/messages.js';
+import { Player } from './Player.js';
+import { RoomManager } from './RoomManager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT      = path.join(__dirname, '..');
+const ROOT = path.join(__dirname, '..');
 const CLIENT_DIST = path.join(ROOT, 'client', 'dist');
 const CERT_PATH = path.join(ROOT, 'certs', 'cert.pem');
-const KEY_PATH  = path.join(ROOT, 'certs', 'key.pem');
+const KEY_PATH = path.join(ROOT, 'certs', 'key.pem');
 
 const PORT = process.env.PORT || 3000;
 
 // Auto-detect HTTPS: use it when certs exist, unless NO_HTTPS=1 forces plain HTTP.
-const hasCerts  = fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH);
+const hasCerts = fs.existsSync(CERT_PATH) && fs.existsSync(KEY_PATH);
 const USE_HTTPS = hasCerts && process.env.NO_HTTPS !== '1';
 
 const app = express();
@@ -28,22 +28,31 @@ const app = express();
 // exist yet, but that's fine — the static middleware just serves nothing.
 if (fs.existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
-  app.get('*', (_req, res) => res.sendFile(path.join(CLIENT_DIST, 'index.html')));
+  app.get('*', (_req, res) =>
+    res.sendFile(path.join(CLIENT_DIST, 'index.html')),
+  );
 }
 
 const server = USE_HTTPS
-  ? https.createServer({ cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) }, app)
+  ? https.createServer(
+      { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) },
+      app,
+    )
   : http.createServer(app);
 
 const wss = new WebSocketServer({ server });
 const roomManager = new RoomManager();
 
-wss.on('connection', ws => {
+wss.on('connection', (ws) => {
   let player = null;
 
-  ws.on('message', raw => {
+  ws.on('message', (raw) => {
     let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
+    try {
+      msg = JSON.parse(raw);
+    } catch {
+      return;
+    }
 
     if (!player) {
       if (msg.type === C2S.REJOIN) {
@@ -81,7 +90,7 @@ function getLanIp() {
 
 server.listen(PORT, () => {
   const proto = USE_HTTPS ? 'https' : 'http';
-  const lan   = getLanIp();
+  const lan = getLanIp();
 
   console.log('');
   console.log('  MeCoil game server');
@@ -96,7 +105,9 @@ server.listen(PORT, () => {
       console.log('  Run `make gen-certs` then restart for HTTPS support.');
     }
   } else {
-    console.log('  HTTPS active — phones can connect to the Network address above.');
+    console.log(
+      '  HTTPS active — phones can connect to the Network address above.',
+    );
   }
   console.log('');
 });

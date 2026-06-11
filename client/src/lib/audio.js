@@ -19,7 +19,10 @@ function ctx() {
 
 // Play a single oscillator tone with a linear frequency sweep and an
 // attack/decay gain envelope. Times are in seconds, frequencies in Hz.
-function tone(c, { type = 'sine', from, to = from, start = 0, dur, gain = 0.25 }) {
+function tone(
+  c,
+  { type = 'sine', from, to = from, start = 0, dur, gain = 0.25 },
+) {
   const t0 = c.currentTime + start;
   const t1 = t0 + dur;
 
@@ -57,33 +60,96 @@ export function setAudioEnabled(on) {
 
 // Mechanical "cha-chunk": a low clunk (clip out) followed by a higher one (clip in).
 export function playReload() {
-  play(c => {
-    tone(c, { type: 'square', from: 320, to: 180, start: 0,    dur: 0.08, gain: 0.18 });
-    tone(c, { type: 'square', from: 200, to: 420, start: 0.14, dur: 0.10, gain: 0.18 });
+  play((c) => {
+    tone(c, {
+      type: 'square',
+      from: 320,
+      to: 180,
+      start: 0,
+      dur: 0.08,
+      gain: 0.18,
+    });
+    tone(c, {
+      type: 'square',
+      from: 200,
+      to: 420,
+      start: 0.14,
+      dur: 0.1,
+      gain: 0.18,
+    });
   });
 }
 
 // Downward "you died" sweep — a descending sawtooth that decays away.
 export function playKilled() {
-  play(c => {
-    tone(c, { type: 'sawtooth', from: 440, to: 70,  start: 0,    dur: 0.6,  gain: 0.3 });
-    tone(c, { type: 'square',   from: 220, to: 55,  start: 0.05, dur: 0.5,  gain: 0.12 });
+  play((c) => {
+    tone(c, {
+      type: 'sawtooth',
+      from: 440,
+      to: 70,
+      start: 0,
+      dur: 0.6,
+      gain: 0.3,
+    });
+    tone(c, {
+      type: 'square',
+      from: 220,
+      to: 55,
+      start: 0.05,
+      dur: 0.5,
+      gain: 0.12,
+    });
   });
 }
 
 // Bright rising "respawn" chime — an ascending triangle, hopeful and short.
 export function playRespawn() {
-  play(c => {
-    tone(c, { type: 'triangle', from: 330, to: 660, start: 0,    dur: 0.18, gain: 0.25 });
-    tone(c, { type: 'triangle', from: 494, to: 988, start: 0.16, dur: 0.22, gain: 0.22 });
+  play((c) => {
+    tone(c, {
+      type: 'triangle',
+      from: 330,
+      to: 660,
+      start: 0,
+      dur: 0.18,
+      gain: 0.25,
+    });
+    tone(c, {
+      type: 'triangle',
+      from: 494,
+      to: 988,
+      start: 0.16,
+      dur: 0.22,
+      gain: 0.22,
+    });
   });
 }
 
 // Urgent "incoming airstrike" siren — three rising/falling square-wave whoops.
 export function playAirstrikeWarning() {
-  play(c => {
-    tone(c, { type: 'square', from: 440, to: 880, start: 0,    dur: 0.25, gain: 0.22 });
-    tone(c, { type: 'square', from: 440, to: 880, start: 0.30, dur: 0.25, gain: 0.22 });
-    tone(c, { type: 'square', from: 880, to: 220, start: 0.62, dur: 0.40, gain: 0.22 });
+  play((c) => {
+    tone(c, {
+      type: 'square',
+      from: 440,
+      to: 880,
+      start: 0,
+      dur: 0.25,
+      gain: 0.22,
+    });
+    tone(c, {
+      type: 'square',
+      from: 440,
+      to: 880,
+      start: 0.3,
+      dur: 0.25,
+      gain: 0.22,
+    });
+    tone(c, {
+      type: 'square',
+      from: 880,
+      to: 220,
+      start: 0.62,
+      dur: 0.4,
+      gain: 0.22,
+    });
   });
 }

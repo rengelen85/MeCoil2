@@ -37,6 +37,8 @@ Players connect from the browser on their phones. No app to install. A full nati
 make install        # install dependencies + create certs/ dir
 make gen-certs      # generate local HTTPS certs (one-time)
 make dev            # start server + Vite dev client
+make lint           # lint JS/TS/Svelte sources (Biome)
+make fmt            # auto-format JS/TS/Svelte sources (Biome)
 ```
 
 Then open `https://localhost:5173` in Chrome.
@@ -50,6 +52,8 @@ npm run dev:server    # server only (port 3000)
 npm run dev:client    # Vite client only (port 5173)
 npm run build         # build client for production
 npm start             # production server (serves built client)
+npm run lint          # lint JS/TS/Svelte sources (Biome)
+npm run fmt           # auto-format JS/TS/Svelte sources (Biome)
 ```
 
 ---

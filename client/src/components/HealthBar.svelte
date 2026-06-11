@@ -1,8 +1,8 @@
 <script>
-  import { hp, maxHp, shieldActive } from '../stores/game.js';
+import { hp, maxHp, shieldActive } from '../stores/game.js';
 
-  $: pct = $maxHp > 0 ? Math.min(100, Math.round(($hp / $maxHp) * 100)) : 0;
-  $: hpColor = pct > 50 ? '#00e676' : pct > 25 ? '#ffeb3b' : '#ff5252';
+$: pct = $maxHp > 0 ? Math.min(100, Math.round(($hp / $maxHp) * 100)) : 0;
+$: hpColor = pct > 50 ? '#00e676' : pct > 25 ? '#ffeb3b' : '#ff5252';
 </script>
 
 <div class="health-bar">

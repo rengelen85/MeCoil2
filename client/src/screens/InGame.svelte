@@ -1,145 +1,217 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
-  import Map from '../components/Map.svelte';
-  import ScoreBoard from '../components/ScoreBoard.svelte';
-  import KillFeed from '../components/KillFeed.svelte';
-  import AmmoBar from '../components/AmmoBar.svelte';
-  import HealthBar from '../components/HealthBar.svelte';
-  import { get } from 'svelte/store';
-  import { timeRemaining, gameConfig, bleConnected, gunSlotId, myId, hostId, roundId, myScore, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, radarActive, radarCountdown, airstrikeReady, airstrikeArmed, airstrikePreview, ctfState, infectionState, amIInfected, gunLocked, activeGunMode, gameArea } from '../stores/game.js';
-  import { startGPS, stopGPS, startHeading, stopHeading, gpsError, airstrikes, myPosition } from '../stores/map.js';
-  import { isInArea } from '../lib/geometry.js';
-  import { startSimulator, stopSimulator, setSimulatorMode } from '../lib/simulator.js';
-  import { applyGunAssignment, connectBle, isBleAvailable, bleErrorMessage, setGunMode, GUN_MODES, GUN_MODE_CYCLE } from '../lib/ble.js';
-  import { sendPosition, sendStopGame, sendLeaveRoom, sendDeployAirstrike } from '../lib/network.js';
-  import { GAME_MODES } from '../../../shared/messages.js';
+import { onDestroy, onMount } from 'svelte';
+import { get } from 'svelte/store';
+import { GAME_MODES } from '../../../shared/messages.js';
+import AmmoBar from '../components/AmmoBar.svelte';
+import HealthBar from '../components/HealthBar.svelte';
+import KillFeed from '../components/KillFeed.svelte';
+import Map from '../components/Map.svelte';
+import ScoreBoard from '../components/ScoreBoard.svelte';
+import {
+  applyGunAssignment,
+  bleErrorMessage,
+  connectBle,
+  GUN_MODE_CYCLE,
+  GUN_MODES,
+  isBleAvailable,
+  setGunMode,
+} from '../lib/ble.js';
+import { isInArea } from '../lib/geometry.js';
+import {
+  sendDeployAirstrike,
+  sendLeaveRoom,
+  sendPosition,
+  sendStopGame,
+} from '../lib/network.js';
+import {
+  setSimulatorMode,
+  startSimulator,
+  stopSimulator,
+} from '../lib/simulator.js';
+import {
+  activeGunMode,
+  airstrikeArmed,
+  airstrikePreview,
+  airstrikeReady,
+  amIInfected,
+  bleConnected,
+  ctfState,
+  gameArea,
+  gameConfig,
+  gunLocked,
+  gunSlotId,
+  hostId,
+  infectionState,
+  isAlive,
+  killedBy,
+  lastHitAt,
+  lastShotHitAt,
+  myId,
+  myScore,
+  radarActive,
+  radarCountdown,
+  respawnCountdown,
+  roundId,
+  timeRemaining,
+} from '../stores/game.js';
+import {
+  airstrikes,
+  gpsError,
+  myPosition,
+  startGPS,
+  startHeading,
+  stopGPS,
+  stopHeading,
+} from '../stores/map.js';
 
-  let showScores = false;
-  let bleConnecting = false;
-  let bleError = '';
-  $: gunMode = $activeGunMode;
+let showScores = false;
+let bleConnecting = false;
+let bleError = '';
+$: gunMode = $activeGunMode;
 
-  let hitFlashActive = false;
-  let hitFlashTimer = null;
-  $: if ($lastHitAt) {
-    hitFlashActive = true;
-    if (hitFlashTimer) clearTimeout(hitFlashTimer);
-    hitFlashTimer = setTimeout(() => { hitFlashActive = false; }, 350);
-  }
+let hitFlashActive = false;
+let hitFlashTimer = null;
+$: if ($lastHitAt) {
+  hitFlashActive = true;
+  if (hitFlashTimer) clearTimeout(hitFlashTimer);
+  hitFlashTimer = setTimeout(() => {
+    hitFlashActive = false;
+  }, 350);
+}
 
-  let shotHitActive = false;
-  let shotHitTimer = null;
-  $: if ($lastShotHitAt) {
-    shotHitActive = true;
-    if (shotHitTimer) clearTimeout(shotHitTimer);
-    shotHitTimer = setTimeout(() => { shotHitActive = false; }, 600);
-  }
+let shotHitActive = false;
+let shotHitTimer = null;
+$: if ($lastShotHitAt) {
+  shotHitActive = true;
+  if (shotHitTimer) clearTimeout(shotHitTimer);
+  shotHitTimer = setTimeout(() => {
+    shotHitActive = false;
+  }, 600);
+}
 
-  async function cycleGunMode() {
-    const i = GUN_MODE_CYCLE.indexOf($activeGunMode);
-    const next = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
-    if (usingBle) {
-      try {
-        await setGunMode(next); // setGunMode updates activeGunMode store internally
-      } catch (e) {
-        bleError = bleErrorMessage(e);
-      }
-    } else {
-      activeGunMode.set(next);
-      setSimulatorMode(next);
-    }
-  }
-
-  async function connectGunMidGame() {
-    if (!isBleAvailable()) {
-      bleError = 'Web Bluetooth not available. Use Chrome or Edge on Android over HTTPS.';
-      return;
-    }
-    bleConnecting = true;
-    bleError = '';
+async function cycleGunMode() {
+  const i = GUN_MODE_CYCLE.indexOf($activeGunMode);
+  const next = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
+  if (usingBle) {
     try {
-      await connectBle();
-      stopSimulator();
-      usingBle = true;
-      await applyGunAssignment(get(gunSlotId));
+      await setGunMode(next); // setGunMode updates activeGunMode store internally
     } catch (e) {
       bleError = bleErrorMessage(e);
-    } finally {
-      bleConnecting = false;
     }
+  } else {
+    activeGunMode.set(next);
+    setSimulatorMode(next);
   }
+}
 
-  function formatTime(secs) {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+async function connectGunMidGame() {
+  if (!isBleAvailable()) {
+    bleError =
+      'Web Bluetooth not available. Use Chrome or Edge on Android over HTTPS.';
+    return;
   }
-
-  let usingBle = false;
-
-  // 1s ticker so the incoming-airstrike countdown updates live.
-  let now = Date.now();
-  let nowTimer = null;
-
-  // Seconds until the soonest inbound airstrike detonates (null if none).
-  $: incomingStrike = $airstrikes.length
-    ? Math.max(0, Math.ceil((Math.min(...$airstrikes.map(a => a.detonateAt)) - now) / 1000))
-    : null;
-
-  function toggleAirstrike() {
-    if ($airstrikeReady <= 0) return;
-    airstrikePreview.set(null);
-    airstrikeArmed.update(v => !v);
+  bleConnecting = true;
+  bleError = '';
+  try {
+    await connectBle();
+    stopSimulator();
+    usingBle = true;
+    await applyGunAssignment(get(gunSlotId));
+  } catch (e) {
+    bleError = bleErrorMessage(e);
+  } finally {
+    bleConnecting = false;
   }
+}
 
-  function confirmAirstrike() {
-    const pos = get(airstrikePreview);
-    if (!pos) return;
-    sendDeployAirstrike(pos.lat, pos.lng);
-    airstrikePreview.set(null);
-    airstrikeReady.update(n => Math.max(0, n - 1));
+function formatTime(secs) {
+  const m = Math.floor(secs / 60)
+    .toString()
+    .padStart(2, '0');
+  const s = (secs % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+let usingBle = false;
+
+// 1s ticker so the incoming-airstrike countdown updates live.
+let now = Date.now();
+let nowTimer = null;
+
+// Seconds until the soonest inbound airstrike detonates (null if none).
+$: incomingStrike = $airstrikes.length
+  ? Math.max(
+      0,
+      Math.ceil(
+        (Math.min(...$airstrikes.map((a) => a.detonateAt)) - now) / 1000,
+      ),
+    )
+  : null;
+
+function toggleAirstrike() {
+  if ($airstrikeReady <= 0) return;
+  airstrikePreview.set(null);
+  airstrikeArmed.update((v) => !v);
+}
+
+function confirmAirstrike() {
+  const pos = get(airstrikePreview);
+  if (!pos) return;
+  sendDeployAirstrike(pos.lat, pos.lng);
+  airstrikePreview.set(null);
+  airstrikeReady.update((n) => Math.max(0, n - 1));
+}
+
+function cancelAirstrike() {
+  airstrikePreview.set(null);
+}
+
+onMount(() => {
+  startGPS((lat, lng) => sendPosition(lat, lng));
+  startHeading();
+  nowTimer = setInterval(() => {
+    now = Date.now();
+  }, 1000);
+  if (get(bleConnected)) {
+    usingBle = true;
+    applyGunAssignment(get(gunSlotId));
+  } else {
+    startSimulator();
   }
+});
 
-  function cancelAirstrike() {
-    airstrikePreview.set(null);
-  }
+onDestroy(() => {
+  stopGPS();
+  stopHeading();
+  if (nowTimer) clearInterval(nowTimer);
+  if (!usingBle) stopSimulator();
+});
 
-  onMount(() => {
-    startGPS((lat, lng) => sendPosition(lat, lng));
-    startHeading();
-    nowTimer = setInterval(() => { now = Date.now(); }, 1000);
-    if (get(bleConnected)) {
-      usingBle = true;
-      applyGunAssignment(get(gunSlotId));
-    } else {
-      startSimulator();
-    }
-  });
-
-  onDestroy(() => {
-    stopGPS();
-    stopHeading();
-    if (nowTimer) clearInterval(nowTimer);
-    if (!usingBle) stopSimulator();
-  });
-
-  $: outOfBounds = $gameArea && $myPosition
+$: outOfBounds =
+  $gameArea && $myPosition
     ? !isInArea($myPosition.lat, $myPosition.lng, $gameArea)
     : false;
 
-  $: modeLabel = $gameConfig.mode === GAME_MODES.FFA ? 'FFA'
-               : $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH ? 'TDM'
-               : $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ? 'CTF'
-               : 'INF';
+$: modeLabel =
+  $gameConfig.mode === GAME_MODES.FFA
+    ? 'FFA'
+    : $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH
+      ? 'TDM'
+      : $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG
+        ? 'CTF'
+        : 'INF';
 
-  // CTF: captures from the score for quick display in the top bar
-  $: ctfCaptures = $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG && $ctfState
+// CTF: captures from the score for quick display in the top bar
+$: ctfCaptures =
+  $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG && $ctfState
     ? $ctfState.captures
     : null;
 
-  // Infection: immunity state for the local player
-  $: myImmunity = $infectionState?.immunePlayers?.[$myId] ?? null;
-  $: immunityActive = myImmunity?.hasImmunity || (myImmunity?.gracePeriodUntil && Date.now() < myImmunity.gracePeriodUntil);
+// Infection: immunity state for the local player
+$: myImmunity = $infectionState?.immunePlayers?.[$myId] ?? null;
+$: immunityActive =
+  myImmunity?.hasImmunity ||
+  (myImmunity?.gracePeriodUntil && Date.now() < myImmunity.gracePeriodUntil);
 </script>
 
 <div class="ingame">

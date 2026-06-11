@@ -1,4 +1,4 @@
-.PHONY: install dev dev-server dev-client build start gen-certs phone-test
+.PHONY: install dev dev-server dev-client build start gen-certs phone-test lint fmt
 
 # First-time setup: install all dependencies
 install:
@@ -35,6 +35,15 @@ gen-certs:
 	mkdir -p certs
 	mkcert -install
 	mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mecoil.local
+
+# Lint all JS/TS/Svelte sources (Biome)
+lint:
+	npx biome check .
+
+# Auto-format all JS/TS/Svelte sources (Biome primary).
+# Svelte fallback: npx prettier --write "client/src/**/*.svelte"
+fmt:
+	npx biome check --write .
 
 # Build + start HTTPS server for real-phone testing (Web Bluetooth requires HTTPS).
 # After running, open the Network URL shown in the terminal on your phone.

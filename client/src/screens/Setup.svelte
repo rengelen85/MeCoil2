@@ -1,56 +1,61 @@
 <script>
-  import { username, bleConnected } from '../stores/game.js';
-  import { connect, sendRegister } from '../lib/network.js';
-  import { connectBle, isBleAvailable, bleErrorMessage } from '../lib/ble.js';
+import { bleErrorMessage, connectBle, isBleAvailable } from '../lib/ble.js';
+import { connect, sendRegister } from '../lib/network.js';
+import { bleConnected, username } from '../stores/game.js';
 
-  let nameInput = '';
-  let status = '';
-  let connecting = false;
-  let error = '';
-  let bleConnecting = false;
-  let bleError = '';
+let nameInput = '';
+let status = '';
+let connecting = false;
+let error = '';
+let bleConnecting = false;
+let bleError = '';
 
-  async function connectGun() {
-    if (!isBleAvailable()) {
-      bleError = 'Bluetooth is not available. Use Chrome or Edge on Android over HTTPS. iOS is not supported.';
-      return;
-    }
-    bleConnecting = true;
-    bleError = '';
-    try {
-      await connectBle();
-    } catch (e) {
-      bleError = bleErrorMessage(e);
-    } finally {
-      bleConnecting = false;
-    }
+async function connectGun() {
+  if (!isBleAvailable()) {
+    bleError =
+      'Bluetooth is not available. Use Chrome or Edge on Android over HTTPS. iOS is not supported.';
+    return;
   }
-
-  function serverUrl() {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${location.host}/ws`;
+  bleConnecting = true;
+  bleError = '';
+  try {
+    await connectBle();
+  } catch (e) {
+    bleError = bleErrorMessage(e);
+  } finally {
+    bleConnecting = false;
   }
+}
 
-  async function join() {
-    const name = nameInput.trim();
-    if (!name) { error = 'Please enter a callsign.'; return; }
-    error = '';
-    connecting = true;
-    status = 'Connecting…';
-    try {
-      await connect(serverUrl());
-      username.set(name);
-      sendRegister(name);
-    } catch (e) {
-      error = 'Could not connect to the game server. Make sure you are on the same WiFi.';
-      status = '';
-      connecting = false;
-    }
-  }
+function serverUrl() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${proto}://${location.host}/ws`;
+}
 
-  function onKey(e) {
-    if (e.key === 'Enter') join();
+async function join() {
+  const name = nameInput.trim();
+  if (!name) {
+    error = 'Please enter a callsign.';
+    return;
   }
+  error = '';
+  connecting = true;
+  status = 'Connecting…';
+  try {
+    await connect(serverUrl());
+    username.set(name);
+    sendRegister(name);
+  } catch (e) {
+    error =
+      'Could not connect to the game server. Make sure you are on the same WiFi.';
+    status = '';
+    connecting = false;
+  }
+}
+
+function onKey(e) {
+  if (e.key === 'Enter') join();
+}
 </script>
 
 <div class="setup-screen">

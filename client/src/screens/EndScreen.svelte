@@ -1,19 +1,32 @@
 <script>
-  import { finalScores, winner, gameConfig, myId, screen, gameState } from '../stores/game.js';
-  import { sendLeaveRoom } from '../lib/network.js';
-  import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
+import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
+import { sendLeaveRoom } from '../lib/network.js';
+import {
+  finalScores,
+  gameConfig,
+  gameState,
+  myId,
+  screen,
+  winner,
+} from '../stores/game.js';
 
-  $: isTDM = $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH;
-  $: isCTF = $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG;
-  $: isTeamMode = isTDM || isCTF;
-  $: winnerLabel = isTeamMode
-    ? ($winner === 'draw' ? 'Draw!' : $winner ? `${$winner.toUpperCase()} Team Wins!` : 'Game Over')
-    : ($finalScores?.[0]?.username ? `${$finalScores[0].username} Wins!` : 'Game Over');
+$: isTDM = $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH;
+$: isCTF = $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG;
+$: isTeamMode = isTDM || isCTF;
+$: winnerLabel = isTeamMode
+  ? $winner === 'draw'
+    ? 'Draw!'
+    : $winner
+      ? `${$winner.toUpperCase()} Team Wins!`
+      : 'Game Over'
+  : $finalScores?.[0]?.username
+    ? `${$finalScores[0].username} Wins!`
+    : 'Game Over';
 
-  function playAgain() {
-    gameState.set(GAME_STATES.WAITING);
-    screen.set('lobby');
-  }
+function playAgain() {
+  gameState.set(GAME_STATES.WAITING);
+  screen.set('lobby');
+}
 </script>
 
 <div class="end-screen">

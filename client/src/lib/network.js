@@ -1,19 +1,63 @@
 import { get } from 'svelte/store';
-import { S2C, C2S, GAME_STATES } from '../../../shared/messages.js';
+import { C2S, GAME_STATES, S2C } from '../../../shared/messages.js';
 import {
-  myId, isHost, players, gameConfig, hostId,
-  gameState, scores, timeRemaining, killFeed,
-  countdownAt, screen, finalScores, winner, resetGame,
-  ammo, maxAmmo, shieldActive, shieldCountdown, stealthActive, stealthCountdown, fastReloadActive, fastReloadCountdown, radarActive, radarCountdown, airstrikeReady, airstrikeArmed, gunSlotId,
-  hp, maxHp, isAlive, respawnCountdown, killedBy, lastHitAt, lastShotHitAt, bulletsPerMag, reloadDelaySecs,
-  rooms, roomName, username, saveSession,
-  gameId, roundId,
-  ctfState, infectionState,
+  airstrikeArmed,
+  airstrikeReady,
+  ammo,
+  bulletsPerMag,
+  countdownAt,
+  ctfState,
+  fastReloadActive,
+  fastReloadCountdown,
+  finalScores,
   gameArea,
+  gameConfig,
+  gameId,
+  gameState,
+  gunSlotId,
+  hostId,
+  hp,
+  infectionState,
+  isAlive,
+  isHost,
   isReconnecting,
+  killedBy,
+  killFeed,
+  lastHitAt,
+  lastShotHitAt,
+  maxAmmo,
+  maxHp,
+  myId,
+  players,
+  radarActive,
+  radarCountdown,
+  reloadDelaySecs,
+  resetGame,
+  respawnCountdown,
+  roomName,
+  rooms,
+  roundId,
+  saveSession,
+  scores,
+  screen,
+  shieldActive,
+  shieldCountdown,
+  stealthActive,
+  stealthCountdown,
+  timeRemaining,
+  username,
+  winner,
 } from '../stores/game.js';
-import { teammates, firingEnemies, powerups, airstrikes, graves, ctfBases, ctfFlags } from '../stores/map.js';
-import { playKilled, playRespawn, playAirstrikeWarning } from './audio.js';
+import {
+  airstrikes,
+  ctfBases,
+  ctfFlags,
+  firingEnemies,
+  graves,
+  powerups,
+  teammates,
+} from '../stores/map.js';
+import { playAirstrikeWarning, playKilled, playRespawn } from './audio.js';
 
 let ws = null;
 let _serverUrl = null;
@@ -38,7 +82,7 @@ export function connect(serverUrl) {
       resolve();
     };
     newWs.onerror = () => {};
-    newWs.onmessage = e => _handle(JSON.parse(e.data));
+    newWs.onmessage = (e) => _handle(JSON.parse(e.data));
     // Before onopen fires, a close means the initial connection failed
     newWs.onclose = () => reject(new Error('WebSocket connection failed'));
   });
@@ -62,7 +106,10 @@ function _scheduleReconnect() {
     screen.set('setup');
     return;
   }
-  const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** _reconnectAttempts, 15_000);
+  const delay = Math.min(
+    RECONNECT_BASE_DELAY_MS * 2 ** _reconnectAttempts,
+    15_000,
+  );
   _reconnectAttempts++;
   _reconnectTimer = setTimeout(_doReconnect, delay);
 }
@@ -77,13 +124,15 @@ function _doReconnect() {
     const pid = get(myId);
     const uname = get(username);
     if (pid && uname) {
-      newWs.send(JSON.stringify({ type: C2S.REJOIN, playerId: pid, username: uname }));
+      newWs.send(
+        JSON.stringify({ type: C2S.REJOIN, playerId: pid, username: uname }),
+      );
     } else {
       newWs.send(JSON.stringify({ type: C2S.REGISTER, username: uname }));
     }
   };
   newWs.onerror = () => {};
-  newWs.onmessage = e => _handle(JSON.parse(e.data));
+  newWs.onmessage = (e) => _handle(JSON.parse(e.data));
   newWs.onclose = () => _scheduleReconnect();
 }
 
@@ -275,16 +324,22 @@ function _handle(msg) {
       break;
 
     case S2C.AIRSTRIKE_INCOMING:
-      airstrikes.update(list => [
-        ...list.filter(a => a.id !== msg.id),
-        { id: msg.id, lat: msg.lat, lng: msg.lng, radius: msg.radius, detonateAt: msg.detonateAt },
+      airstrikes.update((list) => [
+        ...list.filter((a) => a.id !== msg.id),
+        {
+          id: msg.id,
+          lat: msg.lat,
+          lng: msg.lng,
+          radius: msg.radius,
+          detonateAt: msg.detonateAt,
+        },
       ]);
       playAirstrikeWarning();
       break;
 
     case S2C.AIRSTRIKE_HIT:
       // Blast resolved — drop the warning marker. Damage arrives via PLAYER_HP/DEAD.
-      airstrikes.update(list => list.filter(a => a.id !== msg.id));
+      airstrikes.update((list) => list.filter((a) => a.id !== msg.id));
       break;
 
     case S2C.PLAYER_HP:
@@ -301,9 +356,14 @@ function _handle(msg) {
     case S2C.PLAYER_DEAD:
       // Drop/refresh a tombstone at every player's latest death spot (own included).
       if (msg.lat != null && msg.lng != null) {
-        graves.update(list => [
-          ...list.filter(g => g.id !== msg.playerId),
-          { id: msg.playerId, username: msg.username, lat: msg.lat, lng: msg.lng },
+        graves.update((list) => [
+          ...list.filter((g) => g.id !== msg.playerId),
+          {
+            id: msg.playerId,
+            username: msg.username,
+            lat: msg.lat,
+            lng: msg.lng,
+          },
         ]);
       }
       if (msg.playerId === get(myId)) {
@@ -329,7 +389,8 @@ function _handle(msg) {
         playRespawn();
         _stopRespawnCountdown();
         respawnCountdown.set(null);
-        if (msg.shieldMs) _startShieldCountdown(Math.round(msg.shieldMs / 1_000));
+        if (msg.shieldMs)
+          _startShieldCountdown(Math.round(msg.shieldMs / 1_000));
       }
       break;
 
@@ -358,12 +419,24 @@ function _handle(msg) {
 function _applyLocalPowerupFeedback({ type }) {
   // Update local store state so UI reflects the effect immediately
   switch (type) {
-    case 'fastReload': _startFastReloadCountdown(120); break;
-    case 'healthPack': hp.set(get(maxHp)); break;
-    case 'shield': _startShieldCountdown(120); break;
-    case 'stealth': _startStealthCountdown(120); break;
-    case 'radar': _startRadarCountdown(60); break;
-    case 'airstrike': airstrikeReady.update(n => n + 1); break;
+    case 'fastReload':
+      _startFastReloadCountdown(120);
+      break;
+    case 'healthPack':
+      hp.set(get(maxHp));
+      break;
+    case 'shield':
+      _startShieldCountdown(120);
+      break;
+    case 'stealth':
+      _startStealthCountdown(120);
+      break;
+    case 'radar':
+      _startRadarCountdown(60);
+      break;
+    case 'airstrike':
+      airstrikeReady.update((n) => n + 1);
+      break;
   }
 }
 
@@ -375,10 +448,13 @@ function _startShieldCountdown(secs) {
   shieldActive.set(true);
   shieldCountdown.set(secs);
   _shieldTimer = setInterval(() => {
-    shieldCountdown.update(v => {
+    shieldCountdown.update((v) => {
       if (v === null) return null;
       const next = v - 1;
-      if (next <= 0) { _stopShieldCountdown(); return null; }
+      if (next <= 0) {
+        _stopShieldCountdown();
+        return null;
+      }
       return next;
     });
   }, 1_000);
@@ -401,10 +477,13 @@ function _startStealthCountdown(secs) {
   stealthActive.set(true);
   stealthCountdown.set(secs);
   _stealthTimer = setInterval(() => {
-    stealthCountdown.update(v => {
+    stealthCountdown.update((v) => {
       if (v === null) return null;
       const next = v - 1;
-      if (next <= 0) { _stopStealthCountdown(); return null; }
+      if (next <= 0) {
+        _stopStealthCountdown();
+        return null;
+      }
       return next;
     });
   }, 1_000);
@@ -427,10 +506,13 @@ function _startFastReloadCountdown(secs) {
   fastReloadActive.set(true);
   fastReloadCountdown.set(secs);
   _fastReloadTimer = setInterval(() => {
-    fastReloadCountdown.update(v => {
+    fastReloadCountdown.update((v) => {
       if (v === null) return null;
       const next = v - 1;
-      if (next <= 0) { _stopFastReloadCountdown(); return null; }
+      if (next <= 0) {
+        _stopFastReloadCountdown();
+        return null;
+      }
       return next;
     });
   }, 1_000);
@@ -453,10 +535,13 @@ function _startRadarCountdown(secs) {
   radarActive.set(true);
   radarCountdown.set(secs);
   _radarTimer = setInterval(() => {
-    radarCountdown.update(v => {
+    radarCountdown.update((v) => {
       if (v === null) return null;
       const next = v - 1;
-      if (next <= 0) { _stopRadarCountdown(); return null; }
+      if (next <= 0) {
+        _stopRadarCountdown();
+        return null;
+      }
       return next;
     });
   }, 1_000);
@@ -478,10 +563,13 @@ function _startRespawnCountdown(secs) {
   _stopRespawnCountdown();
   respawnCountdown.set(secs);
   _respawnTimer = setInterval(() => {
-    respawnCountdown.update(v => {
+    respawnCountdown.update((v) => {
       if (v === null) return null;
       const next = v - 1;
-      if (next <= 0) { _stopRespawnCountdown(); return 0; }
+      if (next <= 0) {
+        _stopRespawnCountdown();
+        return 0;
+      }
       return next;
     });
   }, 1_000);

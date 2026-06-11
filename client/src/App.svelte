@@ -1,27 +1,32 @@
 <script>
-  import { onMount } from 'svelte';
-  import { screen, username, loadSession, isReconnecting } from './stores/game.js';
-  import { connect, sendRegister } from './lib/network.js';
-  import Setup from './screens/Setup.svelte';
-  import RoomSelect from './screens/RoomSelect.svelte';
-  import Lobby from './screens/Lobby.svelte';
-  import InGame from './screens/InGame.svelte';
-  import EndScreen from './screens/EndScreen.svelte';
+import { onMount } from 'svelte';
+import { connect, sendRegister } from './lib/network.js';
+import EndScreen from './screens/EndScreen.svelte';
+import InGame from './screens/InGame.svelte';
+import Lobby from './screens/Lobby.svelte';
+import RoomSelect from './screens/RoomSelect.svelte';
+import Setup from './screens/Setup.svelte';
+import {
+  isReconnecting,
+  loadSession,
+  screen,
+  username,
+} from './stores/game.js';
 
-  onMount(async () => {
-    const savedUsername = loadSession();
-    if (savedUsername) {
-      username.set(savedUsername);
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const serverUrl = `${proto}://${location.host}/ws`;
-      try {
-        await connect(serverUrl);
-        sendRegister(savedUsername);
-      } catch (e) {
-        console.error('Failed to restore session:', e);
-      }
+onMount(async () => {
+  const savedUsername = loadSession();
+  if (savedUsername) {
+    username.set(savedUsername);
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const serverUrl = `${proto}://${location.host}/ws`;
+    try {
+      await connect(serverUrl);
+      sendRegister(savedUsername);
+    } catch (e) {
+      console.error('Failed to restore session:', e);
     }
-  });
+  }
+});
 </script>
 
 {#if $screen === 'setup'}

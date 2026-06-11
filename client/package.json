@@ -11,6 +11,8 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.1.1",
     "@types/leaflet": "^1.9.21",
+    "prettier": "^3.8.4",
+    "prettier-plugin-svelte": "^3.5.2",
     "svelte": "^4.2.18",
     "vite": "^5.3.4"
   },

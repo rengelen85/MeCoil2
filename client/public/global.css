@@ -1,24 +1,33 @@
 :root {
   --bg: #0d0d0f;
   --surface: #141418;
-  --border: rgba(255,255,255,0.08);
+  --border: rgba(255, 255, 255, 0.08);
   --text: #f0f0f0;
   --text-muted: #666;
   --accent: #00e5ff;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-html, body {
+html,
+body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
 
-#app { height: 100%; }
+#app {
+  height: 100%;
+}
 
 .btn-primary {
   background: var(--accent);
@@ -32,10 +41,18 @@ html, body {
   text-transform: uppercase;
   cursor: pointer;
   width: 100%;
-  transition: opacity 0.2s, box-shadow 0.2s;
+  transition:
+    opacity 0.2s,
+    box-shadow 0.2s;
 }
-.btn-primary:hover { opacity: 0.9; box-shadow: 0 0 20px rgba(0,229,255,0.3); }
-.btn-primary:disabled { opacity: 0.4; pointer-events: none; }
+.btn-primary:hover {
+  opacity: 0.9;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
 
 .btn-secondary {
   background: transparent;
@@ -48,6 +65,11 @@ html, body {
   letter-spacing: 1px;
   text-transform: uppercase;
   cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
 }
-.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

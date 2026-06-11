@@ -1,5 +1,5 @@
-import { BaseMode } from './BaseMode.js';
 import { S2C, TEAMS } from '../../shared/messages.js';
+import { BaseMode } from './BaseMode.js';
 
 const BASE_RADIUS_M = 7.5;
 const FLAG_INTERACT_RADIUS_M = 10;
@@ -26,12 +26,22 @@ export class CaptureTheFlag extends BaseMode {
   constructor(players, config, broadcast, powerupManager, onEnd) {
     super(players, config, broadcast, powerupManager, onEnd);
 
-    this._redBase = config.redBase ?? null;   // { lat, lng } or null if not set
+    this._redBase = config.redBase ?? null; // { lat, lng } or null if not set
     this._blueBase = config.blueBase ?? null;
 
     this._flags = {
-      [TEAMS.RED]: { state: FLAG_STATE.AT_BASE, lat: null, lng: null, carrierId: null },
-      [TEAMS.BLUE]: { state: FLAG_STATE.AT_BASE, lat: null, lng: null, carrierId: null },
+      [TEAMS.RED]: {
+        state: FLAG_STATE.AT_BASE,
+        lat: null,
+        lng: null,
+        carrierId: null,
+      },
+      [TEAMS.BLUE]: {
+        state: FLAG_STATE.AT_BASE,
+        lat: null,
+        lng: null,
+        carrierId: null,
+      },
     };
 
     this._captures = { [TEAMS.RED]: 0, [TEAMS.BLUE]: 0 };
@@ -62,7 +72,11 @@ export class CaptureTheFlag extends BaseMode {
     if (!player.isAlive) {
       // Dead player at own base AND ≥10s since death → respawn
       const base = player.team === TEAMS.RED ? this._redBase : this._blueBase;
-      if (base && haversineMeters(player.lat, player.lng, base.lat, base.lng) <= BASE_RADIUS_M) {
+      if (
+        base &&
+        haversineMeters(player.lat, player.lng, base.lat, base.lng) <=
+          BASE_RADIUS_M
+      ) {
         const elapsed = Date.now() - (this._deathTimes.get(player.id) ?? 0);
         if (elapsed >= 10_000) {
           this._respawnAtBase(player);
@@ -84,7 +98,12 @@ export class CaptureTheFlag extends BaseMode {
 
     // Pick up enemy flag if it's available (at base or dropped)
     if (enemyFlag.state !== FLAG_STATE.CARRIED && enemyFlag.lat !== null) {
-      const dist = haversineMeters(player.lat, player.lng, enemyFlag.lat, enemyFlag.lng);
+      const dist = haversineMeters(
+        player.lat,
+        player.lng,
+        enemyFlag.lat,
+        enemyFlag.lng,
+      );
       if (dist <= FLAG_INTERACT_RADIUS_M) {
         this._pickUpFlag(player, enemyTeam, enemyBase);
         return;
@@ -93,7 +112,12 @@ export class CaptureTheFlag extends BaseMode {
 
     // Capture: carrying enemy flag and touching own base, but only if own flag is home
     if (enemyFlag.carrierId === player.id && ownBase) {
-      const dist = haversineMeters(player.lat, player.lng, ownBase.lat, ownBase.lng);
+      const dist = haversineMeters(
+        player.lat,
+        player.lng,
+        ownBase.lat,
+        ownBase.lng,
+      );
       if (dist <= BASE_RADIUS_M) {
         if (ownFlag.state === FLAG_STATE.AT_BASE) {
           this._captureFlag(player, enemyTeam, enemyBase);
@@ -104,7 +128,12 @@ export class CaptureTheFlag extends BaseMode {
 
     // Return own flag if it was dropped
     if (ownFlag.state === FLAG_STATE.DROPPED && ownFlag.lat !== null) {
-      const dist = haversineMeters(player.lat, player.lng, ownFlag.lat, ownFlag.lng);
+      const dist = haversineMeters(
+        player.lat,
+        player.lng,
+        ownFlag.lat,
+        ownFlag.lng,
+      );
       if (dist <= FLAG_INTERACT_RADIUS_M) {
         this._returnFlag(player, ownTeam, ownBase);
       }
@@ -273,31 +302,33 @@ export class CaptureTheFlag extends BaseMode {
 
   _teamKills(team) {
     return [...this.players.values()]
-      .filter(p => p.team === team)
+      .filter((p) => p.team === team)
       .reduce((sum, p) => sum + p.kills, 0);
   }
 
   _buildScores() {
-    return [TEAMS.RED, TEAMS.BLUE].map(team => ({
-      team,
-      captures: this._captures[team],
-      kills: this._teamKills(team),
-      players: [...this.players.values()]
-        .filter(p => p.team === team)
-        .map(p => {
-          const enemyTeam = p.team === TEAMS.RED ? TEAMS.BLUE : TEAMS.RED;
-          return {
-            id: p.id,
-            username: p.username,
-            kills: p.kills,
-            deaths: p.deaths,
-            hp: p.hp,
-            maxHp: p.maxHp,
-            isAlive: p.isAlive,
-            hasFlag: this._flags[enemyTeam].carrierId === p.id,
-          };
-        }),
-    })).sort((a, b) => b.captures - a.captures || b.kills - a.kills);
+    return [TEAMS.RED, TEAMS.BLUE]
+      .map((team) => ({
+        team,
+        captures: this._captures[team],
+        kills: this._teamKills(team),
+        players: [...this.players.values()]
+          .filter((p) => p.team === team)
+          .map((p) => {
+            const enemyTeam = p.team === TEAMS.RED ? TEAMS.BLUE : TEAMS.RED;
+            return {
+              id: p.id,
+              username: p.username,
+              kills: p.kills,
+              deaths: p.deaths,
+              hp: p.hp,
+              maxHp: p.maxHp,
+              isAlive: p.isAlive,
+              hasFlag: this._flags[enemyTeam].carrierId === p.id,
+            };
+          }),
+      }))
+      .sort((a, b) => b.captures - a.captures || b.kills - a.kills);
   }
 
   _determineWinner() {

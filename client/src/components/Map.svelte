@@ -1,80 +1,93 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
-  import { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading, ctfBases, ctfFlags } from '../stores/map.js';
-  import { airstrikeArmed, airstrikePreview, gameArea } from '../stores/game.js';
-  import { sendCollect } from '../lib/network.js';
-  import { AIRSTRIKE_RADIUS_M } from '../../../shared/messages.js';
+import { onDestroy, onMount } from 'svelte';
+import { get } from 'svelte/store';
+import { AIRSTRIKE_RADIUS_M } from '../../../shared/messages.js';
+import { sendCollect } from '../lib/network.js';
+import { airstrikeArmed, airstrikePreview, gameArea } from '../stores/game.js';
+import {
+  airstrikes,
+  ctfBases,
+  ctfFlags,
+  firingEnemies,
+  graves,
+  heading,
+  myPosition,
+  powerups,
+  teammates,
+} from '../stores/map.js';
 
-  let mapEl;
-  let map;
-  let myMarker;
-  let compassRose;
-  let unsubscribers = [];
-  const teamMarkers   = new Map();
-  const enemyMarkers  = new Map();
-  const powerupMarkers = new Map();
-  const airstrikeMarkers = new Map(); // id -> { circle, marker }
-  const graveMarkers = new Map();     // playerId -> tombstone marker
-  let previewCircle = null;           // pending-confirmation airstrike preview
-  let previewMarker = null;
-  const ctfBaseCircles = new Map();   // team -> { circle }
-  const ctfFlagMarkers = new Map();   // team -> marker
-  let gameAreaLayer = null;           // L.circle or L.polygon for the play boundary
+let mapEl;
+let map;
+let myMarker;
+let compassRose;
+let unsubscribers = [];
+const teamMarkers = new Map();
+const enemyMarkers = new Map();
+const powerupMarkers = new Map();
+const airstrikeMarkers = new Map(); // id -> { circle, marker }
+const graveMarkers = new Map(); // playerId -> tombstone marker
+let previewCircle = null; // pending-confirmation airstrike preview
+let previewMarker = null;
+const ctfBaseCircles = new Map(); // team -> { circle }
+const ctfFlagMarkers = new Map(); // team -> marker
+let gameAreaLayer = null; // L.circle or L.polygon for the play boundary
 
-  // Accumulated rotation avoids the wrap-around jump when heading crosses 0°/360°
-  let _prevHeading = null;
-  let _accRotation = 0;
+// Accumulated rotation avoids the wrap-around jump when heading crosses 0°/360°
+let _prevHeading = null;
+let _accRotation = 0;
 
-  function smoothRotation(h) {
-    if (_prevHeading === null) { _accRotation = h; }
-    else {
-      let delta = h - _prevHeading;
-      if (delta >  180) delta -= 360;
-      if (delta < -180) delta += 360;
-      _accRotation += delta;
-    }
-    _prevHeading = h;
-    return _accRotation;
+function smoothRotation(h) {
+  if (_prevHeading === null) {
+    _accRotation = h;
+  } else {
+    let delta = h - _prevHeading;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    _accRotation += delta;
+  }
+  _prevHeading = h;
+  return _accRotation;
+}
+
+// Reactive: rotate map so player's heading is always at screen top (heading-up mode)
+$: if ($heading !== null) {
+  const rot = smoothRotation($heading);
+
+  // Rotate the map container so forward direction = screen top
+  if (mapEl) {
+    mapEl.style.transform = `translate(-50%, -50%) rotate(${-rot}deg)`;
   }
 
-  // Reactive: rotate map so player's heading is always at screen top (heading-up mode)
-  $: if ($heading !== null) {
-    const rot = smoothRotation($heading);
-
-    // Rotate the map container so forward direction = screen top
-    if (mapEl) {
-      mapEl.style.transform = `translate(-50%, -50%) rotate(${-rot}deg)`;
-    }
-
-    // Cone rotates by +rot to cancel out the container's -rot, keeping it pointing
-    // forward (screen up) rather than drifting to point at north
-    const cone = myMarker?.getElement()?.querySelector('.heading-cone');
-    if (cone) {
-      cone.style.transform = `rotate(${rot}deg)`;
-      cone.style.transformOrigin = '30px 30px';
-    }
-
-    // Compass rose counter-rotates so cardinal labels show their true screen position
-    if (compassRose) {
-      compassRose.style.transform = `rotate(${-rot}deg)`;
-      compassRose.style.transformOrigin = '40px 40px';
-    }
-  } else if (mapEl) {
-    mapEl.style.transform = 'translate(-50%, -50%)';
+  // Cone rotates by +rot to cancel out the container's -rot, keeping it pointing
+  // forward (screen up) rather than drifting to point at north
+  const cone = myMarker?.getElement()?.querySelector('.heading-cone');
+  if (cone) {
+    cone.style.transform = `rotate(${rot}deg)`;
+    cone.style.transformOrigin = '30px 30px';
   }
 
-  onMount(async () => {
-    const L = (await import('leaflet')).default;
-    await import('leaflet/dist/leaflet.css');
+  // Compass rose counter-rotates so cardinal labels show their true screen position
+  if (compassRose) {
+    compassRose.style.transform = `rotate(${-rot}deg)`;
+    compassRose.style.transformOrigin = '40px 40px';
+  }
+} else if (mapEl) {
+  mapEl.style.transform = 'translate(-50%, -50%)';
+}
 
-    map = L.map(mapEl, { zoomControl: true, attributionControl: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+onMount(async () => {
+  const L = (await import('leaflet')).default;
+  await import('leaflet/dist/leaflet.css');
 
-    // Player's own marker: circle + direction cone
-    const myIcon = L.divIcon({
-      className: '',
-      html: `
+  map = L.map(mapEl, { zoomControl: true, attributionControl: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+  }).addTo(map);
+
+  // Player's own marker: circle + direction cone
+  const myIcon = L.divIcon({
+    className: '',
+    html: `
         <svg class="marker-me-svg" viewBox="0 0 60 60" width="60" height="60">
           <g class="heading-cone">
             <path d="M30,30 L22,6 L38,6 Z"
@@ -86,325 +99,416 @@
           <circle cx="30" cy="30" r="7" fill="white" stroke="#00e5ff" stroke-width="2.5"/>
           <circle cx="30" cy="30" r="12" fill="none" stroke="rgba(0,229,255,0.2)" stroke-width="4"/>
         </svg>`,
-      iconSize:   [60, 60],
-      iconAnchor: [30, 30],
-    });
+    iconSize: [60, 60],
+    iconAnchor: [30, 30],
+  });
 
-    const teamIcon = L.divIcon({
+  const teamIcon = L.divIcon({
+    className: '',
+    html: '<div class="dot dot-team"></div>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+
+  const enemyIcon = L.divIcon({
+    className: '',
+    html: '<div class="dot dot-enemy"></div>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+
+  function powerupIcon(type) {
+    const emoji =
+      {
+        fastReload: '🔋',
+        healthPack: '🩹',
+        shield: '🛡️',
+        stealth: '👻',
+        radar: '📡',
+        airstrike: '🚀',
+        immunity: '💉',
+      }[type] ?? '📦';
+    return L.divIcon({
       className: '',
-      html: '<div class="dot dot-team"></div>',
-      iconSize: [14, 14], iconAnchor: [7, 7],
+      html: `<div class="dot dot-powerup" title="${type}">${emoji}</div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
     });
+  }
 
-    const enemyIcon = L.divIcon({
+  function airstrikeIcon() {
+    return L.divIcon({
       className: '',
-      html: '<div class="dot dot-enemy"></div>',
-      iconSize: [14, 14], iconAnchor: [7, 7],
+      html: '<div class="airstrike-target">💥</div>',
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
     });
+  }
 
-    function powerupIcon(type) {
-      const emoji = { fastReload: '🔋', healthPack: '🩹', shield: '🛡️', stealth: '👻', radar: '📡', airstrike: '🚀', immunity: '💉' }[type] ?? '📦';
-      return L.divIcon({
-        className: '',
-        html: `<div class="dot dot-powerup" title="${type}">${emoji}</div>`,
-        iconSize: [24, 24], iconAnchor: [12, 12],
-      });
-    }
-
-    function airstrikeIcon() {
-      return L.divIcon({
-        className: '',
-        html: '<div class="airstrike-target">💥</div>',
-        iconSize: [30, 30], iconAnchor: [15, 15],
-      });
-    }
-
-    function flagIcon(team, state) {
-      const color = team === 'red' ? '#ff5252' : '#448aff';
-      let content;
-      if (state === 'carried') {
-        content = `<span style="font-size:20px">🏃</span>`;
-      } else if (state === 'dropped') {
-        // Team-colored flag lying on the ground — X mark signals "not at base"
-        content = `<svg viewBox="0 0 24 28" width="24" height="28">
+  function flagIcon(team, state) {
+    const color = team === 'red' ? '#ff5252' : '#448aff';
+    let content;
+    if (state === 'carried') {
+      content = `<span style="font-size:20px">🏃</span>`;
+    } else if (state === 'dropped') {
+      // Team-colored flag lying on the ground — X mark signals "not at base"
+      content = `<svg viewBox="0 0 24 28" width="24" height="28">
           <line x1="4" y1="3" x2="4" y2="25" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
           <polygon points="4,3 19,9 4,15" fill="${color}" opacity="0.6"/>
           <line x1="1" y1="23" x2="9" y2="23" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
           <line x1="16" y1="19" x2="22" y2="25" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
           <line x1="22" y1="19" x2="16" y2="25" stroke="${color}" stroke-width="2" stroke-linecap="round"/>
         </svg>`;
-      } else {
-        // SVG flag so the color is actually applied (🚩 emoji ignores CSS color)
-        content = `<svg viewBox="0 0 20 26" width="20" height="26">
+    } else {
+      // SVG flag so the color is actually applied (🚩 emoji ignores CSS color)
+      content = `<svg viewBox="0 0 20 26" width="20" height="26">
           <line x1="4" y1="2" x2="4" y2="24" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
           <polygon points="4,2 19,9 4,16" fill="${color}"/>
         </svg>`;
-      }
-      return L.divIcon({
-        className: '',
-        html: `<div class="ctf-flag" style="color:${color}">${content}</div>`,
-        iconSize: [28, 28], iconAnchor: [14, 14],
-      });
     }
-
-    // Tombstone at a player's last death spot, with their name beside it.
-    function graveIcon(username) {
-      const safe = String(username ?? '').replace(/[&<>"]/g, c =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-      return L.divIcon({
-        className: '',
-        html: `<div class="grave"><span class="grave-icon">🪦</span><span class="grave-name">${safe}</span></div>`,
-        iconSize: [24, 24], iconAnchor: [12, 24],
-      });
-    }
-
-    // The map container is CSS-rotated for heading-up mode but Leaflet doesn't
-    // know about that rotation. When rotated, getBoundingClientRect() returns the
-    // bounding box of the rotated element, so Leaflet's e.latlng is wrong. We
-    // correct by un-rotating the screen offset around the visual map centre.
-    function correctedLatLng(e) {
-      if (_accRotation === 0) return { lat: e.latlng.lat, lng: e.latlng.lng };
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      const dx = e.originalEvent.clientX - cx;
-      const dy = e.originalEvent.clientY - cy;
-      const rad = _accRotation * Math.PI / 180;
-      const cos = Math.cos(rad);
-      const sin = Math.sin(rad);
-      const ux = dx * cos - dy * sin;
-      const uy = dx * sin + dy * cos;
-      const half = mapEl.offsetWidth / 2;
-      const pt = map.containerPointToLatLng(L.point(half + ux, half + uy));
-      return { lat: pt.lat, lng: pt.lng };
-    }
-
-    function previewIcon() {
-      return L.divIcon({
-        className: '',
-        html: '<div class="airstrike-preview-target">🎯</div>',
-        iconSize: [30, 30], iconAnchor: [15, 15],
-      });
-    }
-
-    // Clicking while armed (or while a preview is already placed) sets / moves
-    // the preview circle. The actual strike is only called in on Confirm.
-    map.on('click', e => {
-      if (!get(airstrikeArmed) && !get(airstrikePreview)) return;
-      const latlng = correctedLatLng(e);
-      airstrikePreview.set(latlng);
-      if (get(airstrikeArmed)) airstrikeArmed.set(false);
+    return L.divIcon({
+      className: '',
+      html: `<div class="ctf-flag" style="color:${color}">${content}</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
     });
+  }
 
-    // Keep the map cursor in sync with the armed / preview state.
-    const unsubCursor = airstrikeArmed.subscribe(armed => {
-      if (map) map.getContainer().style.cursor = armed ? 'crosshair' : '';
+  // Tombstone at a player's last death spot, with their name beside it.
+  function graveIcon(username) {
+    const safe = String(username ?? '').replace(
+      /[&<>"]/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+    );
+    return L.divIcon({
+      className: '',
+      html: `<div class="grave"><span class="grave-icon">🪦</span><span class="grave-name">${safe}</span></div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 24],
     });
+  }
 
-    const unsubPos = myPosition.subscribe(pos => {
-      if (!pos) return;
-      if (!myMarker) {
-        myMarker = L.marker([pos.lat, pos.lng], { icon: myIcon, interactive: false }).addTo(map);
-        map.setView([pos.lat, pos.lng], 19);
+  // The map container is CSS-rotated for heading-up mode but Leaflet doesn't
+  // know about that rotation. When rotated, getBoundingClientRect() returns the
+  // bounding box of the rotated element, so Leaflet's e.latlng is wrong. We
+  // correct by un-rotating the screen offset around the visual map centre.
+  function correctedLatLng(e) {
+    if (_accRotation === 0) return { lat: e.latlng.lat, lng: e.latlng.lng };
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    const dx = e.originalEvent.clientX - cx;
+    const dy = e.originalEvent.clientY - cy;
+    const rad = (_accRotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const ux = dx * cos - dy * sin;
+    const uy = dx * sin + dy * cos;
+    const half = mapEl.offsetWidth / 2;
+    const pt = map.containerPointToLatLng(L.point(half + ux, half + uy));
+    return { lat: pt.lat, lng: pt.lng };
+  }
+
+  function previewIcon() {
+    return L.divIcon({
+      className: '',
+      html: '<div class="airstrike-preview-target">🎯</div>',
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    });
+  }
+
+  // Clicking while armed (or while a preview is already placed) sets / moves
+  // the preview circle. The actual strike is only called in on Confirm.
+  map.on('click', (e) => {
+    if (!get(airstrikeArmed) && !get(airstrikePreview)) return;
+    const latlng = correctedLatLng(e);
+    airstrikePreview.set(latlng);
+    if (get(airstrikeArmed)) airstrikeArmed.set(false);
+  });
+
+  // Keep the map cursor in sync with the armed / preview state.
+  const unsubCursor = airstrikeArmed.subscribe((armed) => {
+    if (map) map.getContainer().style.cursor = armed ? 'crosshair' : '';
+  });
+
+  const unsubPos = myPosition.subscribe((pos) => {
+    if (!pos) return;
+    if (!myMarker) {
+      myMarker = L.marker([pos.lat, pos.lng], {
+        icon: myIcon,
+        interactive: false,
+      }).addTo(map);
+      map.setView([pos.lat, pos.lng], 19);
+    } else {
+      myMarker.setLatLng([pos.lat, pos.lng]);
+      map.panTo([pos.lat, pos.lng], { animate: false });
+    }
+  });
+
+  const unsubTeam = teammates.subscribe((list) => {
+    const seen = new Set();
+    for (const p of list) {
+      seen.add(p.id);
+      if (!teamMarkers.has(p.id)) {
+        teamMarkers.set(
+          p.id,
+          L.marker([p.lat, p.lng], { icon: teamIcon })
+            .bindTooltip(p.username)
+            .addTo(map),
+        );
       } else {
-        myMarker.setLatLng([pos.lat, pos.lng]);
-        map.panTo([pos.lat, pos.lng], { animate: false });
+        teamMarkers.get(p.id).setLatLng([p.lat, p.lng]);
       }
-    });
+    }
+    for (const [id, m] of teamMarkers) {
+      if (!seen.has(id)) {
+        m.remove();
+        teamMarkers.delete(id);
+      }
+    }
+  });
 
-    const unsubTeam = teammates.subscribe(list => {
-      const seen = new Set();
-      for (const p of list) {
-        seen.add(p.id);
-        if (!teamMarkers.has(p.id)) {
-          teamMarkers.set(p.id, L.marker([p.lat, p.lng], { icon: teamIcon }).bindTooltip(p.username).addTo(map));
-        } else {
-          teamMarkers.get(p.id).setLatLng([p.lat, p.lng]);
-        }
+  const unsubEnemies = firingEnemies.subscribe((list) => {
+    const seen = new Set();
+    for (const e of list) {
+      seen.add(e.id);
+      if (!enemyMarkers.has(e.id)) {
+        enemyMarkers.set(
+          e.id,
+          L.marker([e.lat, e.lng], { icon: enemyIcon }).addTo(map),
+        );
+      } else {
+        enemyMarkers.get(e.id).setLatLng([e.lat, e.lng]);
       }
-      for (const [id, m] of teamMarkers) {
-        if (!seen.has(id)) { m.remove(); teamMarkers.delete(id); }
+    }
+    for (const [id, m] of enemyMarkers) {
+      if (!seen.has(id)) {
+        m.remove();
+        enemyMarkers.delete(id);
       }
-    });
+    }
+  });
 
-    const unsubEnemies = firingEnemies.subscribe(list => {
-      const seen = new Set();
-      for (const e of list) {
-        seen.add(e.id);
-        if (!enemyMarkers.has(e.id)) {
-          enemyMarkers.set(e.id, L.marker([e.lat, e.lng], { icon: enemyIcon }).addTo(map));
-        } else {
-          enemyMarkers.get(e.id).setLatLng([e.lat, e.lng]);
-        }
+  const unsubPowerups = powerups.subscribe((list) => {
+    const seen = new Set();
+    for (const pkg of list) {
+      seen.add(pkg.id);
+      if (!powerupMarkers.has(pkg.id)) {
+        const m = L.marker([pkg.lat, pkg.lng], { icon: powerupIcon(pkg.type) })
+          .addTo(map)
+          .on('click', () => sendCollect(pkg.id));
+        powerupMarkers.set(pkg.id, m);
       }
-      for (const [id, m] of enemyMarkers) {
-        if (!seen.has(id)) { m.remove(); enemyMarkers.delete(id); }
+    }
+    for (const [id, m] of powerupMarkers) {
+      if (!seen.has(id)) {
+        m.remove();
+        powerupMarkers.delete(id);
       }
-    });
+    }
+  });
 
-    const unsubPowerups = powerups.subscribe(list => {
-      const seen = new Set();
-      for (const pkg of list) {
-        seen.add(pkg.id);
-        if (!powerupMarkers.has(pkg.id)) {
-          const m = L.marker([pkg.lat, pkg.lng], { icon: powerupIcon(pkg.type) })
-            .addTo(map)
-            .on('click', () => sendCollect(pkg.id));
-          powerupMarkers.set(pkg.id, m);
-        }
-      }
-      for (const [id, m] of powerupMarkers) {
-        if (!seen.has(id)) { m.remove(); powerupMarkers.delete(id); }
-      }
-    });
-
-    const unsubAirstrikes = airstrikes.subscribe(list => {
-      const seen = new Set();
-      for (const a of list) {
-        seen.add(a.id);
-        if (!airstrikeMarkers.has(a.id)) {
-          const circle = L.circle([a.lat, a.lng], {
-            radius: a.radius,
-            color: '#ff1744',
-            weight: 2,
-            fillColor: '#ff1744',
-            fillOpacity: 0.18,
-            className: 'airstrike-zone',
-          }).addTo(map);
-          const marker = L.marker([a.lat, a.lng], { icon: airstrikeIcon() }).addTo(map);
-          airstrikeMarkers.set(a.id, { circle, marker });
-        }
-      }
-      for (const [id, m] of airstrikeMarkers) {
-        if (!seen.has(id)) { m.circle.remove(); m.marker.remove(); airstrikeMarkers.delete(id); }
-      }
-    });
-
-    const unsubPreview = airstrikePreview.subscribe(pos => {
-      if (previewCircle) { previewCircle.remove(); previewCircle = null; }
-      if (previewMarker) { previewMarker.remove(); previewMarker = null; }
-      if (pos) {
-        previewCircle = L.circle([pos.lat, pos.lng], {
-          radius: AIRSTRIKE_RADIUS_M,
-          color: '#ff9800',
+  const unsubAirstrikes = airstrikes.subscribe((list) => {
+    const seen = new Set();
+    for (const a of list) {
+      seen.add(a.id);
+      if (!airstrikeMarkers.has(a.id)) {
+        const circle = L.circle([a.lat, a.lng], {
+          radius: a.radius,
+          color: '#ff1744',
           weight: 2,
-          dashArray: '8 5',
-          fillColor: '#ff9800',
+          fillColor: '#ff1744',
+          fillOpacity: 0.18,
+          className: 'airstrike-zone',
+        }).addTo(map);
+        const marker = L.marker([a.lat, a.lng], {
+          icon: airstrikeIcon(),
+        }).addTo(map);
+        airstrikeMarkers.set(a.id, { circle, marker });
+      }
+    }
+    for (const [id, m] of airstrikeMarkers) {
+      if (!seen.has(id)) {
+        m.circle.remove();
+        m.marker.remove();
+        airstrikeMarkers.delete(id);
+      }
+    }
+  });
+
+  const unsubPreview = airstrikePreview.subscribe((pos) => {
+    if (previewCircle) {
+      previewCircle.remove();
+      previewCircle = null;
+    }
+    if (previewMarker) {
+      previewMarker.remove();
+      previewMarker = null;
+    }
+    if (pos) {
+      previewCircle = L.circle([pos.lat, pos.lng], {
+        radius: AIRSTRIKE_RADIUS_M,
+        color: '#ff9800',
+        weight: 2,
+        dashArray: '8 5',
+        fillColor: '#ff9800',
+        fillOpacity: 0.15,
+        interactive: false,
+        className: 'airstrike-preview-zone',
+      }).addTo(map);
+      previewMarker = L.marker([pos.lat, pos.lng], {
+        icon: previewIcon(),
+        interactive: false,
+      }).addTo(map);
+    }
+  });
+
+  const unsubGraves = graves.subscribe((list) => {
+    const seen = new Set();
+    for (const g of list) {
+      seen.add(g.id);
+      if (!graveMarkers.has(g.id)) {
+        graveMarkers.set(
+          g.id,
+          L.marker([g.lat, g.lng], { icon: graveIcon(g.username) }).addTo(map),
+        );
+      } else {
+        // A repeat death moves the existing tombstone to the new spot.
+        const m = graveMarkers.get(g.id);
+        m.setLatLng([g.lat, g.lng]);
+        m.setIcon(graveIcon(g.username));
+      }
+    }
+    for (const [id, m] of graveMarkers) {
+      if (!seen.has(id)) {
+        m.remove();
+        graveMarkers.delete(id);
+      }
+    }
+  });
+
+  const CTF_BASE_COLORS = { red: '#ff5252', blue: '#448aff' };
+  const CTF_BASE_RADIUS_M = 7.5;
+
+  const unsubCtfBases = ctfBases.subscribe((bases) => {
+    for (const team of ['red', 'blue']) {
+      const base = bases[team];
+      if (base && !ctfBaseCircles.has(team)) {
+        const circle = L.circle([base.lat, base.lng], {
+          radius: CTF_BASE_RADIUS_M,
+          color: CTF_BASE_COLORS[team],
+          weight: 2,
+          fillColor: CTF_BASE_COLORS[team],
           fillOpacity: 0.15,
-          interactive: false,
-          className: 'airstrike-preview-zone',
         }).addTo(map);
-        previewMarker = L.marker([pos.lat, pos.lng], {
-          icon: previewIcon(),
-          interactive: false,
-        }).addTo(map);
+        ctfBaseCircles.set(team, circle);
+      } else if (base && ctfBaseCircles.has(team)) {
+        ctfBaseCircles.get(team).setLatLng([base.lat, base.lng]);
+      } else if (!base && ctfBaseCircles.has(team)) {
+        ctfBaseCircles.get(team).remove();
+        ctfBaseCircles.delete(team);
       }
-    });
+    }
+  });
 
-    const unsubGraves = graves.subscribe(list => {
-      const seen = new Set();
-      for (const g of list) {
-        seen.add(g.id);
-        if (!graveMarkers.has(g.id)) {
-          graveMarkers.set(g.id, L.marker([g.lat, g.lng], { icon: graveIcon(g.username) }).addTo(map));
+  const unsubCtfFlags = ctfFlags.subscribe((flags) => {
+    for (const team of ['red', 'blue']) {
+      const flag = flags[team];
+      if (flag && flag.lat !== null) {
+        const label = `${team === 'red' ? 'Red' : 'Blue'} flag${flag.state === 'dropped' ? ' — DROPPED!' : ''}`;
+        const tooltipOpts = {
+          direction: 'top',
+          permanent: flag.state === 'dropped',
+        };
+        if (!ctfFlagMarkers.has(team)) {
+          const m = L.marker([flag.lat, flag.lng], {
+            icon: flagIcon(team, flag.state),
+          })
+            .bindTooltip(label, tooltipOpts)
+            .addTo(map);
+          ctfFlagMarkers.set(team, m);
         } else {
-          // A repeat death moves the existing tombstone to the new spot.
-          const m = graveMarkers.get(g.id);
-          m.setLatLng([g.lat, g.lng]);
-          m.setIcon(graveIcon(g.username));
+          const m = ctfFlagMarkers.get(team);
+          m.setLatLng([flag.lat, flag.lng]);
+          m.setIcon(flagIcon(team, flag.state));
+          m.unbindTooltip();
+          m.bindTooltip(label, tooltipOpts);
         }
+      } else if (ctfFlagMarkers.has(team)) {
+        ctfFlagMarkers.get(team).remove();
+        ctfFlagMarkers.delete(team);
       }
-      for (const [id, m] of graveMarkers) {
-        if (!seen.has(id)) { m.remove(); graveMarkers.delete(id); }
-      }
-    });
-
-    const CTF_BASE_COLORS = { red: '#ff5252', blue: '#448aff' };
-    const CTF_BASE_RADIUS_M = 7.5;
-
-    const unsubCtfBases = ctfBases.subscribe(bases => {
-      for (const team of ['red', 'blue']) {
-        const base = bases[team];
-        if (base && !ctfBaseCircles.has(team)) {
-          const circle = L.circle([base.lat, base.lng], {
-            radius: CTF_BASE_RADIUS_M,
-            color: CTF_BASE_COLORS[team],
-            weight: 2,
-            fillColor: CTF_BASE_COLORS[team],
-            fillOpacity: 0.15,
-          }).addTo(map);
-          ctfBaseCircles.set(team, circle);
-        } else if (base && ctfBaseCircles.has(team)) {
-          ctfBaseCircles.get(team).setLatLng([base.lat, base.lng]);
-        } else if (!base && ctfBaseCircles.has(team)) {
-          ctfBaseCircles.get(team).remove();
-          ctfBaseCircles.delete(team);
-        }
-      }
-    });
-
-    const unsubCtfFlags = ctfFlags.subscribe(flags => {
-      for (const team of ['red', 'blue']) {
-        const flag = flags[team];
-        if (flag && flag.lat !== null) {
-          const label = `${team === 'red' ? 'Red' : 'Blue'} flag${flag.state === 'dropped' ? ' — DROPPED!' : ''}`;
-          const tooltipOpts = { direction: 'top', permanent: flag.state === 'dropped' };
-          if (!ctfFlagMarkers.has(team)) {
-            const m = L.marker([flag.lat, flag.lng], { icon: flagIcon(team, flag.state) })
-              .bindTooltip(label, tooltipOpts)
-              .addTo(map);
-            ctfFlagMarkers.set(team, m);
-          } else {
-            const m = ctfFlagMarkers.get(team);
-            m.setLatLng([flag.lat, flag.lng]);
-            m.setIcon(flagIcon(team, flag.state));
-            m.unbindTooltip();
-            m.bindTooltip(label, tooltipOpts);
-          }
-        } else if (ctfFlagMarkers.has(team)) {
-          ctfFlagMarkers.get(team).remove();
-          ctfFlagMarkers.delete(team);
-        }
-      }
-    });
-
-    const GAME_AREA_STYLE = {
-      color: '#ff9800',
-      weight: 2.5,
-      dashArray: '8 6',
-      fillColor: '#ff9800',
-      fillOpacity: 0.06,
-      className: 'game-area-boundary',
-    };
-
-    const unsubGameArea = gameArea.subscribe(area => {
-      if (gameAreaLayer) { gameAreaLayer.remove(); gameAreaLayer = null; }
-      if (!area) return;
-      if (area.type === 'circle') {
-        gameAreaLayer = L.circle([area.lat, area.lng], { radius: area.radiusM, ...GAME_AREA_STYLE }).addTo(map);
-      } else if (area.type === 'polygon' && area.points.length >= 3) {
-        gameAreaLayer = L.polygon(area.points.map(p => [p.lat, p.lng]), GAME_AREA_STYLE).addTo(map);
-      }
-    });
-
-    // NOTE: this onMount callback is async, so a returned cleanup function
-    // would be silently ignored by Svelte. Register teardown via onDestroy
-    // instead, otherwise these subscriptions leak across games and fire on a
-    // removed Leaflet map (throwing and freezing the whole UI on round 2+).
-    unsubscribers = [unsubPos, unsubTeam, unsubEnemies, unsubPowerups, unsubAirstrikes, unsubPreview, unsubGraves, unsubCtfBases, unsubCtfFlags, unsubGameArea, unsubCursor];
+    }
   });
 
-  onDestroy(() => {
-    for (const unsub of unsubscribers) unsub();
-    unsubscribers = [];
-    for (const c of ctfBaseCircles.values()) c.remove();
-    ctfBaseCircles.clear();
-    for (const m of ctfFlagMarkers.values()) m.remove();
-    ctfFlagMarkers.clear();
-    if (previewCircle) { previewCircle.remove(); previewCircle = null; }
-    if (previewMarker) { previewMarker.remove(); previewMarker = null; }
-    if (gameAreaLayer) { gameAreaLayer.remove(); gameAreaLayer = null; }
-    map?.remove();
+  const GAME_AREA_STYLE = {
+    color: '#ff9800',
+    weight: 2.5,
+    dashArray: '8 6',
+    fillColor: '#ff9800',
+    fillOpacity: 0.06,
+    className: 'game-area-boundary',
+  };
+
+  const unsubGameArea = gameArea.subscribe((area) => {
+    if (gameAreaLayer) {
+      gameAreaLayer.remove();
+      gameAreaLayer = null;
+    }
+    if (!area) return;
+    if (area.type === 'circle') {
+      gameAreaLayer = L.circle([area.lat, area.lng], {
+        radius: area.radiusM,
+        ...GAME_AREA_STYLE,
+      }).addTo(map);
+    } else if (area.type === 'polygon' && area.points.length >= 3) {
+      gameAreaLayer = L.polygon(
+        area.points.map((p) => [p.lat, p.lng]),
+        GAME_AREA_STYLE,
+      ).addTo(map);
+    }
   });
+
+  // NOTE: this onMount callback is async, so a returned cleanup function
+  // would be silently ignored by Svelte. Register teardown via onDestroy
+  // instead, otherwise these subscriptions leak across games and fire on a
+  // removed Leaflet map (throwing and freezing the whole UI on round 2+).
+  unsubscribers = [
+    unsubPos,
+    unsubTeam,
+    unsubEnemies,
+    unsubPowerups,
+    unsubAirstrikes,
+    unsubPreview,
+    unsubGraves,
+    unsubCtfBases,
+    unsubCtfFlags,
+    unsubGameArea,
+    unsubCursor,
+  ];
+});
+
+onDestroy(() => {
+  for (const unsub of unsubscribers) unsub();
+  unsubscribers = [];
+  for (const c of ctfBaseCircles.values()) c.remove();
+  ctfBaseCircles.clear();
+  for (const m of ctfFlagMarkers.values()) m.remove();
+  ctfFlagMarkers.clear();
+  if (previewCircle) {
+    previewCircle.remove();
+    previewCircle = null;
+  }
+  if (previewMarker) {
+    previewMarker.remove();
+    previewMarker = null;
+  }
+  if (gameAreaLayer) {
+    gameAreaLayer.remove();
+    gameAreaLayer = null;
+  }
+  map?.remove();
+});
 </script>
 
 <div class="map-root">

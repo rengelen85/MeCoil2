@@ -3,7 +3,9 @@ import { POWERUP_TYPES } from '../shared/messages.js';
 const POWERUP_INTERVAL_MS = 30_000;
 const COLLECTION_RADIUS_M = 15;
 const SPAWN_RADIUS_M = 100;
-const ALL_STANDARD_TYPES = Object.values(POWERUP_TYPES).filter(t => t !== POWERUP_TYPES.IMMUNITY);
+const ALL_STANDARD_TYPES = Object.values(POWERUP_TYPES).filter(
+  (t) => t !== POWERUP_TYPES.IMMUNITY,
+);
 
 let nextId = 1;
 
@@ -28,10 +30,12 @@ function randomOffset(meters) {
 function isInPolygon(lat, lng, points) {
   let inside = false;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const xi = points[i].lng, yi = points[i].lat;
-    const xj = points[j].lng, yj = points[j].lat;
-    const intersect = yi > lat !== yj > lat &&
-      lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    const xi = points[i].lng,
+      yi = points[i].lat;
+    const xj = points[j].lng,
+      yj = points[j].lat;
+    const intersect =
+      yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
     if (intersect) inside = !inside;
   }
   return inside;
@@ -44,10 +48,12 @@ function randomSpawnPoint(centerLat, centerLng, gameArea) {
     return { lat: gameArea.lat + dLat, lng: gameArea.lng + dLng };
   }
   if (gameArea?.type === 'polygon' && gameArea.points.length >= 3) {
-    const lats = gameArea.points.map(p => p.lat);
-    const lngs = gameArea.points.map(p => p.lng);
-    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const lats = gameArea.points.map((p) => p.lat);
+    const lngs = gameArea.points.map((p) => p.lng);
+    const minLat = Math.min(...lats),
+      maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs),
+      maxLng = Math.max(...lngs);
     // Rejection sampling: pick random point in bounding box, retry if outside polygon
     for (let attempt = 0; attempt < 50; attempt++) {
       const lat = minLat + Math.random() * (maxLat - minLat);
@@ -90,7 +96,11 @@ export class PowerupManager {
 
   _spawn() {
     if (this._centerLat === null) return;
-    const { lat, lng } = randomSpawnPoint(this._centerLat, this._centerLng, this._gameArea);
+    const { lat, lng } = randomSpawnPoint(
+      this._centerLat,
+      this._centerLng,
+      this._gameArea,
+    );
     const types = this._allowedTypes ?? ALL_STANDARD_TYPES;
     const pkg = {
       id: nextId++,
