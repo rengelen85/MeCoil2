@@ -14,8 +14,9 @@
     "build": "npm run build --prefix client",
     "start": "node server/index.js",
     "gen-certs": "mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mecoil.local",
-    "lint": "biome check .",
-    "fmt": "biome check --write ."
+    "lint": "biome check --max-diagnostics=none .",
+    "fmt": "biome check --write .",
+    "fmt:unsafe": "biome check --write --unsafe ."
   },
   "dependencies": {
     "express": "^4.19.2",
