@@ -34,7 +34,7 @@ let myMarker;
 let compassRose;
 let unsubscribers = [];
 const _saved = localStorage.getItem('mapStyle');
-let mapStyle = STYLE_CYCLE.includes(_saved) ? _saved : 'voyager';
+let mapStyle = STYLE_CYCLE.includes(_saved) ? _saved : 'dark';
 const teamMarkers = new Map();
 const enemyMarkers = new Map();
 const powerupMarkers = new Map();
@@ -676,8 +676,8 @@ onDestroy(() => {
   /* Dark/light tile toggle */
   .map-style-toggle {
     position: absolute;
-    bottom: 110px;
-    left: 12px;
+    top: 12px;
+    right: 12px;
     z-index: 500;
     width: 40px;
     height: 40px;
