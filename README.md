@@ -209,14 +209,17 @@ When a player's WiFi drops, the client automatically reconnects with exponential
 
 ```
 MeCoil/
-├── server/         # Node.js game server and game modes
-├── client/         # Vite + Svelte web client
-├── shared/         # Shared protocol constants
-├── docs/           # Hardware protocol documentation
-├── certs/          # HTTPS certificates (gitignored)
-├── Makefile        # Linux/macOS task runner
-├── README.md       # This file
-└── releasenotes.md # Version history and changelog
+├── server/           # Node.js game server and game modes
+├── client/           # Vite + Svelte web client
+├── shared/           # Shared protocol constants
+├── docs/             # Hardware protocol documentation
+├── certs/            # HTTPS certificates (gitignored)
+├── Makefile          # Linux/macOS task runner
+├── biome.json        # Biome linter and formatter configuration
+├── package.json      # Root package dependencies
+├── package-lock.json # Dependency lock file
+├── README.md         # This file
+└── releasenotes.md   # Version history and changelog
 ```
 
 ---

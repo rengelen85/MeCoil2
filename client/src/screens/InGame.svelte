@@ -5,7 +5,7 @@ import { GAME_MODES } from '../../../shared/messages.js';
 import AmmoBar from '../components/AmmoBar.svelte';
 import HealthBar from '../components/HealthBar.svelte';
 import KillFeed from '../components/KillFeed.svelte';
-import Map from '../components/Map.svelte';
+import GameMap from '../components/Map.svelte';
 import ScoreBoard from '../components/ScoreBoard.svelte';
 import {
   applyGunAssignment,
@@ -217,7 +217,7 @@ $: immunityActive =
 <div class="ingame">
   <!-- Full-screen map -->
   <div class="map-wrap">
-    <Map />
+    <GameMap />
   </div>
 
   <!-- Top HUD bar -->

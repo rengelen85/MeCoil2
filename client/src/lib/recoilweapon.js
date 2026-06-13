@@ -52,35 +52,28 @@ class RecoilGun {
     });
   }
 
-  _connect() {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const device = await navigator.bluetooth.requestDevice({
-          filters: [{ namePrefix: 'SRG' }],
-          optionalServices: [SERVICE_UUID],
-        });
-
-        device.addEventListener(
-          'gattserverdisconnected',
-          this._disconnect.bind(this),
-        );
-        const server = await device.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-
-        this._CONTROLCHAR = await service.getCharacteristic(CONTROL_UUID);
-        this._CONFIGCHAR = await service.getCharacteristic(CONFIG_UUID);
-        this._TELEMETRYCHAR = await service.getCharacteristic(TELEMETRY_UUID);
-
-        this.isConnected = true;
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
+  async _connect() {
+    const device = await navigator.bluetooth.requestDevice({
+      filters: [{ namePrefix: 'SRG' }],
+      optionalServices: [SERVICE_UUID],
     });
+
+    device.addEventListener(
+      'gattserverdisconnected',
+      this._disconnect.bind(this),
+    );
+    const server = await device.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+
+    this._CONTROLCHAR = await service.getCharacteristic(CONTROL_UUID);
+    this._CONFIGCHAR = await service.getCharacteristic(CONFIG_UUID);
+    this._TELEMETRYCHAR = await service.getCharacteristic(TELEMETRY_UUID);
+
+    this.isConnected = true;
   }
 
   startTelemetry() {
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       try {
         this._TELEMETRYCHAR.addEventListener(
           'characteristicvaluechanged',
@@ -95,19 +88,12 @@ class RecoilGun {
     });
   }
 
-  stopTelemetry() {
-    return new Promise(async (resolve, reject) => {
-      try {
-        await this._TELEMETRYCHAR.stopNotifications();
-        this._TELEMETRYCHAR.removeEventListener(
-          'characteristicvaluechanged',
-          this._handleTelemetry.bind(this),
-        );
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    });
+  async stopTelemetry() {
+    await this._TELEMETRYCHAR.stopNotifications();
+    this._TELEMETRYCHAR.removeEventListener(
+      'characteristicvaluechanged',
+      this._handleTelemetry.bind(this),
+    );
   }
 
   switchWeapon(slot) {
@@ -149,51 +135,37 @@ class RecoilGun {
 
   _disconnect() {
     this.isConnected = false;
-    this._EVENTS['disconnected']?.();
+    this._EVENTS.disconnected?.();
   }
 
   sendControlPacket(controlAction) {
     this._queue(() => this._sendControlPacket(controlAction));
   }
 
-  _sendControlPacket(controlAction) {
-    return new Promise(async (resolve, reject) => {
-      packetCounter = (packetCounter === null ? 0 : packetCounter + 1) % 16;
-      const buffer = new ArrayBuffer(7);
-      const view = new DataView(buffer);
-      view.setUint8(0, packetCounter << 4);
-      view.setUint16(2, controlAction, true);
-      view.setUint8(4, this.gunSettings.shotId);
-      view.setUint8(5, this.gunSettings.currentWeaponSlot);
-      view.setUint8(6, this.gunSettings.ammo);
-      try {
-        await this._CONTROLCHAR.writeValue(buffer);
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    });
+  async _sendControlPacket(controlAction) {
+    packetCounter = (packetCounter === null ? 0 : packetCounter + 1) % 16;
+    const buffer = new ArrayBuffer(7);
+    const view = new DataView(buffer);
+    view.setUint8(0, packetCounter << 4);
+    view.setUint16(2, controlAction, true);
+    view.setUint8(4, this.gunSettings.shotId);
+    view.setUint8(5, this.gunSettings.currentWeaponSlot);
+    view.setUint8(6, this.gunSettings.ammo);
+    await this._CONTROLCHAR.writeValue(buffer);
   }
 
-  _updateShotConfig() {
-    return new Promise(async (resolve, reject) => {
-      let autoFeedback = 0x00;
-      if (this.gunSettings.flashOnShot) autoFeedback |= 0x2;
-      if (this.gunSettings.recoil) autoFeedback |= 0x1;
+  async _updateShotConfig() {
+    let autoFeedback = 0x00;
+    if (this.gunSettings.flashOnShot) autoFeedback |= 0x2;
+    if (this.gunSettings.recoil) autoFeedback |= 0x1;
 
-      const buffer = new ArrayBuffer(5);
-      const view = new DataView(buffer);
-      view.setUint16(0, 16, true);
-      view.setUint8(2, 2);
-      view.setUint8(3, autoFeedback);
-      view.setUint8(4, this.gunSettings.weaponOverride);
-      try {
-        await this._CONFIGCHAR.writeValue(buffer);
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    });
+    const buffer = new ArrayBuffer(5);
+    const view = new DataView(buffer);
+    view.setUint16(0, 16, true);
+    view.setUint8(2, 2);
+    view.setUint8(3, autoFeedback);
+    view.setUint8(4, this.gunSettings.weaponOverride);
+    await this._CONFIGCHAR.writeValue(buffer);
   }
 
   _handleTelemetry(event) {
@@ -221,17 +193,17 @@ class RecoilGun {
 
     const counts = telemetry.buttonCount;
     if (counts.trigger !== lastButtonCount.trigger)
-      this._EVENTS['triggerBtn']?.(counts.trigger);
+      this._EVENTS.triggerBtn?.(counts.trigger);
     if (counts.reload !== lastButtonCount.reload)
-      this._EVENTS['reloadBtn']?.(counts.reload);
+      this._EVENTS.reloadBtn?.(counts.reload);
     if (counts.radio !== lastButtonCount.radio)
-      this._EVENTS['radioBtn']?.(counts.radio);
+      this._EVENTS.radioBtn?.(counts.radio);
     if (counts.reset !== lastButtonCount.reset)
-      this._EVENTS['resetBtn']?.(counts.reset);
+      this._EVENTS.resetBtn?.(counts.reset);
     if (counts.power !== lastButtonCount.power)
-      this._EVENTS['powerBtn']?.(counts.power);
+      this._EVENTS.powerBtn?.(counts.power);
     if (counts.recoil !== lastButtonCount.recoil)
-      this._EVENTS['recoilBtn']?.(counts.recoil);
+      this._EVENTS.recoilBtn?.(counts.recoil);
     lastButtonCount = { ...counts };
 
     telemetry.batteryVoltage = value.getInt16(6, true);
@@ -240,7 +212,7 @@ class RecoilGun {
     telemetry.weaponType = value.getUint8(16);
 
     if (telemetry.ammo !== lastAmmo) {
-      this._EVENTS['ammoChanged']?.(telemetry.ammo);
+      this._EVENTS.ammoChanged?.(telemetry.ammo);
       lastAmmo = telemetry.ammo;
     }
 
@@ -256,7 +228,7 @@ class RecoilGun {
     };
     ir1.exists = ir1.sensor !== 0;
     if (ir1.exists && ir1.shotCount !== lastShotCount) {
-      this._EVENTS['irEvent']?.(ir1);
+      this._EVENTS.irEvent?.(ir1);
       lastShotCount = ir1.shotCount;
     }
 
@@ -272,11 +244,11 @@ class RecoilGun {
     };
     ir2.exists = ir2.sensor !== 0;
     if (ir2.exists && ir2.shotCount !== lastShotCount) {
-      this._EVENTS['irEvent']?.(ir2);
+      this._EVENTS.irEvent?.(ir2);
       lastShotCount = ir2.shotCount;
     }
 
-    this._EVENTS['telemetry']?.(telemetry);
+    this._EVENTS.telemetry?.(telemetry);
     this.telemetry = telemetry;
   }
 
@@ -288,35 +260,28 @@ class RecoilGun {
     });
   }
 
-  _setWeaponProfile(weaponProfile, slot) {
-    return new Promise(async (resolve, reject) => {
-      const id = Math.min(Math.max(slot, 0), 11);
-      const buffer = new ArrayBuffer(12);
-      const view = new DataView(buffer);
-      view.setUint16(0, id, true);
-      view.setUint8(2, 0x09);
-      view.setUint8(3, weaponProfile.triggerMode);
-      view.setUint8(4, weaponProfile.rateOfFire);
-      view.setUint8(5, weaponProfile.narrowIrPower);
-      view.setUint8(6, weaponProfile.wideIrPower);
-      view.setUint8(7, weaponProfile.muzzleLedPower);
-      view.setUint8(8, 0xff);
-      view.setUint8(9, weaponProfile.motorPower);
-      // byte 10: FlashLED1 (high nibble) | FlashLED2 (low nibble, unused = 0)
-      view.setUint8(10, ((weaponProfile.muzzleFlashMode & 0x0f) << 4) | 0x00);
-      // byte 11: FlashParam1 (high nibble) | FlashParam2 (low nibble)
-      view.setUint8(
-        11,
-        ((weaponProfile.flashParam1 & 0x0f) << 4) |
-          (weaponProfile.flashParam2 & 0x0f),
-      );
-      try {
-        await this._CONFIGCHAR.writeValue(buffer);
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    });
+  async _setWeaponProfile(weaponProfile, slot) {
+    const id = Math.min(Math.max(slot, 0), 11);
+    const buffer = new ArrayBuffer(12);
+    const view = new DataView(buffer);
+    view.setUint16(0, id, true);
+    view.setUint8(2, 0x09);
+    view.setUint8(3, weaponProfile.triggerMode);
+    view.setUint8(4, weaponProfile.rateOfFire);
+    view.setUint8(5, weaponProfile.narrowIrPower);
+    view.setUint8(6, weaponProfile.wideIrPower);
+    view.setUint8(7, weaponProfile.muzzleLedPower);
+    view.setUint8(8, 0xff);
+    view.setUint8(9, weaponProfile.motorPower);
+    // byte 10: FlashLED1 (high nibble) | FlashLED2 (low nibble, unused = 0)
+    view.setUint8(10, ((weaponProfile.muzzleFlashMode & 0x0f) << 4) | 0x00);
+    // byte 11: FlashParam1 (high nibble) | FlashParam2 (low nibble)
+    view.setUint8(
+      11,
+      ((weaponProfile.flashParam1 & 0x0f) << 4) |
+        (weaponProfile.flashParam2 & 0x0f),
+    );
+    await this._CONFIGCHAR.writeValue(buffer);
   }
 
   on(eventName, handler) {
