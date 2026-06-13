@@ -18,6 +18,7 @@ export const C2S = {
   DEPLOY_AIRSTRIKE: 'deployAirstrike', // player calls in a held airstrike at a chosen point
   SET_BASE: 'setBase',                 // CTF: host sets a team's base location
   SET_GAME_AREA: 'setGameArea',        // host sets optional play area boundary (circle or polygon)
+  SET_DOM_ZONE: 'setDomZone',          // Domination: host places a control-point zone by GPS position
   SWITCH_TEAM: 'switchTeam',           // player requests to move to the other team
 };
 
@@ -47,6 +48,7 @@ export const GAME_MODES = {
   TEAM_DEATHMATCH: 'tdm',
   CAPTURE_THE_FLAG: 'ctf',
   INFECTION: 'infection',
+  DOMINATION: 'domination',
 };
 
 export const GAME_STATES = {

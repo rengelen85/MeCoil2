@@ -17,6 +17,10 @@ export const gameConfig = writable({
   hpPerPlayer: 100,
   reloadDelaySecs: 3,
   respawnDelaySecs: 10,
+  // Domination-specific (ignored by other modes)
+  dominationTickSecs: 2,
+  deathstreakEnabled: false,
+  deathstreakCount: 3,
 });
 export const players = writable([]);
 export const hostId = writable(null);
@@ -69,6 +73,9 @@ export const ctfState = writable(null); // { flags: { red, blue }, captures: { r
 
 // Infection mode state
 export const infectionState = writable(null); // { infectedIds: [], immunePlayers: {} }
+
+// Domination mode state
+export const dominationState = writable(null); // { zones: [...], teamPoints: { red, blue } }
 
 // Optional play area boundary — null | { type:'circle', lat, lng, radiusM } | { type:'polygon', points:[{lat,lng}] }
 export const gameArea = writable(null);
@@ -141,6 +148,7 @@ export function resetGame() {
   lastShotHitAt.set(null);
   ctfState.set(null);
   infectionState.set(null);
+  dominationState.set(null);
 }
 
 export function saveSession(name, playerId) {

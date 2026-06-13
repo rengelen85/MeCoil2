@@ -7,6 +7,7 @@ import {
   bulletsPerMag,
   countdownAt,
   ctfState,
+  dominationState,
   fastReloadActive,
   fastReloadCountdown,
   finalScores,
@@ -52,6 +53,7 @@ import {
   airstrikes,
   ctfBases,
   ctfFlags,
+  domZones,
   firingEnemies,
   graves,
   powerups,
@@ -203,6 +205,10 @@ export function sendSetBase(team, lat, lng) {
   send({ type: C2S.SET_BASE, team, lat, lng });
 }
 
+export function sendSetDomZone(zoneId, lat, lng) {
+  send({ type: C2S.SET_DOM_ZONE, zoneId, lat, lng });
+}
+
 export function sendSetGameArea(area) {
   send({ type: C2S.SET_GAME_AREA, area });
 }
@@ -298,6 +304,7 @@ function _handle(msg) {
       graves.set([]);
       ctfBases.set({ red: null, blue: null });
       ctfFlags.set({ red: null, blue: null });
+      domZones.set([]);
       screen.set('ingame');
       break;
     }
@@ -316,6 +323,10 @@ function _handle(msg) {
       }
       if (msg.infectionState) {
         infectionState.set(msg.infectionState);
+      }
+      if (msg.dominationState) {
+        dominationState.set(msg.dominationState);
+        domZones.set(msg.dominationState.zones ?? []);
       }
       break;
 

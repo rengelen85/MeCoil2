@@ -13,6 +13,9 @@ export const heading = writable(null); // degrees clockwise from North, null if 
 export const ctfBases = writable({ red: null, blue: null }); // { red: { lat, lng } | null, blue: ... }
 export const ctfFlags = writable({ red: null, blue: null }); // { red: { state, lat, lng, carrierId } | null, blue: ... }
 
+// Domination map overlays
+export const domZones = writable([]); // [{ id, lat, lng, owner, controlValue, capturingTeam, contested }]
+
 let watchId = null;
 let _headingCleanup = null;
 

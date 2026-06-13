@@ -8,6 +8,7 @@ import {
   airstrikes,
   ctfBases,
   ctfFlags,
+  domZones,
   firingEnemies,
   graves,
   heading,
@@ -30,6 +31,7 @@ let previewCircle = null; // pending-confirmation airstrike preview
 let previewMarker = null;
 const ctfBaseCircles = new Map(); // team -> { circle }
 const ctfFlagMarkers = new Map(); // team -> marker
+const domZoneCircles = new Map(); // zoneId -> { circle, label }
 let gameAreaLayer = null; // L.circle or L.polygon for the play boundary
 
 // Accumulated rotation avoids the wrap-around jump when heading crosses 0°/360°
@@ -469,6 +471,61 @@ onMount(async () => {
     }
   });
 
+  const DOM_ZONE_RADIUS_M = 15;
+  const DOM_ZONE_COLORS = { red: '#ff5252', blue: '#448aff', neutral: '#9e9e9e' };
+
+  function domZoneIcon(zone) {
+    const color = DOM_ZONE_COLORS[zone.owner] ?? DOM_ZONE_COLORS.neutral;
+    const contested = zone.contested;
+    const progress = Math.round(Math.abs(zone.controlValue ?? 0) * 100);
+    const capColor = zone.capturingTeam ? DOM_ZONE_COLORS[zone.capturingTeam] : color;
+    return L.divIcon({
+      className: '',
+      html: `<div class="dom-zone-marker" style="border-color:${color};background:rgba(${color === '#ff5252' ? '255,82,82' : color === '#448aff' ? '68,138,255' : '158,158,158'},0.18)">
+        <span class="dom-zone-letter" style="color:${color}">${zone.id}</span>
+        ${progress > 0 && progress < 100 ? `<div class="dom-zone-prog-bar"><div class="dom-zone-prog-fill" style="width:${progress}%;background:${capColor}"></div></div>` : ''}
+        ${contested ? '<span class="dom-zone-contested-icon">⚡</span>' : ''}
+      </div>`,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+    });
+  }
+
+  const unsubDomZones = domZones.subscribe((zones) => {
+    const seen = new Set();
+    for (const zone of zones) {
+      if (zone.lat === null || zone.lng === null) continue;
+      seen.add(zone.id);
+      const color = DOM_ZONE_COLORS[zone.owner] ?? DOM_ZONE_COLORS.neutral;
+      if (!domZoneCircles.has(zone.id)) {
+        const circle = L.circle([zone.lat, zone.lng], {
+          radius: DOM_ZONE_RADIUS_M,
+          color,
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 0.12,
+          className: 'dom-zone-circle',
+        }).addTo(map);
+        const label = L.marker([zone.lat, zone.lng], {
+          icon: domZoneIcon(zone),
+          interactive: false,
+        }).addTo(map);
+        domZoneCircles.set(zone.id, { circle, label });
+      } else {
+        const { circle, label } = domZoneCircles.get(zone.id);
+        circle.setStyle({ color, fillColor: color });
+        label.setIcon(domZoneIcon(zone));
+      }
+    }
+    for (const [id, { circle, label }] of domZoneCircles) {
+      if (!seen.has(id)) {
+        circle.remove();
+        label.remove();
+        domZoneCircles.delete(id);
+      }
+    }
+  });
+
   // NOTE: this onMount callback is async, so a returned cleanup function
   // would be silently ignored by Svelte. Register teardown via onDestroy
   // instead, otherwise these subscriptions leak across games and fire on a
@@ -484,6 +541,7 @@ onMount(async () => {
     unsubCtfBases,
     unsubCtfFlags,
     unsubGameArea,
+    unsubDomZones,
     unsubCursor,
   ];
 });
@@ -495,6 +553,8 @@ onDestroy(() => {
   ctfBaseCircles.clear();
   for (const m of ctfFlagMarkers.values()) m.remove();
   ctfFlagMarkers.clear();
+  for (const { circle, label } of domZoneCircles.values()) { circle.remove(); label.remove(); }
+  domZoneCircles.clear();
   if (previewCircle) {
     previewCircle.remove();
     previewCircle = null;
@@ -671,6 +731,45 @@ onDestroy(() => {
     text-align: center;
     filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
     animation: enemy-pulse 1s ease-in-out infinite alternate;
+  }
+
+  /* Domination control zone circles */
+  :global(.dom-zone-circle) {
+    animation: area-pulse 2s ease-in-out infinite alternate;
+  }
+  :global(.dom-zone-marker) {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 2px solid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    position: relative;
+  }
+  :global(.dom-zone-letter) {
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  }
+  :global(.dom-zone-prog-bar) {
+    width: 26px; height: 3px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  :global(.dom-zone-prog-fill) {
+    height: 100%;
+    border-radius: 2px;
+  }
+  :global(.dom-zone-contested-icon) {
+    position: absolute;
+    top: -4px; right: -4px;
+    font-size: 12px;
+    filter: drop-shadow(0 0 3px rgba(255,200,0,0.9));
+    animation: enemy-pulse 0.4s ease-in-out infinite alternate;
   }
 
   /* Play area boundary — dashed orange outline */

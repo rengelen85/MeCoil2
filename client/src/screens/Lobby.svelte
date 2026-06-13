@@ -7,6 +7,7 @@ import {
   sendLeaveRoom,
   sendReady,
   sendSetBase,
+  sendSetDomZone,
   sendSetGameArea,
   sendStartGame,
   sendSwitchTeam,
@@ -174,6 +175,17 @@ let _ctfRedMarker = null;
 let _ctfBlueMarker = null;
 let _ctfGpsWatcher = null;
 
+// --- Domination zone preview map ---
+let domPreviewMapEl;
+let _domL = null;
+let _domMap = null;
+let _domInitializing = false;
+let _domMyMarker = null;
+const _domZoneMarkers = new Map(); // zoneId -> marker
+let _domGpsWatcher = null;
+let settingDomZone = false;
+let domZoneError = '';
+
 async function _initCtfPreviewMap() {
   if (_ctfMap || _ctfInitializing || !ctfPreviewMapEl) return;
   _ctfInitializing = true;
@@ -295,6 +307,95 @@ $: {
   _renderCtfBases();
 }
 
+async function _initDomPreviewMap() {
+  if (_domMap || _domInitializing || !domPreviewMapEl) return;
+  _domInitializing = true;
+  _domL = (await import('leaflet')).default;
+  await import('leaflet/dist/leaflet.css');
+  _domMap = _domL.map(domPreviewMapEl, {
+    zoomControl: false,
+    attributionControl: false,
+  });
+  _domL
+    .tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
+    .addTo(_domMap);
+  if (navigator.geolocation) {
+    _domGpsWatcher = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        if (!_domMyMarker) {
+          _domMyMarker = _domL
+            .circleMarker([lat, lng], { radius: 8, color: '#00e5ff', fillColor: '#00e5ff', fillOpacity: 0.9, weight: 2 })
+            .bindTooltip('You', { permanent: true, direction: 'top', offset: [0, -10] })
+            .addTo(_domMap);
+          _domMap.setView([lat, lng], 17);
+        } else {
+          _domMyMarker.setLatLng([lat, lng]);
+        }
+      },
+      null,
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 },
+    );
+  }
+  _domInitializing = false;
+  _renderDomZones();
+}
+
+function _renderDomZones() {
+  if (!_domMap || !_domL) return;
+  for (const [, m] of _domZoneMarkers) m.remove();
+  _domZoneMarkers.clear();
+
+  const ZONE_COLORS = { A: '#ff9800', B: '#ffffff', C: '#ff9800' };
+  const zones = $gameConfig.domZones ?? [];
+  for (const z of zones) {
+    const color = z.id === 'B' ? '#e0e0e0' : '#ff9800';
+    const m = _domL
+      .circleMarker([z.lat, z.lng], { radius: 12, color, fillColor: color, fillOpacity: 0.8, weight: 2 })
+      .bindTooltip(`Zone ${z.id}`, { permanent: true, direction: 'top', offset: [0, -14] })
+      .addTo(_domMap);
+    _domZoneMarkers.set(z.id, m);
+  }
+  if (zones.length > 0) {
+    try {
+      const group = _domL.featureGroup([..._domZoneMarkers.values()]);
+      _domMap.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 18 });
+    } catch {}
+  }
+}
+
+$: if ($gameConfig.mode === GAME_MODES.DOMINATION && iAmHost)
+  tick().then(_initDomPreviewMap);
+$: if ($gameConfig.mode !== GAME_MODES.DOMINATION) {
+  if (_domGpsWatcher != null) {
+    navigator.geolocation?.clearWatch(_domGpsWatcher);
+    _domGpsWatcher = null;
+  }
+  _domMap?.remove();
+  _domMap = null;
+  _domMyMarker = null;
+  _domZoneMarkers.clear();
+  _domInitializing = false;
+}
+$: {
+  $gameConfig;
+  _renderDomZones();
+}
+
+async function setDomZone(zoneId) {
+  if (!navigator.geolocation) { domZoneError = 'Geolocation not supported'; return; }
+  settingDomZone = true;
+  domZoneError = '';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      sendSetDomZone(zoneId, pos.coords.latitude, pos.coords.longitude);
+      settingDomZone = false;
+    },
+    (err) => { domZoneError = err.message; settingDomZone = false; },
+    { enableHighAccuracy: true, timeout: 10_000 },
+  );
+}
+
 onDestroy(() => {
   if (_previewGpsWatcher != null) {
     navigator.geolocation?.clearWatch(_previewGpsWatcher);
@@ -308,6 +409,12 @@ onDestroy(() => {
   }
   _ctfMap?.remove();
   _ctfMap = null;
+  if (_domGpsWatcher != null) {
+    navigator.geolocation?.clearWatch(_domGpsWatcher);
+    _domGpsWatcher = null;
+  }
+  _domMap?.remove();
+  _domMap = null;
 });
 
 async function _initPreviewMap() {
@@ -515,7 +622,9 @@ function modeName(mode) {
       ? 'Team Deathmatch'
       : mode === GAME_MODES.CAPTURE_THE_FLAG
         ? 'Capture the Flag'
-        : 'Infection';
+        : mode === GAME_MODES.DOMINATION
+          ? 'Domination'
+          : 'Infection';
 }
 </script>
 
@@ -585,6 +694,7 @@ function modeName(mode) {
             <option value={GAME_MODES.FFA}>Free for All</option>
             <option value={GAME_MODES.TEAM_DEATHMATCH}>Team Deathmatch</option>
             <option value={GAME_MODES.CAPTURE_THE_FLAG}>Capture the Flag</option>
+            <option value={GAME_MODES.DOMINATION}>Domination</option>
             <option value={GAME_MODES.INFECTION}>Infection</option>
           </select>
         </label>
@@ -595,8 +705,8 @@ function modeName(mode) {
         </label>
 
         {#if $gameConfig.mode !== GAME_MODES.INFECTION}
-          <label>{$gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ? 'Flag captures to win' : 'Score limit (kills)'}
-            <input type="number" min="1" max="200" value={$gameConfig.scoreLimit}
+          <label>{$gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ? 'Flag captures to win' : $gameConfig.mode === GAME_MODES.DOMINATION ? 'Points to win' : 'Score limit (kills)'}
+            <input type="number" min="1" max={$gameConfig.mode === GAME_MODES.DOMINATION ? 9999 : 200} value={$gameConfig.scoreLimit}
               on:change={e => updateConfig('scoreLimit', e.target.value)} />
           </label>
         {/if}
@@ -624,6 +734,41 @@ function modeName(mode) {
           </div>
           {#if baseSetError}
             <p class="base-error">{baseSetError}</p>
+          {/if}
+        {/if}
+
+        {#if $gameConfig.mode === GAME_MODES.DOMINATION}
+          <h2 class="subhead">Zone Setup</h2>
+          <p class="base-hint">Walk to each capture zone location and tap the button to set it from your GPS position. A and C are team sides; B is the center.</p>
+          <div class="area-preview-map" bind:this={domPreviewMapEl}></div>
+          <p class="preview-hint">Cyan dot = your GPS position · orange = zones placed</p>
+          <div class="base-btns">
+            {#each ['A', 'B', 'C'] as zoneId}
+              {@const placed = ($gameConfig.domZones ?? []).find(z => z.id === zoneId)}
+              <button class="btn-base btn-base-dom" on:click={() => setDomZone(zoneId)} disabled={settingDomZone}>
+                {placed ? `✓ Zone ${zoneId} set` : `Set Zone ${zoneId}`}
+              </button>
+            {/each}
+          </div>
+          {#if domZoneError}
+            <p class="base-error">{domZoneError}</p>
+          {/if}
+
+          <h2 class="subhead">Domination Settings</h2>
+          <label>Scoring tick (seconds)
+            <input type="number" min="1" max="30" value={$gameConfig.dominationTickSecs ?? 2}
+              on:change={e => updateConfig('dominationTickSecs', e.target.value)} />
+          </label>
+          <label class="label-checkbox">
+            <input type="checkbox" checked={$gameConfig.deathstreakEnabled ?? false}
+              on:change={e => updateConfig('deathstreakEnabled', e.target.checked)} />
+            Deathstreak power-ups (losing team)
+          </label>
+          {#if $gameConfig.deathstreakEnabled}
+            <label>Deaths per deathstreak reward
+              <input type="number" min="1" max="20" value={$gameConfig.deathstreakCount ?? 3}
+                on:change={e => updateConfig('deathstreakCount', e.target.value)} />
+            </label>
           {/if}
         {/if}
 
@@ -730,6 +875,11 @@ function modeName(mode) {
         {/if}
         {#if $gameConfig.mode === GAME_MODES.INFECTION}
           <div class="config-row"><span>Power-ups</span><span>Immunity only</span></div>
+        {/if}
+        {#if $gameConfig.mode === GAME_MODES.DOMINATION}
+          <div class="config-row"><span>Zones placed</span><span>{($gameConfig.domZones ?? []).length} / 3</span></div>
+          <div class="config-row"><span>Scoring tick</span><span>{$gameConfig.dominationTickSecs ?? 2}s</span></div>
+          <div class="config-row"><span>Deathstreak</span><span>{$gameConfig.deathstreakEnabled ? `Every ${$gameConfig.deathstreakCount ?? 3} deaths` : 'Off'}</span></div>
         {/if}
         <div class="config-row"><span>Magazine</span><span>{$gameConfig.bulletsPerMag} rounds</span></div>
         <div class="config-row"><span>HP / player</span><span>{$gameConfig.hpPerPlayer}</span></div>
@@ -970,6 +1120,11 @@ function modeName(mode) {
     background: rgba(68,138,255,0.15);
     border: 1px solid rgba(68,138,255,0.5);
     color: #448aff;
+  }
+  .btn-base-dom {
+    background: rgba(255,152,0,0.15);
+    border: 1px solid rgba(255,152,0,0.5);
+    color: #ff9800;
   }
   .base-error {
     font-size: 12px;

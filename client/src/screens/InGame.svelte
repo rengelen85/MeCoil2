@@ -36,6 +36,7 @@ import {
   amIInfected,
   bleConnected,
   ctfState,
+  dominationState,
   gameArea,
   gameConfig,
   gunLocked,
@@ -199,7 +200,9 @@ $: modeLabel =
       ? 'TDM'
       : $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG
         ? 'CTF'
-        : 'INF';
+        : $gameConfig.mode === GAME_MODES.DOMINATION
+          ? 'DOM'
+          : 'INF';
 
 // CTF: captures from the score for quick display in the top bar
 $: ctfCaptures =
@@ -258,6 +261,33 @@ $: immunityActive =
     </div>
   {/if}
 
+  <!-- Domination: zone status + team point scores -->
+  {#if $gameConfig.mode === GAME_MODES.DOMINATION && $dominationState}
+    <div class="dom-bar">
+      <span class="dom-team dom-red">{$dominationState.teamPoints?.red ?? 0}</span>
+      <div class="dom-zones">
+        {#each $dominationState.zones as zone}
+          <div
+            class="dom-zone dom-zone-{zone.owner}"
+            class:dom-zone-contested={zone.contested}
+            title="Zone {zone.id}: {zone.contested ? 'CONTESTED' : zone.owner}"
+          >
+            <span class="dom-zone-id">{zone.id}</span>
+            {#if zone.owner === 'neutral' || zone.contested}
+              <div class="dom-zone-bar">
+                <div
+                  class="dom-zone-fill dom-fill-{zone.capturingTeam ?? 'neutral'}"
+                  style="width:{Math.round(Math.abs(zone.controlValue ?? 0) * 100)}%"
+                ></div>
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+      <span class="dom-team dom-blue">{$dominationState.teamPoints?.blue ?? 0}</span>
+    </div>
+  {/if}
+
   <!-- Infection: role indicator + gun lock -->
   {#if $gameConfig.mode === GAME_MODES.INFECTION && $infectionState}
     <div class="inf-role" class:inf-infected={$amIInfected} class:inf-survivor={!$amIInfected}>
@@ -305,6 +335,9 @@ $: immunityActive =
         {#if $respawnCountdown != null}
           <div class="respawn-count respawn-ctf-timer">{$respawnCountdown}s</div>
         {/if}
+      {:else if $gameConfig.mode === GAME_MODES.DOMINATION}
+        <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
+        <div class="respawn-hint">Head to a friendly zone after respawn</div>
       {:else}
         <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
       {/if}
@@ -688,6 +721,64 @@ $: immunityActive =
   .ctf-red { color: #ff5252; }
   .ctf-blue { color: #448aff; }
   .ctf-sep { color: rgba(255,255,255,0.3); }
+
+  .dom-bar {
+    position: absolute;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: rgba(0,0,0,0.78);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .dom-team { font-size: 16px; font-variant-numeric: tabular-nums; min-width: 36px; text-align: center; }
+  .dom-red { color: #ff5252; }
+  .dom-blue { color: #448aff; }
+  .dom-zones { display: flex; gap: 6px; align-items: center; }
+  .dom-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 6px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.15);
+    min-width: 30px;
+  }
+  .dom-zone-red { background: rgba(255,82,82,0.25); border-color: rgba(255,82,82,0.6); }
+  .dom-zone-blue { background: rgba(68,138,255,0.25); border-color: rgba(68,138,255,0.6); }
+  .dom-zone-neutral { background: rgba(255,255,255,0.06); }
+  .dom-zone-contested { animation: pulse 0.6s ease-in-out infinite alternate; }
+  .dom-zone-id { font-size: 11px; font-weight: 900; letter-spacing: 1px; color: #fff; }
+  .dom-zone-bar {
+    width: 26px; height: 3px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .dom-zone-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+  .dom-fill-red { background: #ff5252; }
+  .dom-fill-blue { background: #448aff; }
+  .dom-fill-neutral { background: rgba(255,255,255,0.4); }
+
+  .respawn-hint {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.5px;
+  }
 
   .inf-role {
     position: absolute;

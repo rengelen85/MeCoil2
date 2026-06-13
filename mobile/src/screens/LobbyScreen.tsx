@@ -141,6 +141,57 @@ export default function LobbyScreen(_props: Props) {
             </View>
           )}
 
+          {gameConfig.mode === GAME_MODES.DOMINATION && (
+            <View>
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Points to win</Text>
+                <TextInput
+                  style={styles.settingInput}
+                  keyboardType="numeric"
+                  defaultValue={String(gameConfig.scoreLimit ?? 1000)}
+                  onEndEditing={e => {
+                    const n = Number(e.nativeEvent.text);
+                    if (!Number.isNaN(n)) sendGameConfig({ scoreLimit: n });
+                  }}
+                />
+              </View>
+              <View style={styles.settingRow}>
+                <Text style={styles.settingLabel}>Scoring tick (s)</Text>
+                <TextInput
+                  style={styles.settingInput}
+                  keyboardType="numeric"
+                  defaultValue={String(gameConfig.dominationTickSecs ?? 2)}
+                  onEndEditing={e => {
+                    const n = Number(e.nativeEvent.text);
+                    if (!Number.isNaN(n)) sendGameConfig({ dominationTickSecs: n });
+                  }}
+                />
+              </View>
+              <View style={styles.toggleRow}>
+                <Text style={styles.toggleLabel}>Deathstreak power-ups</Text>
+                <Switch
+                  value={gameConfig.deathstreakEnabled ?? false}
+                  onValueChange={v => sendGameConfig({ deathstreakEnabled: v })}
+                  trackColor={{ true: '#e63946' }}
+                />
+              </View>
+              {gameConfig.deathstreakEnabled && (
+                <View style={styles.settingRow}>
+                  <Text style={styles.settingLabel}>Deaths per reward</Text>
+                  <TextInput
+                    style={styles.settingInput}
+                    keyboardType="numeric"
+                    defaultValue={String(gameConfig.deathstreakCount ?? 3)}
+                    onEndEditing={e => {
+                      const n = Number(e.nativeEvent.text);
+                      if (!Number.isNaN(n)) sendGameConfig({ deathstreakCount: n });
+                    }}
+                  />
+                </View>
+              )}
+            </View>
+          )}
+
           <Text style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
             Combat Settings
           </Text>
