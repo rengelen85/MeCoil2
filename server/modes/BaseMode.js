@@ -249,6 +249,7 @@ export class BaseMode {
       lng: victim.lng,
     });
 
+    if (victim.respawnTimer) clearTimeout(victim.respawnTimer);
     victim.respawnTimer = setTimeout(
       () => this._respawn(victim),
       respawnSecs * 1_000,
@@ -261,6 +262,7 @@ export class BaseMode {
   }
 
   _respawn(player) {
+    if (this._ended) return;
     player.respawnTimer = null;
     player.hp = player.maxHp;
     player.ammo = this.config.bulletsPerMag ?? 30;
@@ -339,6 +341,8 @@ export class BaseMode {
   }
 
   _detonateAirstrike(deployer, id, lat, lng) {
+    if (this._ended) return;
+
     const victims = [];
     for (const p of this.players.values()) {
       if (!p.isAlive || p.lat === null) continue;
@@ -362,6 +366,7 @@ export class BaseMode {
     });
 
     for (const victim of victims) {
+      if (this._ended) break;
       victim.hp = 0;
       victim.timesHit++;
       this.broadcast({
