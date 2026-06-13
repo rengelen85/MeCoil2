@@ -1,10 +1,31 @@
 .PHONY: install dev dev-server dev-client build start test gen-certs phone-test lint fmt
 
+# Install all dependencies and generate certs
+init: install-prereqs install gen-certs
+	sudo chown -R $$USER:$$USER .
+
+# Install Node.js (Ubuntu/Debian) & mkcert
+install-prereqs:
+	sudo apt update
+	sudo apt install nodejs
+	sudo apt install npm
+	sudo apt install openssl libssl-dev -y
+
+# Check installed Node.js version
+check-prereqs:
+	@node -v
+	@npm -v
+	@openssl version -a
+
 # First-time setup: install all dependencies
 install:
 	npm install
 	npm install --prefix client
-	mkdir -p certs
+
+uninstall:
+	npm uninstall
+	npm uninstall --prefix client
+	sudo rm -rf client/node_modules node_modules package-lock.json
 
 # Run server + Vite client together (requires concurrently)
 dev:
@@ -31,14 +52,15 @@ start:
 test:
 	npm test
 
-# Generate locally-trusted HTTPS certs via mkcert
-# Install mkcert first: winget install mkcert  (Windows)
-#                       brew install mkcert     (macOS)
-#                       apt install mkcert      (Linux)
+# Generate self-signed HTTPS certs via openssl
 gen-certs:
 	mkdir -p certs
-	mkcert -install
-	mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mecoil.local
+	openssl req -x509 -nodes -days 365 \
+        -newkey rsa:2048 \
+        -keyout certs/key.pem \
+        -out certs/cert.pem \
+        -subj "/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,DNS:mecoil.local"
 
 # Lint all JS/TS/Svelte sources (Biome)
 lint:
