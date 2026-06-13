@@ -48,6 +48,7 @@ import {
   lastHitAt,
   lastShotHitAt,
   myId,
+  myPlayer,
   myScore,
   radarActive,
   radarCountdown,
@@ -204,6 +205,13 @@ $: modeLabel =
           ? 'DOM'
           : 'INF';
 
+$: isTeamMode =
+  $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH ||
+  $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ||
+  $gameConfig.mode === GAME_MODES.DOMINATION;
+
+$: myTeam = $myPlayer?.team ?? null;
+
 // CTF: captures from the score for quick display in the top bar
 $: ctfCaptures =
   $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG && $ctfState
@@ -226,6 +234,9 @@ $: immunityActive =
   <!-- Top HUD bar -->
   <div class="hud-top">
     <div class="mode-badge">{modeLabel}</div>
+    {#if isTeamMode && myTeam && myTeam !== 'none'}
+      <div class="team-badge team-badge-{myTeam}">{myTeam.toUpperCase()}</div>
+    {/if}
     <div class="timer" class:urgent={$timeRemaining <= 30}>
       {formatTime($timeRemaining)}
     </div>
@@ -443,6 +454,24 @@ $: immunityActive =
     font-weight: 700;
     letter-spacing: 2px;
     color: var(--accent);
+  }
+
+  .team-badge {
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+  .team-badge-red {
+    background: rgba(255,82,82,0.2);
+    border: 1px solid rgba(255,82,82,0.7);
+    color: #ff5252;
+  }
+  .team-badge-blue {
+    background: rgba(68,138,255,0.2);
+    border: 1px solid rgba(68,138,255,0.7);
+    color: #448aff;
   }
 
   .timer {
