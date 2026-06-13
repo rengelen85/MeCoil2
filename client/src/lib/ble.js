@@ -115,6 +115,12 @@ export function bleErrorMessage(e) {
 export async function connectBle() {
   await gun.connect();
 
+  if (gun.gunModel !== 'unknown') {
+    console.info(
+      `Connected to ${gun.gunModel} (firmware ${gun.firmwareVersion}).`,
+    );
+  }
+
   gun.on('triggerBtn', _onTrigger);
   gun.on('reloadBtn', _onReload);
   gun.on('powerBtn', _onResetBtn);
@@ -151,6 +157,15 @@ export async function applyGunAssignment(slotId, profile = DEFAULT_PROFILE) {
   gun.loadClip(mag);
   ammo.set(mag);
   maxAmmo.set(mag);
+
+  // Confirm the gun actually latched its shooter ID (SYNC). Non-fatal: if the
+  // gun never echoes the assigned id back, hits would be misattributed, so we
+  // surface a warning rather than failing silently.
+  if (!(await gun.confirmGunId(slotId))) {
+    console.warn(
+      `Gun did not confirm shooter ID ${slotId}; hits may be misattributed.`,
+    );
+  }
 }
 
 // Switch the connected gun's fire mode (a key of GUN_MODES). Rewrites the active
