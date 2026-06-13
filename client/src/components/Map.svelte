@@ -17,11 +17,24 @@ import {
   teammates,
 } from '../stores/map.js';
 
+const TILE_LAYERS = {
+  dark:    { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',             maxZoom: 19, subdomains: 'abcd' },
+  voyager: { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',  maxZoom: 19, subdomains: 'abcd' },
+  light:   { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',            maxZoom: 19, subdomains: 'abcd' },
+  osm:     { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',                        maxZoom: 19, subdomains: 'abc'  },
+};
+const STYLE_CYCLE = ['dark', 'voyager', 'light', 'osm'];
+const STYLE_ICON  = { dark: '🌑', voyager: '🌤️', light: '☀️', osm: '🗺️' };
+const STYLE_LABEL = { dark: 'Dark', voyager: 'Voyager', light: 'Light', osm: 'Standard' };
+
 let mapEl;
 let map;
+let tileLayer;
 let myMarker;
 let compassRose;
 let unsubscribers = [];
+const _saved = localStorage.getItem('mapStyle');
+let mapStyle = STYLE_CYCLE.includes(_saved) ? _saved : 'voyager';
 const teamMarkers = new Map();
 const enemyMarkers = new Map();
 const powerupMarkers = new Map();
@@ -77,14 +90,21 @@ $: if ($heading !== null) {
   mapEl.style.transform = 'translate(-50%, -50%)';
 }
 
+function toggleMapStyle() {
+  const idx = STYLE_CYCLE.indexOf(mapStyle);
+  mapStyle = STYLE_CYCLE[(idx + 1) % STYLE_CYCLE.length];
+  localStorage.setItem('mapStyle', mapStyle);
+  if (!tileLayer) return;
+  tileLayer.setUrl(TILE_LAYERS[mapStyle].url);
+}
+
 onMount(async () => {
   const L = (await import('leaflet')).default;
   await import('leaflet/dist/leaflet.css');
 
   map = L.map(mapEl, { zoomControl: true, attributionControl: false });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-  }).addTo(map);
+  const cfg = TILE_LAYERS[mapStyle];
+  tileLayer = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, subdomains: cfg.subdomains }).addTo(map);
 
   // Player's own marker: circle + direction cone
   const myIcon = L.divIcon({
@@ -583,6 +603,11 @@ onDestroy(() => {
 <div class="map-root">
   <div bind:this={mapEl} class="map-container"></div>
 
+  <!-- Map style toggle (dark / light) -->
+  <button class="map-style-toggle" on:click={toggleMapStyle} title="{STYLE_LABEL[mapStyle]} — click to cycle">
+    {STYLE_ICON[mapStyle]}
+  </button>
+
   <!-- Compass: only shown when device orientation is available -->
   {#if $heading !== null}
     <div class="compass-wrap">
@@ -646,6 +671,31 @@ onDestroy(() => {
     left: 50%;
     transform-origin: center;
     transform: translate(-50%, -50%);
+  }
+
+  /* Dark/light tile toggle */
+  .map-style-toggle {
+    position: absolute;
+    bottom: 110px;
+    left: 12px;
+    z-index: 500;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(13,13,15,0.82);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    transition: background 0.15s;
+  }
+  .map-style-toggle:hover {
+    background: rgba(40,40,45,0.95);
   }
 
   /* Compass widget */
