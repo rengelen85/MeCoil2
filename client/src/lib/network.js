@@ -259,7 +259,9 @@ function _handle(msg) {
       break;
 
     case S2C.GAME_STARTED: {
-      const slot = msg.gunAssignments?.[get(myId)] ?? 0;
+      // Use the server's assignment for this player; null (not a fabricated 0)
+      // if absent, so a missing assignment never masquerades as the host's slot.
+      const slot = msg.gunAssignments?.[get(myId)] ?? null;
       gunSlotId.set(slot);
       gameConfig.set({
         mode: msg.mode,

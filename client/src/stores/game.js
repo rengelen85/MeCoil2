@@ -61,7 +61,10 @@ export const reloadDelaySecs = writable(3);
 
 // BLE connection state — persists across game resets
 export const bleConnected = writable(false);
-export const gunSlotId = writable(0);
+// null until the server assigns a slot in GAME_STARTED. Never default to a real
+// slot (0): that is the host's slot, and assuming it makes hits between this
+// player and the host resolve as self-hits the server drops.
+export const gunSlotId = writable(null);
 export const activeGunMode = writable('auto'); // key of GUN_MODES; updated by BLE and on-screen toggle
 
 // CTF mode state
