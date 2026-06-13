@@ -23,6 +23,7 @@ Players connect from the browser on their phones. No app to install. A full nati
 | mkcert | any | For HTTPS — required for BLE and GPS on phones |
 
 **Install mkcert:**
+
 - macOS: `brew install mkcert`
 - Linux: `apt install libnss3-tools && brew install mkcert` or download from [github.com/FiloSottile/mkcert](https://github.com/FiloSottile/mkcert)
 - Windows: `winget install mkcert`
@@ -65,9 +66,11 @@ BLE, GPS, and the device compass all require HTTPS. The `gen-certs` step above g
 **One-time phone setup (do this once per device):**
 
 1. On the machine running the server, run:
+
    ```sh
    mkcert -CAROOT
    ```
+
    This prints the folder where `rootCA.pem` lives.
 
 2. Transfer `rootCA.pem` to the phone (AirDrop, USB, email, etc.).
@@ -207,7 +210,7 @@ When a player's WiFi drops, the client automatically reconnects with exponential
 
 ## Project Structure
 
-```
+```text
 MeCoil/
 ├── server/           # Node.js game server and game modes
 ├── client/           # Vite + Svelte web client
@@ -276,6 +279,7 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
 ### Adding a game mode
 
 1. Create `server/modes/MyMode.js` extending `BaseMode`:
+
    ```js
    import { BaseMode } from './BaseMode.js';
    export class MyMode extends BaseMode {
@@ -285,6 +289,7 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
      _checkWinCondition(scorer, limit) { /* return bool */ }
    }
    ```
+
 2. Add a constant to `shared/messages.js` → `GAME_MODES`.
 3. Import and instantiate in `GameManager._startGame()`.
 4. Add a `<option>` for it in `client/src/screens/Lobby.svelte`.

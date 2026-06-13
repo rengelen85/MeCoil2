@@ -1,6 +1,6 @@
 # RecoilGun BLE Protocol
 
-Markdown based BLE protocol documentation, extracted from https://github.com/SkyRocketToys/Recoil_Documentation/blob/master/Recoil_Protocol_BLE.docx
+Markdown based BLE protocol documentation, extracted from <https://github.com/SkyRocketToys/Recoil_Documentation/blob/master/Recoil_Protocol_BLE.docx>
 
 ## Introduction
 
@@ -29,6 +29,7 @@ Example breakdown of a data chunk:
 | 3rd bits | U8 | |
 
 ### Data Types
+
 - **U4** = Unsigned 4-bit
 - **U8** = Unsigned 8-bit
 - **U16** = Unsigned 16-bit (little-endian)
@@ -41,6 +42,7 @@ Example breakdown of a data chunk:
 ## Protocol
 
 ### BLE Advertising
+
 - Interval: **187.5 ms**
 - Contains:
   - Connectable flag
@@ -48,6 +50,7 @@ Example breakdown of a data chunk:
   - Device Name
 
 #### Device Name Format
+
 - Normal: `SRG1_<UUID>`
 - Bootloader:
   - `SRB1_XXXXXX` (rifle)
@@ -58,6 +61,7 @@ Example breakdown of a data chunk:
 ## BLE Services
 
 The device implements:
+
 - `1800` (Generic Access)
 - `180A` (Device Information)
 - **RecoilGun Service**
@@ -119,6 +123,7 @@ GUID: `E6F59D12-...`
 | Voltage | S16 | Battery voltage (mV) |
 
 ### Button Bitmask
+
 - `0x01` Trigger  
 - `0x02` Reload  
 - `0x04` Walkie-talkie  
@@ -129,12 +134,14 @@ GUID: `E6F59D12-...`
 ### IR Events
 
 Includes:
+
 - Shooter ID
 - Weapon type
 - Shot counter
 - Sensor source
 
 Used for:
+
 - Hit detection
 - Duplicate filtering
 - Player identification
@@ -252,4 +259,5 @@ Uses TLV format:
 - Trigger modes define firing behavior
 
 ---
+
 ``

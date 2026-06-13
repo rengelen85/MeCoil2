@@ -1,6 +1,6 @@
 # RecoilGun Firmware Configuration Guide
 
-Markdown based RecoilGun Firmware Configuration Guide, extracted from https://github.com/SkyRocketToys/Recoil_Documentation/blob/master/Recoil_Gun_Firmware_Config_Guide.docx
+Markdown based RecoilGun Firmware Configuration Guide, extracted from <https://github.com/SkyRocketToys/Recoil_Documentation/blob/master/Recoil_Gun_Firmware_Config_Guide.docx>
 
 ## Introduction
 
