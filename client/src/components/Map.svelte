@@ -471,7 +471,7 @@ onMount(async () => {
     }
   });
 
-  const DOM_ZONE_RADIUS_M = 15;
+  const DOM_ZONE_RADIUS_M = 7.5;
   const DOM_ZONE_COLORS = { red: '#ff5252', blue: '#448aff', neutral: '#9e9e9e' };
 
   function domZoneIcon(zone) {
