@@ -112,6 +112,47 @@ export function bleErrorMessage(e) {
   return `Could not connect: ${e.message}`;
 }
 
+let _reconnectTimer = null;
+
+function _setupGunHandlers() {
+  gun.on('triggerBtn', _onTrigger);
+  gun.on('reloadBtn', _onReload);
+  gun.on('powerBtn', _onResetBtn);
+  gun.on('irEvent', _onIrEvent);
+  gun.on('ammoChanged', (count) => {
+    ammo.set(count);
+    maxAmmo.set(magazineSize());
+  });
+  gun.on('disconnected', () => {
+    bleConnected.set(false);
+    _scheduleReconnect();
+  });
+}
+
+function _scheduleReconnect() {
+  if (_reconnectTimer) return;
+  _reconnectTimer = setTimeout(_doReconnect, 2000);
+}
+
+async function _doReconnect() {
+  _reconnectTimer = null;
+  if (get(bleConnected)) return;
+  try {
+    const ok = await gun.reconnect();
+    if (!ok) { _scheduleReconnect(); return; }
+    await gun.startTelemetry();
+    bleConnected.set(true);
+    const slotId = get(gunSlotId);
+    if (slotId !== null && slotId !== undefined) {
+      const modeBeforeReconnect = _activeMode;
+      await applyGunAssignment(slotId, _activeProfile);
+      if (modeBeforeReconnect !== 'auto') await setGunMode(modeBeforeReconnect);
+    }
+  } catch {
+    _scheduleReconnect();
+  }
+}
+
 export async function connectBle() {
   await gun.connect();
 
@@ -121,18 +162,31 @@ export async function connectBle() {
     );
   }
 
-  gun.on('triggerBtn', _onTrigger);
-  gun.on('reloadBtn', _onReload);
-  gun.on('powerBtn', _onResetBtn);
-  gun.on('irEvent', _onIrEvent);
-  gun.on('ammoChanged', (count) => {
-    ammo.set(count);
-    maxAmmo.set(magazineSize());
-  });
-  gun.on('disconnected', () => bleConnected.set(false));
-
+  _setupGunHandlers();
   await gun.startTelemetry();
   bleConnected.set(true);
+}
+
+// Silently reconnect to the last-used gun without showing the BLE picker.
+// Returns true if the gun was found and connected, false otherwise.
+// Requires Chrome 85+ (navigator.bluetooth.getDevices).
+export async function tryAutoReconnectBle() {
+  if (!isBleAvailable()) return false;
+  try {
+    const ok = await gun.tryAutoConnect();
+    if (!ok) return false;
+    if (gun.gunModel !== 'unknown') {
+      console.info(
+        `Auto-reconnected to ${gun.gunModel} (firmware ${gun.firmwareVersion}).`,
+      );
+    }
+    _setupGunHandlers();
+    await gun.startTelemetry();
+    bleConnected.set(true);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Called from InGame.svelte after the game starts and the server assigns a gun slot.

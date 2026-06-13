@@ -1,5 +1,6 @@
 <script>
 import { onMount } from 'svelte';
+import { tryAutoReconnectBle } from './lib/ble.js';
 import { connect, sendRegister, sendRejoin } from './lib/network.js';
 import EndScreen from './screens/EndScreen.svelte';
 import InGame from './screens/InGame.svelte';
@@ -14,6 +15,9 @@ import {
 } from './stores/game.js';
 
 onMount(async () => {
+  // Silently reconnect to the last-used gun (no picker, no error on failure).
+  tryAutoReconnectBle();
+
   const { username: savedUsername, playerId: savedPlayerId } = loadSession();
   if (savedUsername) {
     username.set(savedUsername);
