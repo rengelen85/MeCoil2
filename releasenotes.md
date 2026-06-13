@@ -43,6 +43,7 @@ MeCoil's first stable release — a complete open-source replacement for the dis
 ### Documentation
 
 Hardware protocol references included in `docs/`:
+
 - BLE service/characteristic layout (ID, Telemetry, Control, Config)
 - IR packet format and encoding
 - Weapon configuration guide

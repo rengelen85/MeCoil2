@@ -1,6 +1,6 @@
 # Infrared Protocol for the Recoil Gun
 
-Markdown based IR protocol documentation, extracted from https://github.com/SkyRocketToys/Recoil_Documentation/blob/master/Recoil_Protocol_IR.docx
+Markdown based IR protocol documentation, extracted from <https://github.com/SkyRocketToys/Recoil_Documentation/blob/master/Recoil_Protocol_IR.docx>
 
 ## Overview
 
@@ -11,9 +11,11 @@ This document defines the **Infrared (IR) communication protocol** used by the R
 ## Hardware Details
 
 ### Transmitter
+
 - LED: Vishay TSAL6100 (940nm)
 
 ### Receiver
+
 - Vishay TSOP53338
   - 38kHz carrier
   - 13.16µs on/off
@@ -21,6 +23,7 @@ This document defines the **Infrared (IR) communication protocol** used by the R
   - 10-cycle minimum gap (263µs)
 
 ### Alternative Receivers
+
 - TSOP4838
 - YL20170309-366Y
 
@@ -29,12 +32,14 @@ This document defines the **Infrared (IR) communication protocol** used by the R
 ## Protocol Options
 
 ### Timing
+
 - Uses Manchester encoding
 - Supported timings:
   - 400µs / 800µs
   - 600µs (increased range)
 
 Polling resolution:
+
 - 50µs interrupt (20kHz)
 
 ---
@@ -58,10 +63,12 @@ Polling resolution:
 ### Encoding Types
 
 #### NEC Encoding
+
 - 0 → `MS`
 - 1 → `MSSS`
 
 #### Manchester Encoding
+
 - 0 → `SM`
 - 1 → `MS`
 
@@ -103,6 +110,7 @@ Polling resolution:
 ## Rounds in Shot
 
 Used to represent:
+
 - Damage
 - Simulated fire rate
 
@@ -111,6 +119,7 @@ Used to represent:
 ## Packet Spacing
 
 To avoid receiver saturation:
+
 - Example strategy:
   - burst packets every 30ms
   - pause 100ms
@@ -176,6 +185,7 @@ To avoid receiver saturation:
 - 4-bit CRC
 
 #### Encoding
+
 - 0 → `MS`
 - 1 → `MSS`
 
@@ -195,6 +205,7 @@ To avoid receiver saturation:
 - 4-bit payload
 
 #### Format
+
 - Header: same as NEC12
 - Stop bit included
 
