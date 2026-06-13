@@ -475,7 +475,9 @@ $: immunityActive =
   }
 
   .timer {
-    flex: 1;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
     text-align: center;
     font-size: 28px;
     font-weight: 900;
