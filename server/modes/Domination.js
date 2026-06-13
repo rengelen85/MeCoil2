@@ -2,7 +2,7 @@ import { POWERUP_TYPES, S2C, TEAMS } from '../../shared/messages.js';
 import { BaseMode } from './BaseMode.js';
 
 // Radius (metres) a player must be within to contest or capture a zone.
-const ZONE_RADIUS_M = 15;
+const ZONE_RADIUS_M = 5;
 
 // controlValue progress gained per alive player per second while uncontested.
 // One player alone caps a neutral zone in 1 / 0.05 = 20 seconds.

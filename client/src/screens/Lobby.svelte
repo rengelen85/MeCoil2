@@ -582,7 +582,11 @@ function updateConfig(field, value) {
   if (field === 'mode') parsed = value;
   else if (field === 'friendlyFire') parsed = value;
   else parsed = Number(value);
-  sendGameConfig({ ...$gameConfig, [field]: parsed });
+  const update = { ...$gameConfig, [field]: parsed };
+  if (field === 'mode') {
+    update.scoreLimit = parsed === GAME_MODES.DOMINATION ? 1000 : 5;
+  }
+  sendGameConfig(update);
 }
 
 // Countdown ticker
