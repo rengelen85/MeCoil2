@@ -109,15 +109,37 @@ class RecoilGun {
   }
 
   async _tryAutoConnect() {
-    if (!navigator.bluetooth?.getDevices) return false;
+    if (!navigator.bluetooth?.getDevices) {
+      console.info('[BLE] getDevices() not available — browser may not support it');
+      return false;
+    }
     const devices = await navigator.bluetooth.getDevices();
+    if (!devices.length) {
+      console.info('[BLE] No previously-granted devices found');
+      return false;
+    }
     const lastName = localStorage.getItem(BLE_LAST_DEVICE_KEY) ?? '';
-    const device = devices.find(
-      (d) => d.name?.startsWith('SRG') && (!lastName || d.name === lastName),
-    );
-    if (!device) return false;
-    await this._connect(device);
-    return true;
+    const device =
+      devices.find((d) => lastName && d.name === lastName) ??
+      devices.find((d) => d.name?.startsWith('SRG'));
+    if (!device) {
+      console.info('[BLE] No SRG device in granted list — found:', devices.map(d => d.name));
+      return false;
+    }
+    console.info(`[BLE] Attempting auto-connect to ${device.name}…`);
+    // After a page refresh the gun may need a moment to drop the previous
+    // connection and start advertising again. Retry up to 3 times with a
+    // short delay so transient failures don't silently prevent reconnection.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await this._connect(device);
+        return true;
+      } catch (e) {
+        console.info(`[BLE] Auto-connect attempt ${attempt}/3 failed:`, e.message ?? e);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 3000));
+      }
+    }
+    return false;
   }
 
   async _reconnect() {
@@ -251,6 +273,10 @@ class RecoilGun {
 
   _disconnect() {
     this.isConnected = false;
+    // Discard any pending queue items — they'd fail against a dead GATT server
+    // and leave _WORKING=true, which would block the subsequent reconnect call.
+    this._QUEUE.length = 0;
+    this._WORKING = false;
     this._EVENTS.disconnected?.();
   }
 
@@ -416,7 +442,7 @@ class RecoilGun {
         return;
       }
       this._WORKING = true;
-      this._QUEUE.shift()().then(run);
+      this._QUEUE.shift()().then(run, run);
     };
     this._QUEUE.push(fn);
     if (!this._WORKING) run();

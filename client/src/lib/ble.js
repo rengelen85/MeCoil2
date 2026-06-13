@@ -171,20 +171,26 @@ export async function connectBle() {
 // Returns true if the gun was found and connected, false otherwise.
 // Requires Chrome 85+ (navigator.bluetooth.getDevices).
 export async function tryAutoReconnectBle() {
-  if (!isBleAvailable()) return false;
+  if (!isBleAvailable()) {
+    console.info('[BLE] Web Bluetooth not available in this browser');
+    return false;
+  }
+  console.info('[BLE] Attempting silent auto-connect…');
   try {
     const ok = await gun.tryAutoConnect();
-    if (!ok) return false;
-    if (gun.gunModel !== 'unknown') {
-      console.info(
-        `Auto-reconnected to ${gun.gunModel} (firmware ${gun.firmwareVersion}).`,
-      );
+    if (!ok) {
+      console.info('[BLE] Auto-connect: no suitable device found or all attempts failed');
+      return false;
     }
+    console.info(
+      `[BLE] Auto-connected to ${gun.gunModel} (firmware ${gun.firmwareVersion}).`,
+    );
     _setupGunHandlers();
     await gun.startTelemetry();
     bleConnected.set(true);
     return true;
-  } catch {
+  } catch (e) {
+    console.info('[BLE] Auto-connect threw unexpectedly:', e);
     return false;
   }
 }
