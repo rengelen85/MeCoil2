@@ -38,11 +38,17 @@ gen-certs:
 
 # Lint all JS/TS/Svelte sources (Biome)
 lint:
+	uv run --with rumdl \
+	rumdl check --disable MD013
+	npx biome format .
 	npx biome check .
 
 # Auto-format all JS/TS/Svelte sources (Biome primary).
 # Svelte fallback: npx prettier --write "client/src/**/*.svelte"
 fmt:
+	uv run --with rumdl \
+	rumdl check --fix --disable MD013
+	npx biome format --write .
 	npx biome check --write .
 
 # Build + start HTTPS server for real-phone testing (Web Bluetooth requires HTTPS).
