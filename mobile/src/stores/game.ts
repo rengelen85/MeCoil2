@@ -142,8 +142,8 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   gameState: GAME_STATES.WAITING,
   gameConfig: {
     mode: GAME_MODES.FFA,
-    timeLimit: 7,
-    scoreLimit: 20,
+    timeLimit: 15,
+    scoreLimit: 5,
     bulletsPerMag: 30,
     hpPerPlayer: 100,
     reloadDelaySecs: 3,

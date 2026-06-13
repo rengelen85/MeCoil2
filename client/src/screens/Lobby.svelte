@@ -47,7 +47,7 @@ let baseSetError = '';
 
 // Game area editing state (host only)
 let areaType = 'none'; // 'none' | 'circle' | 'polygon'
-let areaRadius = 200; // metres for circle
+let areaRadius = 60; // metres for circle
 let areaCorners = []; // [{lat, lng}] for polygon
 let settingAreaCenter = false;
 let addingCorner = false;

@@ -11,8 +11,8 @@ export const username = writable('');
 export const gameState = writable(GAME_STATES.WAITING);
 export const gameConfig = writable({
   mode: GAME_MODES.FFA,
-  timeLimit: 7,
-  scoreLimit: 20,
+  timeLimit: 15,
+  scoreLimit: 5,
   bulletsPerMag: 30,
   hpPerPlayer: 100,
   reloadDelaySecs: 3,
