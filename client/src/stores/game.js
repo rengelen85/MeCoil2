@@ -11,12 +11,16 @@ export const username = writable('');
 export const gameState = writable(GAME_STATES.WAITING);
 export const gameConfig = writable({
   mode: GAME_MODES.FFA,
-  timeLimit: 7,
-  scoreLimit: 20,
+  timeLimit: 15,
+  scoreLimit: 5,
   bulletsPerMag: 30,
   hpPerPlayer: 100,
   reloadDelaySecs: 3,
   respawnDelaySecs: 10,
+  // Domination-specific (ignored by other modes)
+  dominationTickSecs: 2,
+  deathstreakEnabled: false,
+  deathstreakCount: 3,
 });
 export const players = writable([]);
 export const hostId = writable(null);
@@ -69,6 +73,9 @@ export const ctfState = writable(null); // { flags: { red, blue }, captures: { r
 
 // Infection mode state
 export const infectionState = writable(null); // { infectedIds: [], immunePlayers: {} }
+
+// Domination mode state
+export const dominationState = writable(null); // { zones: [...], teamPoints: { red, blue } }
 
 // Optional play area boundary — null | { type:'circle', lat, lng, radiusM } | { type:'polygon', points:[{lat,lng}] }
 export const gameArea = writable(null);
@@ -141,18 +148,25 @@ export function resetGame() {
   lastShotHitAt.set(null);
   ctfState.set(null);
   infectionState.set(null);
+  dominationState.set(null);
 }
 
-export function saveSession(name) {
+export function saveSession(name, playerId) {
   localStorage.setItem('mecoil_username', name);
+  if (playerId != null) {
+    localStorage.setItem('mecoil_player_id', String(playerId));
+  }
 }
 
 export function loadSession() {
-  return localStorage.getItem('mecoil_username');
+  const name = localStorage.getItem('mecoil_username');
+  const rawId = localStorage.getItem('mecoil_player_id');
+  return { username: name, playerId: rawId != null ? Number(rawId) : null };
 }
 
 export function clearSession() {
   localStorage.removeItem('mecoil_username');
+  localStorage.removeItem('mecoil_player_id');
   username.set('');
   myId.set(null);
   screen.set('setup');

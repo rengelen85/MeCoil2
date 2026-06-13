@@ -12,7 +12,8 @@ import {
 
 $: isTDM = $gameConfig.mode === GAME_MODES.TEAM_DEATHMATCH;
 $: isCTF = $gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG;
-$: isTeamMode = isTDM || isCTF;
+$: isDomination = $gameConfig.mode === GAME_MODES.DOMINATION;
+$: isTeamMode = isTDM || isCTF || isDomination;
 $: winnerLabel = isTeamMode
   ? $winner === 'draw'
     ? 'Draw!'
@@ -39,10 +40,10 @@ function playAgain() {
     <h2>Final Scores</h2>
     {#if isTeamMode && $finalScores}
       {#each $finalScores as team}
-        <div class="team-section team-{team.team}">
+        <div class="team-section team-{team.team}" class:team-winner={$winner === team.team}>
           <div class="team-header">
-            <span>{team.team.toUpperCase()}</span>
-            <span>{isCTF ? `${team.captures} captures` : `${team.kills} kills`}</span>
+            <span>{team.team.toUpperCase()}{$winner === team.team ? ' ★' : ''}</span>
+            <span>{isCTF ? `${team.captures} captures` : isDomination ? `${team.points} pts` : `${team.kills} kills`}</span>
           </div>
           {#each team.players as p}
             <div class="score-row" class:is-me={p.id === $myId}>
@@ -112,7 +113,7 @@ function playAgain() {
   .team-header {
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 1px;
     padding: 4px 0 8px;
@@ -121,6 +122,13 @@ function playAgain() {
   }
   .team-section.team-red .team-header { color: #ff5252; }
   .team-section.team-blue .team-header { color: #448aff; }
+  .team-section.team-winner {
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 8px 10px 2px;
+    margin-left: -10px;
+    margin-right: -10px;
+  }
 
   .scores-card { max-width: 420px; }
 

@@ -1,6 +1,7 @@
 <script>
 import { onMount } from 'svelte';
-import { connect, sendRegister } from './lib/network.js';
+import { tryAutoReconnectBle } from './lib/ble.js';
+import { connect, sendRegister, sendRejoin } from './lib/network.js';
 import EndScreen from './screens/EndScreen.svelte';
 import InGame from './screens/InGame.svelte';
 import Lobby from './screens/Lobby.svelte';
@@ -14,14 +15,21 @@ import {
 } from './stores/game.js';
 
 onMount(async () => {
-  const savedUsername = loadSession();
+  // Silently reconnect to the last-used gun (no picker, no error on failure).
+  tryAutoReconnectBle();
+
+  const { username: savedUsername, playerId: savedPlayerId } = loadSession();
   if (savedUsername) {
     username.set(savedUsername);
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const serverUrl = `${proto}://${location.host}/ws`;
     try {
       await connect(serverUrl);
-      sendRegister(savedUsername);
+      if (savedPlayerId) {
+        sendRejoin(savedPlayerId, savedUsername);
+      } else {
+        sendRegister(savedUsername);
+      }
     } catch (e) {
       console.error('Failed to restore session:', e);
     }

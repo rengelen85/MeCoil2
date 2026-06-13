@@ -7,6 +7,7 @@ import {
   TEAMS,
 } from '../shared/messages.js';
 import { CaptureTheFlag } from './modes/CaptureTheFlag.js';
+import { Domination } from './modes/Domination.js';
 import { FFA } from './modes/FFA.js';
 import { Infection } from './modes/Infection.js';
 import { TeamDeathmatch } from './modes/TeamDeathmatch.js';
@@ -24,8 +25,8 @@ export class GameManager {
     this.state = GAME_STATES.WAITING;
     this.config = {
       mode: GAME_MODES.FFA,
-      timeLimit: 7,
-      scoreLimit: 20,
+      timeLimit: 15,
+      scoreLimit: 5,
       friendlyFire: false,
       // Host-tunable gameplay settings
       bulletsPerMag: 30,
@@ -34,6 +35,11 @@ export class GameManager {
       respawnDelaySecs: 10,
       // Optional play area: null | { type:'circle', lat, lng, radiusM } | { type:'polygon', points:[{lat,lng}] }
       gameArea: null,
+      // Domination-specific (ignored by other modes)
+      domZones: [], // [{ id:'A'|'B'|'C', lat, lng }]
+      dominationTickSecs: 2,
+      deathstreakEnabled: false,
+      deathstreakCount: 3,
     };
     this._mode = null;
     this._roundId = null;
@@ -162,6 +168,21 @@ export class GameManager {
         this._broadcastLobby();
         break;
 
+      case C2S.SET_DOM_ZONE: {
+        if (player.id !== this._hostId) return;
+        if (this.config.mode !== GAME_MODES.DOMINATION) return;
+        if (!['A', 'B', 'C'].includes(msg.zoneId)) return;
+        if (typeof msg.lat !== 'number' || typeof msg.lng !== 'number') return;
+        const zones = [...(this.config.domZones ?? [])];
+        const idx = zones.findIndex((z) => z.id === msg.zoneId);
+        const newZone = { id: msg.zoneId, lat: msg.lat, lng: msg.lng };
+        if (idx >= 0) zones[idx] = newZone;
+        else zones.push(newZone);
+        this.config.domZones = zones;
+        this._broadcastLobby();
+        break;
+      }
+
       case C2S.SET_GAME_AREA: {
         if (player.id !== this._hostId) return;
         const area = msg.area ?? null;
@@ -222,7 +243,8 @@ export class GameManager {
         if (this.state !== GAME_STATES.WAITING) return;
         if (
           this.config.mode !== GAME_MODES.TEAM_DEATHMATCH &&
-          this.config.mode !== GAME_MODES.CAPTURE_THE_FLAG
+          this.config.mode !== GAME_MODES.CAPTURE_THE_FLAG &&
+          this.config.mode !== GAME_MODES.DOMINATION
         )
           return;
         if (player.team === TEAMS.RED) player.team = TEAMS.BLUE;
@@ -315,6 +337,7 @@ export class GameManager {
         [GAME_MODES.TEAM_DEATHMATCH]: TeamDeathmatch,
         [GAME_MODES.CAPTURE_THE_FLAG]: CaptureTheFlag,
         [GAME_MODES.INFECTION]: Infection,
+        [GAME_MODES.DOMINATION]: Domination,
       }[this.config.mode] ?? FFA;
     this._mode = new ModeClass(
       this.players,

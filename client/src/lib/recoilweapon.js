@@ -30,6 +30,8 @@ let lastButtonCount = {
 const irDeduper = createIrDeduper();
 let packetCounter = null;
 
+const BLE_LAST_DEVICE_KEY = 'ble_last_device';
+
 class RecoilGun {
   constructor() {
     this._EVENTS = {};
@@ -38,6 +40,9 @@ class RecoilGun {
     this._TELEMETRYCHAR = null;
     this._QUEUE = [];
     this._WORKING = false;
+    this._device = null;
+    this._onGattDisconnected = this._disconnect.bind(this);
+    this._onTelemetry = this._handleTelemetry.bind(this);
 
     this.gunSettings = {
       shotId: 0,
@@ -66,19 +71,102 @@ class RecoilGun {
     });
   }
 
-  async _connect() {
-    const device = await navigator.bluetooth.requestDevice({
-      filters: [{ namePrefix: 'SRG' }],
-      optionalServices: [SERVICE_UUID],
+  // Reconnect to the same physical device without showing a picker. Returns
+  // true on success, false if no stored device or connection fails.
+  tryAutoConnect() {
+    return new Promise((resolve, reject) => {
+      this._queue(() => this._tryAutoConnect().then(resolve).catch(reject));
     });
+  }
 
-    device.addEventListener(
-      'gattserverdisconnected',
-      this._disconnect.bind(this),
-    );
+  // Reconnect to the already-stored device reference (mid-session recovery).
+  // Returns true on success.
+  reconnect() {
+    return new Promise((resolve, reject) => {
+      this._queue(() => this._reconnect().then(resolve).catch(reject));
+    });
+  }
+
+  async _connect(providedDevice = null) {
+    let device = providedDevice;
+    if (!device) {
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'SRG' }],
+        optionalServices: [SERVICE_UUID],
+      });
+    }
+
+    this._device = device;
+    try {
+      localStorage.setItem(BLE_LAST_DEVICE_KEY, device.name ?? '');
+    } catch {}
+    device.addEventListener('gattserverdisconnected', this._onGattDisconnected);
+
     const server = await device.gatt.connect();
-    const service = await server.getPrimaryService(SERVICE_UUID);
+    await this._initFromServer(server);
 
+    irDeduper.reset();
+    this.acceptedGunId = null;
+    this.isConnected = true;
+  }
+
+  async _tryAutoConnect() {
+    if (!navigator.bluetooth?.getDevices) {
+      console.info(
+        '[BLE] getDevices() not available — browser may not support it',
+      );
+      return false;
+    }
+    const devices = await navigator.bluetooth.getDevices();
+    if (!devices.length) {
+      console.info('[BLE] No previously-granted devices found');
+      return false;
+    }
+    const lastName = localStorage.getItem(BLE_LAST_DEVICE_KEY) ?? '';
+    const device =
+      devices.find((d) => lastName && d.name === lastName) ??
+      devices.find((d) => d.name?.startsWith('SRG'));
+    if (!device) {
+      console.info(
+        '[BLE] No SRG device in granted list — found:',
+        devices.map((d) => d.name),
+      );
+      return false;
+    }
+    console.info(`[BLE] Attempting auto-connect to ${device.name}…`);
+    // After a page refresh the gun may need a moment to drop the previous
+    // connection and start advertising again. Retry up to 3 times with a
+    // short delay so transient failures don't silently prevent reconnection.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await this._connect(device);
+        return true;
+      } catch (e) {
+        console.info(
+          `[BLE] Auto-connect attempt ${attempt}/3 failed:`,
+          e.message ?? e,
+        );
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
+    return false;
+  }
+
+  async _reconnect() {
+    if (!this._device || this.isConnected) return false;
+    try {
+      const server = await this._device.gatt.connect();
+      await this._initFromServer(server);
+      irDeduper.reset();
+      this.isConnected = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async _initFromServer(server) {
+    const service = await server.getPrimaryService(SERVICE_UUID);
     this._CONTROLCHAR = await service.getCharacteristic(CONTROL_UUID);
     this._CONFIGCHAR = await service.getCharacteristic(CONFIG_UUID);
     this._TELEMETRYCHAR = await service.getCharacteristic(TELEMETRY_UUID);
@@ -94,10 +182,6 @@ class RecoilGun {
     } catch {
       this.gunModel = 'unknown';
     }
-
-    irDeduper.reset();
-    this.acceptedGunId = null;
-    this.isConnected = true;
   }
 
   startTelemetry() {
@@ -105,7 +189,7 @@ class RecoilGun {
       try {
         this._TELEMETRYCHAR.addEventListener(
           'characteristicvaluechanged',
-          this._handleTelemetry.bind(this),
+          this._onTelemetry,
         );
         this._queue(() =>
           this._TELEMETRYCHAR.startNotifications().then(resolve),
@@ -120,7 +204,7 @@ class RecoilGun {
     await this._TELEMETRYCHAR.stopNotifications();
     this._TELEMETRYCHAR.removeEventListener(
       'characteristicvaluechanged',
-      this._handleTelemetry.bind(this),
+      this._onTelemetry,
     );
   }
 
@@ -199,6 +283,10 @@ class RecoilGun {
 
   _disconnect() {
     this.isConnected = false;
+    // Discard any pending queue items — they'd fail against a dead GATT server
+    // and leave _WORKING=true, which would block the subsequent reconnect call.
+    this._QUEUE.length = 0;
+    this._WORKING = false;
     this._EVENTS.disconnected?.();
   }
 
@@ -364,7 +452,7 @@ class RecoilGun {
         return;
       }
       this._WORKING = true;
-      this._QUEUE.shift()().then(run);
+      this._QUEUE.shift()().then(run, run);
     };
     this._QUEUE.push(fn);
     if (!this._WORKING) run();

@@ -16,8 +16,8 @@ export class GameManager {
     this.state = GAME_STATES.WAITING;
     this.config = {
       mode: GAME_MODES.FFA,
-      timeLimit: 7,
-      scoreLimit: 20,
+      timeLimit: 15,
+      scoreLimit: 5,
       friendlyFire: false,
       // Host-tunable gameplay settings
       bulletsPerMag: 30,

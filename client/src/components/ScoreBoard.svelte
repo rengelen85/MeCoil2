@@ -6,10 +6,28 @@ $: mode = $gameConfig.mode;
 $: isTDM = mode === GAME_MODES.TEAM_DEATHMATCH;
 $: isCTF = mode === GAME_MODES.CAPTURE_THE_FLAG;
 $: isInfection = mode === GAME_MODES.INFECTION;
+$: isDomination = mode === GAME_MODES.DOMINATION;
 </script>
 
 <div class="scoreboard">
-  {#if isCTF}
+  {#if isDomination}
+    {#each $scores as team}
+      <div class="team-row team-{team.team}">
+        <span class="team-label">{team.team.toUpperCase()}</span>
+        <span class="team-points">🏆 {team.points}</span>
+        <div class="player-list">
+          {#each team.players as p}
+            <span class="player" class:is-me={p.id === $myId} class:dead={p.isAlive === false}>
+              {p.username} {p.kills}/{p.deaths}
+              {#if p.hp != null}
+                <span class="hp">{p.isAlive === false ? '☠' : `♥${p.hp}`}</span>
+              {/if}
+            </span>
+          {/each}
+        </div>
+      </div>
+    {/each}
+  {:else if isCTF}
     {#each $scores as team}
       <div class="team-row team-{team.team}">
         <span class="team-label">{team.team.toUpperCase()}</span>
@@ -99,6 +117,7 @@ $: isInfection = mode === GAME_MODES.INFECTION;
   .team-label { font-weight: 700; font-size: 11px; letter-spacing: 1px; }
   .team-kills { float: right; font-weight: 700; font-size: 15px; }
   .team-captures { float: right; font-weight: 700; font-size: 15px; }
+  .team-points { float: right; font-weight: 700; font-size: 15px; }
   .player-list { display: flex; flex-direction: column; gap: 2px; margin-top: 3px; }
   .player { font-size: 12px; color: #bbb; }
   .player.is-me { color: #fff; font-weight: 700; }

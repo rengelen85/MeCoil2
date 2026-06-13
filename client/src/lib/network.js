@@ -7,6 +7,7 @@ import {
   bulletsPerMag,
   countdownAt,
   ctfState,
+  dominationState,
   fastReloadActive,
   fastReloadCountdown,
   finalScores,
@@ -52,6 +53,7 @@ import {
   airstrikes,
   ctfBases,
   ctfFlags,
+  domZones,
   firingEnemies,
   graves,
   powerups,
@@ -146,6 +148,10 @@ export function sendRegister(name) {
   send({ type: C2S.REGISTER, username: name });
 }
 
+export function sendRejoin(playerId, name) {
+  send({ type: C2S.REJOIN, playerId, username: name });
+}
+
 export function sendListRooms() {
   send({ type: C2S.LIST_ROOMS });
 }
@@ -199,6 +205,10 @@ export function sendSetBase(team, lat, lng) {
   send({ type: C2S.SET_BASE, team, lat, lng });
 }
 
+export function sendSetDomZone(zoneId, lat, lng) {
+  send({ type: C2S.SET_DOM_ZONE, zoneId, lat, lng });
+}
+
 export function sendSetGameArea(area) {
   send({ type: C2S.SET_GAME_AREA, area });
 }
@@ -216,13 +226,14 @@ function _handle(msg) {
     case S2C.REGISTERED:
       isReconnecting.set(false);
       myId.set(msg.playerId);
-      saveSession(get(username));
+      saveSession(get(username), msg.playerId);
       screen.set('roomselect');
       break;
 
     case S2C.REJOIN_FAILED:
-      // Grace period expired — send REGISTER to start a fresh session
+      // Grace period expired — clear stored id and register fresh
       isReconnecting.set(false);
+      localStorage.removeItem('mecoil_player_id');
       send({ type: C2S.REGISTER, username: get(username) });
       break;
 
@@ -293,6 +304,7 @@ function _handle(msg) {
       graves.set([]);
       ctfBases.set({ red: null, blue: null });
       ctfFlags.set({ red: null, blue: null });
+      domZones.set([]);
       screen.set('ingame');
       break;
     }
@@ -311,6 +323,10 @@ function _handle(msg) {
       }
       if (msg.infectionState) {
         infectionState.set(msg.infectionState);
+      }
+      if (msg.dominationState) {
+        dominationState.set(msg.dominationState);
+        domZones.set(msg.dominationState.zones ?? []);
       }
       break;
 

@@ -132,6 +132,7 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mec
 | **Free for All (FFA)** | Every player for themselves, highest kills wins |
 | **Team Deathmatch (TDM)** | Red vs Blue, auto-balanced teams |
 | **Capture the Flag (CTF)** | Two-team mode: capture the enemy flag and return it to your base. Bases are set by the host using GPS, flags are picked up automatically when in proximity, and respawn happens by walking back to your own base |
+| **Domination** | Red vs Blue objective mode: capture and hold three GPS-placed zones (A, B, C) to score points over time. First team to the point limit wins. Includes optional deathstreak power-up rewards for the losing team |
 | **Infection** | Asymmetric survival: one random player starts infected and must tag survivors. Non-infected shots are ignored. Survivors win if they survive the timer; infected win if everyone is tagged. Only immunity power-ups spawn (one immunity absorbs a shot and grants a 20-second grace period) |
 
 #### Capture the Flag Details
@@ -142,6 +143,18 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mec
 - **Respawn**: Location-based — walk back to your own base (marked as a 15m circle on the map) to respawn, no timer
 - **Scoring**: Each successful capture increments your team's score; the HUD displays a red vs blue capture score bar
 - **Map display**: Colored base circles mark each team's base; flag icons change state (🚩 at base/dropped, 🏃 carried)
+
+#### Domination Details
+
+- **Setup**: Host walks to each of the three zone locations (A, B, C) and taps to set them by GPS. A and C are typically team-side zones; B is the contested center zone. Zones can be placed anywhere on the map
+- **Objective**: Capture and hold zones to earn points for your team every scoring tick (default 2 seconds). Points per tick = number of fully owned zones
+- **Capture mechanics**: Stand inside a zone's 15-metre radius to start capturing. Progress increases at 5% per second per player (20 seconds to fully capture with 1 player; faster with teammates). If both teams are present in a zone, it is **contested** and progress is frozen. An enemy zone must first be **neutralized** (pushed back to neutral) before it can be captured for your team
+- **Scoring**: Each fully owned zone adds 1 point to your team per scoring tick. Configurable scoring tick interval (default 2 s) and point limit (default 1000)
+- **Win condition**: First team to reach the point limit wins. If the timer runs out first, the team with the highest score wins
+- **Respawn**: Standard timer-based respawn (configurable, default 10 s). Head to a friendly zone after respawning
+- **Deathstreak** (optional): When enabled, a player who is killed N times in a row (configurable, default 3) and whose team is behind will receive a random power-up on respawn (health pack, shield, radar, or fast reload). Can be toggled and tuned by the host in the lobby
+- **Map display**: Each zone appears as a colored circle (red / blue / grey for neutral) with the zone letter (A / B / C), a progress bar, and a ⚡ indicator when contested
+- **HUD bar**: Shows `RED <score> [A][B][C] BLUE <score>` — zone tiles are colored by owner and show capture-progress fill
 
 #### Infection Details
 
