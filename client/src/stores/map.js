@@ -5,6 +5,7 @@ export const teammates = writable([]); // [{ id, username, lat, lng }]
 export const firingEnemies = writable([]); // [{ id, lat, lng }]
 export const powerups = writable([]); // [{ id, lat, lng, type }]
 export const airstrikes = writable([]); // [{ id, lat, lng, radius, detonateAt }] inbound strikes
+export const apaches = writable([]); // [{ id, lat, lng, radius, endsAt }] active apache support zones
 export const graves = writable([]); // [{ id, username, lat, lng }] each player's most recent death spot
 export const gpsError = writable(null);
 export const heading = writable(null); // degrees clockwise from North, null if unavailable

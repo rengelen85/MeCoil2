@@ -49,6 +49,9 @@ export const radarCountdown = writable(null); // seconds remaining while radar i
 export const airstrikeReady = writable(0); // held airstrikes available to deploy
 export const airstrikeArmed = writable(false); // armed: next map tap places a preview circle
 export const airstrikePreview = writable(null); // { lat, lng } pending confirmation, or null
+export const apacheReady = writable(0); // held apache support calls available to deploy
+export const apacheArmed = writable(false); // armed: next map tap places a preview circle
+export const apachePreview = writable(null); // { lat, lng } pending confirmation, or null
 
 // Health / respawn state (host-tunable, set from GAME_STARTED)
 export const hp = writable(100);
@@ -141,6 +144,9 @@ export function resetGame() {
   airstrikeReady.set(0);
   airstrikeArmed.set(false);
   airstrikePreview.set(null);
+  apacheReady.set(0);
+  apacheArmed.set(false);
+  apachePreview.set(null);
   isAlive.set(true);
   respawnCountdown.set(null);
   killedBy.set(null);

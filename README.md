@@ -177,8 +177,9 @@ Power-ups spawn periodically around the play area. Walk onto one (or tap it on t
 | **Stealth** | 👻 | Hides player from enemy maps for 2 minutes |
 | **Radar** | 📡 | Reveals **every** living enemy on your map for 1 minute (even stealthed ones) |
 | **Airstrike** | 🚀 | Held until player calls it in: arm it, tap a spot on the map, and after a short warning everyone in the blast radius is killed. All players see an **INCOMING AIRSTRIKE** alert with a countdown and must clear the zone |
+| **Apache Support** | 🚁 | Held until player calls it in: arm it, tap a spot on the map to place a 25-metre support zone. All enemy players inside take 10 HP damage every 2 seconds for 1 minute. All players see an **APACHE ZONE ACTIVE** countdown warning |
 
-> Airstrikes respect the friendly-fire setting — with it off, teammates (and the caller) inside the blast are spared.
+> Airstrikes and Apache zones respect the friendly-fire setting — with it off, teammates (and the caller) are spared from damage.
 
 ### Controls
 
@@ -269,6 +270,7 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
 | `hit` | `{ shooterWeaponId }` | IR event received from gun |
 | `collect` | `{ powerupId }` | Collect a power-up |
 | `deployAirstrike` | `{ lat, lng }` | Call in a held airstrike at a map point |
+| `deployApache` | `{ lat, lng }` | Call in a held Apache support zone at a map point |
 
 ### Server → Client
 
@@ -283,6 +285,8 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
 | `powerups` | `{ packages }` | Current power-up locations |
 | `airstrikeIncoming` | `{ id, lat, lng, radius, detonateAt, by }` | An airstrike is inbound — evacuate before `detonateAt` |
 | `airstrikeHit` | `{ id, lat, lng, radius }` | An airstrike detonated (drives the blast FX) |
+| `apacheActive` | `{ id, lat, lng, radius, endsAt, by }` | An Apache support zone is deployed — enemies inside take periodic damage until `endsAt` |
+| `apacheExpired` | `{ id }` | An Apache support zone expired and is no longer active |
 | `gameEnded` | `{ finalScores, winner }` | Match over |
 
 ---

@@ -95,6 +95,16 @@ export function playRespawn() {
   });
 }
 
+// Apache support helicopter rotor — a rhythmic "whumwhumwhum" low-frequency chop.
+export function playApacheWarning() {
+  play(c => {
+    for (let i = 0; i < 4; i++) {
+      tone(c, { type: 'sawtooth', from: 80, to: 60, start: i * 0.18,        dur: 0.12, gain: 0.28 });
+      tone(c, { type: 'square',   from: 160, to: 140, start: i * 0.18 + 0.04, dur: 0.06, gain: 0.1  });
+    }
+  });
+}
+
 // Urgent "incoming airstrike" siren — three rising/falling square-wave whoops.
 export function playAirstrikeWarning() {
   play(c => {

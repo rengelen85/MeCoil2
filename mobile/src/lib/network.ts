@@ -1,7 +1,7 @@
 import { S2C, C2S, GAME_STATES } from 'shared/messages.js';
 import { useGameStore, saveSession } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
-import { playKilled, playRespawn, playAirstrikeWarning } from './audio.js';
+import { playKilled, playRespawn, playAirstrikeWarning, playApacheWarning } from './audio.js';
 
 let ws: WebSocket | null = null;
 let _getPosition: () => { lat: number | null; lng: number | null } = () => ({
@@ -64,6 +64,8 @@ export const sendCollect = (powerupId: number) =>
   send({ type: C2S.COLLECT, powerupId });
 export const sendDeployAirstrike = (lat: number, lng: number) =>
   send({ type: C2S.DEPLOY_AIRSTRIKE, lat, lng });
+export const sendDeployApache = (lat: number, lng: number) =>
+  send({ type: C2S.DEPLOY_APACHE, lat, lng });
 
 function _handle(msg: { type: string; [key: string]: unknown }) {
   const game = useGameStore.getState();
@@ -140,6 +142,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       map.setFiringEnemies([]);
       map.setPowerups([]);
       map.setAirstrikes([]);
+      map.setApaches([]);
       map.setGraves([]);
       game.setScreen('ingame');
       break;
@@ -185,6 +188,24 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
     case S2C.AIRSTRIKE_HIT:
       // Blast resolved — drop the warning marker. Damage arrives via PLAYER_HP/DEAD.
       map.setAirstrikes(map.airstrikes.filter(a => a.id !== msg.id));
+      break;
+
+    case S2C.APACHE_ACTIVE:
+      map.setApaches([
+        ...map.apaches.filter(a => a.id !== msg.id),
+        {
+          id: msg.id as number,
+          lat: msg.lat as number,
+          lng: msg.lng as number,
+          radius: msg.radius as number,
+          endsAt: msg.endsAt as number,
+        },
+      ]);
+      playApacheWarning();
+      break;
+
+    case S2C.APACHE_EXPIRED:
+      map.setApaches(map.apaches.filter(a => a.id !== msg.id));
       break;
 
     case S2C.PLAYER_HP:
@@ -273,6 +294,9 @@ function _applyLocalPowerupFeedback({ type }: { type: string }) {
       break;
     case 'airstrike':
       game.setAirstrikeReady(game.airstrikeReady + 1);
+      break;
+    case 'apacheSupport':
+      game.setApacheReady(game.apacheReady + 1);
       break;
   }
 }

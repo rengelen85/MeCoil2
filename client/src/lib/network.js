@@ -1,6 +1,8 @@
 import { get } from 'svelte/store';
 import { C2S, GAME_STATES, S2C } from '../../../shared/messages.js';
 import {
+  apacheArmed,
+  apacheReady,
   airstrikeArmed,
   airstrikeReady,
   ammo,
@@ -50,6 +52,7 @@ import {
   winner,
 } from '../stores/game.js';
 import {
+  apaches,
   airstrikes,
   ctfBases,
   ctfFlags,
@@ -59,7 +62,7 @@ import {
   powerups,
   teammates,
 } from '../stores/map.js';
-import { playAirstrikeWarning, playKilled, playRespawn } from './audio.js';
+import { playApacheWarning, playAirstrikeWarning, playKilled, playRespawn } from './audio.js';
 
 let ws = null;
 let _serverUrl = null;
@@ -201,6 +204,10 @@ export function sendDeployAirstrike(lat, lng) {
   send({ type: C2S.DEPLOY_AIRSTRIKE, lat, lng });
 }
 
+export function sendDeployApache(lat, lng) {
+  send({ type: C2S.DEPLOY_APACHE, lat, lng });
+}
+
 export function sendSetBase(team, lat, lng) {
   send({ type: C2S.SET_BASE, team, lat, lng });
 }
@@ -301,6 +308,7 @@ function _handle(msg) {
       firingEnemies.set([]);
       powerups.set([]);
       airstrikes.set([]);
+      apaches.set([]);
       graves.set([]);
       ctfBases.set({ red: null, blue: null });
       ctfFlags.set({ red: null, blue: null });
@@ -356,6 +364,24 @@ function _handle(msg) {
     case S2C.AIRSTRIKE_HIT:
       // Blast resolved — drop the warning marker. Damage arrives via PLAYER_HP/DEAD.
       airstrikes.update((list) => list.filter((a) => a.id !== msg.id));
+      break;
+
+    case S2C.APACHE_ACTIVE:
+      apaches.update((list) => [
+        ...list.filter((a) => a.id !== msg.id),
+        {
+          id: msg.id,
+          lat: msg.lat,
+          lng: msg.lng,
+          radius: msg.radius,
+          endsAt: msg.endsAt,
+        },
+      ]);
+      playApacheWarning();
+      break;
+
+    case S2C.APACHE_EXPIRED:
+      apaches.update((list) => list.filter((a) => a.id !== msg.id));
       break;
 
     case S2C.PLAYER_HP:
@@ -452,6 +478,9 @@ function _applyLocalPowerupFeedback({ type }) {
       break;
     case 'airstrike':
       airstrikeReady.update((n) => n + 1);
+      break;
+    case 'apacheSupport':
+      apacheReady.update((n) => n + 1);
       break;
   }
 }

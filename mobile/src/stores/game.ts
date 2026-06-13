@@ -84,6 +84,9 @@ interface GameStore {
   airstrikeReady: number;
   airstrikeArmed: boolean;
   airstrikePreview: { lat: number; lng: number } | null;
+  apacheReady: number;
+  apacheArmed: boolean;
+  apachePreview: { lat: number; lng: number } | null;
   hp: number;
   maxHp: number;
   isAlive: boolean;
@@ -121,6 +124,9 @@ interface GameStore {
   setAirstrikeReady: (n: number) => void;
   setAirstrikeArmed: (v: boolean) => void;
   setAirstrikePreview: (pos: { lat: number; lng: number } | null) => void;
+  setApacheReady: (n: number) => void;
+  setApacheArmed: (v: boolean) => void;
+  setApachePreview: (pos: { lat: number; lng: number } | null) => void;
   setHp: (n: number) => void;
   setMaxHp: (n: number) => void;
   setIsAlive: (v: boolean) => void;
@@ -169,6 +175,9 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   airstrikeReady: 0,
   airstrikeArmed: false,
   airstrikePreview: null,
+  apacheReady: 0,
+  apacheArmed: false,
+  apachePreview: null,
   hp: 100,
   maxHp: 100,
   isAlive: true,
@@ -207,6 +216,9 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setAirstrikeReady: n => set({ airstrikeReady: n }),
   setAirstrikeArmed: v => set({ airstrikeArmed: v }),
   setAirstrikePreview: pos => set({ airstrikePreview: pos }),
+  setApacheReady: n => set({ apacheReady: n }),
+  setApacheArmed: v => set({ apacheArmed: v }),
+  setApachePreview: pos => set({ apachePreview: pos }),
   setHp: n => set({ hp: n }),
   setMaxHp: n => set({ maxHp: n }),
   setIsAlive: v => set({ isAlive: v }),
@@ -235,6 +247,9 @@ export const useGameStore = create<GameStore>((set, _get) => ({
       airstrikeReady: 0,
       airstrikeArmed: false,
       airstrikePreview: null,
+      apacheReady: 0,
+      apacheArmed: false,
+      apachePreview: null,
       isAlive: true,
       respawnCountdown: null,
     }),

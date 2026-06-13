@@ -18,6 +18,7 @@ import {
 } from '../lib/ble.js';
 import { isInArea } from '../lib/geometry.js';
 import {
+  sendDeployApache,
   sendDeployAirstrike,
   sendLeaveRoom,
   sendPosition,
@@ -30,6 +31,9 @@ import {
 } from '../lib/simulator.js';
 import {
   activeGunMode,
+  apacheArmed,
+  apachePreview,
+  apacheReady,
   airstrikeArmed,
   airstrikePreview,
   airstrikeReady,
@@ -57,6 +61,7 @@ import {
   timeRemaining,
 } from '../stores/game.js';
 import {
+  apaches,
   airstrikes,
   gpsError,
   myPosition,
@@ -150,6 +155,16 @@ $: incomingStrike = $airstrikes.length
     )
   : null;
 
+// Seconds until the last active apache zone expires (null if none active).
+$: apacheCountdown = $apaches.length
+  ? Math.max(
+      0,
+      Math.ceil(
+        (Math.max(...$apaches.map((a) => a.endsAt)) - now) / 1000,
+      ),
+    )
+  : null;
+
 function toggleAirstrike() {
   if ($airstrikeReady <= 0) return;
   airstrikePreview.set(null);
@@ -166,6 +181,24 @@ function confirmAirstrike() {
 
 function cancelAirstrike() {
   airstrikePreview.set(null);
+}
+
+function toggleApache() {
+  if ($apacheReady <= 0) return;
+  apachePreview.set(null);
+  apacheArmed.update((v) => !v);
+}
+
+function confirmApache() {
+  const pos = get(apachePreview);
+  if (!pos) return;
+  sendDeployApache(pos.lat, pos.lng);
+  apachePreview.set(null);
+  apacheReady.update((n) => Math.max(0, n - 1));
+}
+
+function cancelApache() {
+  apachePreview.set(null);
 }
 
 onMount(() => {
@@ -250,6 +283,14 @@ $: immunityActive =
     <div class="airstrike-warning">
       ⚠ INCOMING AIRSTRIKE
       <span class="airstrike-count">{incomingStrike}s — CLEAR THE ZONE</span>
+    </div>
+  {/if}
+
+  <!-- Active apache support zone notification -->
+  {#if apacheCountdown !== null}
+    <div class="apache-warning" class:apache-warning-offset={incomingStrike !== null}>
+      🚁 APACHE ZONE{$apaches.length > 1 ? ` (${$apaches.length})` : ''} ACTIVE
+      <span class="apache-count">{apacheCountdown}s remaining</span>
     </div>
   {/if}
 
@@ -391,6 +432,20 @@ $: immunityActive =
       </button>
       {#if $airstrikeArmed}
         <div class="airstrike-hint">Tap the map to place the strike zone</div>
+      {/if}
+    {/if}
+    {#if $apachePreview}
+      <div class="airstrike-confirm-row">
+        <button class="btn-confirm-apache" on:click={confirmApache}>✓ Confirm Apache</button>
+        <button class="btn-cancel-strike" on:click={cancelApache}>✗ Cancel</button>
+      </div>
+      <div class="apache-hint">Tap the map to reposition · confirm when ready</div>
+    {:else if $apacheReady > 0}
+      <button class="btn-apache" class:armed={$apacheArmed} on:click={toggleApache}>
+        🚁 Apache ({$apacheReady})
+      </button>
+      {#if $apacheArmed}
+        <div class="apache-hint">Tap the map to place the support zone</div>
       {/if}
     {/if}
     {#if $gpsError}
@@ -694,6 +749,72 @@ $: immunityActive =
     letter-spacing: 0.5px;
     color: #fff;
     margin-top: 2px;
+  }
+
+  .apache-warning {
+    position: absolute;
+    top: 92px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1400;
+    background: rgba(0,30,20,0.88);
+    border: 1px solid #00c853;
+    border-radius: 8px;
+    padding: 6px 14px;
+    color: #00e676;
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .apache-warning-offset {
+    top: 140px;
+  }
+  .apache-count {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #b9f6ca;
+    margin-top: 2px;
+  }
+
+  .btn-apache {
+    background: rgba(0,200,83,0.15);
+    border: 1px solid rgba(0,200,83,0.5);
+    border-radius: 8px;
+    color: #00c853;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 1px;
+  }
+  .btn-apache.armed {
+    background: #00c853;
+    color: #000;
+    animation: pulse 0.6s ease-in-out infinite alternate;
+  }
+  .apache-hint {
+    font-size: 11px;
+    color: #69f0ae;
+    letter-spacing: 0.5px;
+  }
+  .btn-confirm-apache {
+    background: #00c853;
+    border: none;
+    border-radius: 8px;
+    color: #000;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 0.5px;
+    animation: pulse 0.6s ease-in-out infinite alternate;
   }
 
   .oob-warning {

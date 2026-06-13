@@ -23,6 +23,12 @@ export interface AirstrikePosition extends Position {
   detonateAt: number;
 }
 
+export interface ApachePosition extends Position {
+  id: number;
+  radius: number;
+  endsAt: number;
+}
+
 export interface GravePosition extends Position {
   id: number;
   username?: string;
@@ -34,6 +40,7 @@ interface MapStore {
   firingEnemies: PlayerPosition[];
   powerups: PowerupPosition[];
   airstrikes: AirstrikePosition[];
+  apaches: ApachePosition[];
   graves: GravePosition[];
   gpsError: string | null;
   heading: number | null;
@@ -43,6 +50,7 @@ interface MapStore {
   setFiringEnemies: (e: PlayerPosition[]) => void;
   setPowerups: (p: PowerupPosition[]) => void;
   setAirstrikes: (a: AirstrikePosition[]) => void;
+  setApaches: (a: ApachePosition[]) => void;
   setGraves: (g: GravePosition[]) => void;
   setGpsError: (err: string | null) => void;
   setHeading: (h: number | null) => void;
@@ -61,6 +69,7 @@ export const useMapStore = create<MapStore>((set, _get) => ({
   firingEnemies: [],
   powerups: [],
   airstrikes: [],
+  apaches: [],
   graves: [],
   gpsError: null,
   heading: null,
@@ -70,6 +79,7 @@ export const useMapStore = create<MapStore>((set, _get) => ({
   setFiringEnemies: e => set({ firingEnemies: e }),
   setPowerups: p => set({ powerups: p }),
   setAirstrikes: a => set({ airstrikes: a }),
+  setApaches: a => set({ apaches: a }),
   setGraves: g => set({ graves: g }),
   setGpsError: err => set({ gpsError: err }),
   setHeading: h => set({ heading: h }),

@@ -1,10 +1,11 @@
 <script>
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
-import { AIRSTRIKE_RADIUS_M } from '../../../shared/messages.js';
+import { APACHE_RADIUS_M, AIRSTRIKE_RADIUS_M } from '../../../shared/messages.js';
 import { sendCollect } from '../lib/network.js';
-import { airstrikeArmed, airstrikePreview, gameArea } from '../stores/game.js';
+import { apacheArmed, apachePreview, airstrikeArmed, airstrikePreview, gameArea } from '../stores/game.js';
 import {
+  apaches,
   airstrikes,
   ctfBases,
   ctfFlags,
@@ -39,9 +40,12 @@ const teamMarkers = new Map();
 const enemyMarkers = new Map();
 const powerupMarkers = new Map();
 const airstrikeMarkers = new Map(); // id -> { circle, marker }
+const apacheMarkers = new Map(); // id -> { circle, marker }
 const graveMarkers = new Map(); // playerId -> tombstone marker
 let previewCircle = null; // pending-confirmation airstrike preview
 let previewMarker = null;
+let apachePreviewCircle = null; // pending-confirmation apache preview
+let apachePreviewMarker = null;
 const ctfBaseCircles = new Map(); // team -> { circle }
 const ctfFlagMarkers = new Map(); // team -> marker
 const domZoneCircles = new Map(); // zoneId -> { circle, label }
@@ -148,6 +152,7 @@ onMount(async () => {
         stealth: '👻',
         radar: '📡',
         airstrike: '🚀',
+        apacheSupport: '🚁',
         immunity: '💉',
       }[type] ?? '📦';
     return L.divIcon({
@@ -239,19 +244,59 @@ onMount(async () => {
     });
   }
 
-  // Clicking while armed (or while a preview is already placed) sets / moves
-  // the preview circle. The actual strike is only called in on Confirm.
+  function apacheIcon() {
+    return L.divIcon({
+      className: '',
+      html: '<div class="apache-zone-marker">🚁</div>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+  }
+
+  function apachePreviewIconFn() {
+    return L.divIcon({
+      className: '',
+      html: '<div class="apache-preview-marker">🚁</div>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+  }
+
+  // Clicking while either armed (or while a preview is already placed) sets/
+  // moves the preview circle. Actual deployment fires only on Confirm.
   map.on('click', (e) => {
-    if (!get(airstrikeArmed) && !get(airstrikePreview)) return;
+    const asArmed = get(airstrikeArmed);
+    const asPreview = get(airstrikePreview);
+    const apArmed = get(apacheArmed);
+    const apPreview = get(apachePreview);
+    if (!asArmed && !asPreview && !apArmed && !apPreview) return;
     const latlng = correctedLatLng(e);
-    airstrikePreview.set(latlng);
-    if (get(airstrikeArmed)) airstrikeArmed.set(false);
+    if (asArmed || asPreview) {
+      airstrikePreview.set(latlng);
+      if (asArmed) airstrikeArmed.set(false);
+    } else {
+      apachePreview.set(latlng);
+      if (apArmed) apacheArmed.set(false);
+    }
   });
 
-  // Keep the map cursor in sync with the armed / preview state.
-  const unsubCursor = airstrikeArmed.subscribe((armed) => {
-    if (map) map.getContainer().style.cursor = armed ? 'crosshair' : '';
+  // Keep the map cursor in sync with either armed state.
+  let _airstrikeArmedVal = false;
+  let _apacheArmedVal = false;
+  function _updateCursor() {
+    if (map)
+      map.getContainer().style.cursor =
+        _airstrikeArmedVal || _apacheArmedVal ? 'crosshair' : '';
+  }
+  const unsubCursorAirstrike = airstrikeArmed.subscribe((v) => {
+    _airstrikeArmedVal = v;
+    _updateCursor();
   });
+  const unsubCursorApache = apacheArmed.subscribe((v) => {
+    _apacheArmedVal = v;
+    _updateCursor();
+  });
+  const unsubCursor = unsubCursorAirstrike; // kept for the unsubscribers array below
 
   const unsubPos = myPosition.subscribe((pos) => {
     if (!pos) return;
@@ -380,6 +425,61 @@ onMount(async () => {
       }).addTo(map);
       previewMarker = L.marker([pos.lat, pos.lng], {
         icon: previewIcon(),
+        interactive: false,
+      }).addTo(map);
+    }
+  });
+
+  const unsubApaches = apaches.subscribe((list) => {
+    const seen = new Set();
+    for (const a of list) {
+      seen.add(a.id);
+      if (!apacheMarkers.has(a.id)) {
+        const circle = L.circle([a.lat, a.lng], {
+          radius: a.radius,
+          color: '#00c853',
+          weight: 2,
+          fillColor: '#00c853',
+          fillOpacity: 0.15,
+          className: 'apache-zone',
+        }).addTo(map);
+        const marker = L.marker([a.lat, a.lng], {
+          icon: apacheIcon(),
+        }).addTo(map);
+        apacheMarkers.set(a.id, { circle, marker });
+      }
+    }
+    for (const [id, m] of apacheMarkers) {
+      if (!seen.has(id)) {
+        m.circle.remove();
+        m.marker.remove();
+        apacheMarkers.delete(id);
+      }
+    }
+  });
+
+  const unsubApachePreview = apachePreview.subscribe((pos) => {
+    if (apachePreviewCircle) {
+      apachePreviewCircle.remove();
+      apachePreviewCircle = null;
+    }
+    if (apachePreviewMarker) {
+      apachePreviewMarker.remove();
+      apachePreviewMarker = null;
+    }
+    if (pos) {
+      apachePreviewCircle = L.circle([pos.lat, pos.lng], {
+        radius: APACHE_RADIUS_M,
+        color: '#69f0ae',
+        weight: 2,
+        dashArray: '8 5',
+        fillColor: '#69f0ae',
+        fillOpacity: 0.12,
+        interactive: false,
+        className: 'apache-preview-zone',
+      }).addTo(map);
+      apachePreviewMarker = L.marker([pos.lat, pos.lng], {
+        icon: apachePreviewIconFn(),
         interactive: false,
       }).addTo(map);
     }
@@ -563,12 +663,15 @@ onMount(async () => {
     unsubPowerups,
     unsubAirstrikes,
     unsubPreview,
+    unsubApaches,
+    unsubApachePreview,
     unsubGraves,
     unsubCtfBases,
     unsubCtfFlags,
     unsubGameArea,
     unsubDomZones,
     unsubCursor,
+    unsubCursorApache,
   ];
 });
 
@@ -591,6 +694,19 @@ onDestroy(() => {
   if (previewMarker) {
     previewMarker.remove();
     previewMarker = null;
+  }
+  for (const { circle, marker } of apacheMarkers.values()) {
+    circle.remove();
+    marker.remove();
+  }
+  apacheMarkers.clear();
+  if (apachePreviewCircle) {
+    apachePreviewCircle.remove();
+    apachePreviewCircle = null;
+  }
+  if (apachePreviewMarker) {
+    apachePreviewMarker.remove();
+    apachePreviewMarker = null;
   }
   if (gameAreaLayer) {
     gameAreaLayer.remove();
@@ -838,6 +954,38 @@ onDestroy(() => {
   @keyframes area-pulse {
     from { stroke-opacity: 0.9; }
     to   { stroke-opacity: 0.4; }
+  }
+
+  /* Active apache support zone — green, pulsing */
+  :global(.apache-zone) {
+    animation: apache-pulse 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes apache-pulse {
+    from { stroke-opacity: 0.9; fill-opacity: 0.10; }
+    to   { stroke-opacity: 0.5; fill-opacity: 0.28; }
+  }
+  :global(.apache-zone-marker) {
+    font-size: 24px;
+    line-height: 1;
+    text-align: center;
+    filter: drop-shadow(0 0 6px rgba(0,200,83,0.9));
+    animation: enemy-pulse 1s ease-in-out infinite alternate;
+  }
+
+  /* Pending-confirmation apache preview (light green, dashed) */
+  :global(.apache-preview-zone) {
+    animation: apache-preview-pulse 1.4s ease-in-out infinite alternate;
+  }
+  @keyframes apache-preview-pulse {
+    from { stroke-opacity: 0.9; fill-opacity: 0.08; }
+    to   { stroke-opacity: 0.5; fill-opacity: 0.20; }
+  }
+  :global(.apache-preview-marker) {
+    font-size: 24px;
+    line-height: 1;
+    text-align: center;
+    filter: drop-shadow(0 0 6px rgba(105,240,174,0.9));
+    animation: enemy-pulse 0.9s ease-in-out infinite alternate;
   }
 
   /* Tombstone marker at a player's last death spot */

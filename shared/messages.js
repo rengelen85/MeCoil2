@@ -16,6 +16,7 @@ export const C2S = {
   HIT: 'hit',
   COLLECT: 'collect',
   DEPLOY_AIRSTRIKE: 'deployAirstrike', // player calls in a held airstrike at a chosen point
+  DEPLOY_APACHE: 'deployApache', // player deploys a held apache support helicopter at a chosen point
   SET_BASE: 'setBase', // CTF: host sets a team's base location
   SET_GAME_AREA: 'setGameArea', // host sets optional play area boundary (circle or polygon)
   SET_DOM_ZONE: 'setDomZone', // Domination: host places a control-point zone by GPS position
@@ -38,6 +39,8 @@ export const S2C = {
   PLAYER_RESPAWN: 'playerRespawn', // a dead player is alive again with full HP
   AIRSTRIKE_INCOMING: 'airstrikeIncoming', // an airstrike is inbound; carries detonateAt so everyone can evacuate
   AIRSTRIKE_HIT: 'airstrikeHit', // an airstrike detonated; carries blast center/radius for the FX
+  APACHE_ACTIVE: 'apacheActive', // an apache support zone is now live; carries endsAt for the countdown
+  APACHE_EXPIRED: 'apacheExpired', // an apache zone has ended; carries id to remove the map marker
   GAME_ENDED: 'gameEnded',
   LEFT_ROOM: 'leftRoom',
   ERROR: 'error',
@@ -78,6 +81,10 @@ export const PLASMA_DAMAGE_PER_AMMO = 3; // plasma damage = loaded ammo * this
 // render an accurate preview circle before the server confirms deployment.
 export const AIRSTRIKE_RADIUS_M = 30;
 
+// Damage zone radius for an Apache Support helicopter (metres). Shared so the
+// client can render an accurate preview circle before the server confirms deployment.
+export const APACHE_RADIUS_M = 25;
+
 export const POWERUP_TYPES = {
   FAST_RELOAD: 'fastReload',
   HEALTH_PACK: 'healthPack', // restores the collector to full HP
@@ -85,5 +92,6 @@ export const POWERUP_TYPES = {
   STEALTH: 'stealth',
   RADAR: 'radar', // reveals every living enemy on the collector's map for a while
   AIRSTRIKE: 'airstrike', // a held strike the collector can later place on the map
+  APACHE_SUPPORT: 'apacheSupport', // a held support helicopter the collector can later place on the map
   IMMUNITY: 'immunity', // Infection only: absorbs one shot; if hit while active, grants 20s grace window
 };
