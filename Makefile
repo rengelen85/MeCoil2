@@ -1,4 +1,4 @@
-.PHONY: install dev dev-server dev-client build start gen-certs phone-test lint fmt
+.PHONY: install dev dev-server dev-client build start test gen-certs phone-test lint fmt
 
 # First-time setup: install all dependencies
 install:
@@ -26,6 +26,10 @@ build:
 # Run production server (requires certs — see gen-certs)
 start:
 	node server/index.js
+
+# Run unit tests (Node's built-in test runner; no extra deps)
+test:
+	npm test
 
 # Generate locally-trusted HTTPS certs via mkcert
 # Install mkcert first: winget install mkcert  (Windows)
