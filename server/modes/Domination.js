@@ -202,8 +202,7 @@ export class Domination extends BaseMode {
       this._deathStreaks.set(victim.id, streak);
 
       if (streak % this._deathstreakCount === 0) {
-        const enemyTeam =
-          victim.team === TEAMS.RED ? TEAMS.BLUE : TEAMS.RED;
+        const enemyTeam = victim.team === TEAMS.RED ? TEAMS.BLUE : TEAMS.RED;
         const teamIsBehind =
           this._teamPoints[victim.team] < this._teamPoints[enemyTeam];
         if (teamIsBehind) {

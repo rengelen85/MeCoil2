@@ -139,7 +139,10 @@ async function _doReconnect() {
   if (get(bleConnected)) return;
   try {
     const ok = await gun.reconnect();
-    if (!ok) { _scheduleReconnect(); return; }
+    if (!ok) {
+      _scheduleReconnect();
+      return;
+    }
     await gun.startTelemetry();
     bleConnected.set(true);
     const slotId = get(gunSlotId);
@@ -179,7 +182,9 @@ export async function tryAutoReconnectBle() {
   try {
     const ok = await gun.tryAutoConnect();
     if (!ok) {
-      console.info('[BLE] Auto-connect: no suitable device found or all attempts failed');
+      console.info(
+        '[BLE] Auto-connect: no suitable device found or all attempts failed',
+      );
       return false;
     }
     console.info(

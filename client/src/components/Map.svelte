@@ -472,13 +472,19 @@ onMount(async () => {
   });
 
   const DOM_ZONE_RADIUS_M = 7.5;
-  const DOM_ZONE_COLORS = { red: '#ff5252', blue: '#448aff', neutral: '#9e9e9e' };
+  const DOM_ZONE_COLORS = {
+    red: '#ff5252',
+    blue: '#448aff',
+    neutral: '#9e9e9e',
+  };
 
   function domZoneIcon(zone) {
     const color = DOM_ZONE_COLORS[zone.owner] ?? DOM_ZONE_COLORS.neutral;
     const contested = zone.contested;
     const progress = Math.round(Math.abs(zone.controlValue ?? 0) * 100);
-    const capColor = zone.capturingTeam ? DOM_ZONE_COLORS[zone.capturingTeam] : color;
+    const capColor = zone.capturingTeam
+      ? DOM_ZONE_COLORS[zone.capturingTeam]
+      : color;
     return L.divIcon({
       className: '',
       html: `<div class="dom-zone-marker" style="border-color:${color};background:rgba(${color === '#ff5252' ? '255,82,82' : color === '#448aff' ? '68,138,255' : '158,158,158'},0.18)">
@@ -553,7 +559,10 @@ onDestroy(() => {
   ctfBaseCircles.clear();
   for (const m of ctfFlagMarkers.values()) m.remove();
   ctfFlagMarkers.clear();
-  for (const { circle, label } of domZoneCircles.values()) { circle.remove(); label.remove(); }
+  for (const { circle, label } of domZoneCircles.values()) {
+    circle.remove();
+    label.remove();
+  }
   domZoneCircles.clear();
   if (previewCircle) {
     previewCircle.remove();

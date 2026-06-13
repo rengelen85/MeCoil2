@@ -97,7 +97,9 @@ class RecoilGun {
     }
 
     this._device = device;
-    try { localStorage.setItem(BLE_LAST_DEVICE_KEY, device.name ?? ''); } catch {}
+    try {
+      localStorage.setItem(BLE_LAST_DEVICE_KEY, device.name ?? '');
+    } catch {}
     device.addEventListener('gattserverdisconnected', this._onGattDisconnected);
 
     const server = await device.gatt.connect();
@@ -110,7 +112,9 @@ class RecoilGun {
 
   async _tryAutoConnect() {
     if (!navigator.bluetooth?.getDevices) {
-      console.info('[BLE] getDevices() not available — browser may not support it');
+      console.info(
+        '[BLE] getDevices() not available — browser may not support it',
+      );
       return false;
     }
     const devices = await navigator.bluetooth.getDevices();
@@ -123,7 +127,10 @@ class RecoilGun {
       devices.find((d) => lastName && d.name === lastName) ??
       devices.find((d) => d.name?.startsWith('SRG'));
     if (!device) {
-      console.info('[BLE] No SRG device in granted list — found:', devices.map(d => d.name));
+      console.info(
+        '[BLE] No SRG device in granted list — found:',
+        devices.map((d) => d.name),
+      );
       return false;
     }
     console.info(`[BLE] Attempting auto-connect to ${device.name}…`);
@@ -135,8 +142,11 @@ class RecoilGun {
         await this._connect(device);
         return true;
       } catch (e) {
-        console.info(`[BLE] Auto-connect attempt ${attempt}/3 failed:`, e.message ?? e);
-        if (attempt < 3) await new Promise(r => setTimeout(r, 3000));
+        console.info(
+          `[BLE] Auto-connect attempt ${attempt}/3 failed:`,
+          e.message ?? e,
+        );
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 3000));
       }
     }
     return false;

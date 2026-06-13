@@ -317,7 +317,9 @@ async function _initDomPreviewMap() {
     attributionControl: false,
   });
   _domL
-    .tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
+    .tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+    })
     .addTo(_domMap);
   if (navigator.geolocation) {
     _domGpsWatcher = navigator.geolocation.watchPosition(
@@ -325,8 +327,18 @@ async function _initDomPreviewMap() {
         const { latitude: lat, longitude: lng } = pos.coords;
         if (!_domMyMarker) {
           _domMyMarker = _domL
-            .circleMarker([lat, lng], { radius: 8, color: '#00e5ff', fillColor: '#00e5ff', fillOpacity: 0.9, weight: 2 })
-            .bindTooltip('You', { permanent: true, direction: 'top', offset: [0, -10] })
+            .circleMarker([lat, lng], {
+              radius: 8,
+              color: '#00e5ff',
+              fillColor: '#00e5ff',
+              fillOpacity: 0.9,
+              weight: 2,
+            })
+            .bindTooltip('You', {
+              permanent: true,
+              direction: 'top',
+              offset: [0, -10],
+            })
             .addTo(_domMap);
           _domMap.setView([lat, lng], 17);
         } else {
@@ -351,8 +363,18 @@ function _renderDomZones() {
   for (const z of zones) {
     const color = z.id === 'B' ? '#e0e0e0' : '#ff9800';
     const m = _domL
-      .circleMarker([z.lat, z.lng], { radius: 12, color, fillColor: color, fillOpacity: 0.8, weight: 2 })
-      .bindTooltip(`Zone ${z.id}`, { permanent: true, direction: 'top', offset: [0, -14] })
+      .circleMarker([z.lat, z.lng], {
+        radius: 12,
+        color,
+        fillColor: color,
+        fillOpacity: 0.8,
+        weight: 2,
+      })
+      .bindTooltip(`Zone ${z.id}`, {
+        permanent: true,
+        direction: 'top',
+        offset: [0, -14],
+      })
       .addTo(_domMap);
     _domZoneMarkers.set(z.id, m);
   }
@@ -383,7 +405,10 @@ $: {
 }
 
 async function setDomZone(zoneId) {
-  if (!navigator.geolocation) { domZoneError = 'Geolocation not supported'; return; }
+  if (!navigator.geolocation) {
+    domZoneError = 'Geolocation not supported';
+    return;
+  }
   settingDomZone = true;
   domZoneError = '';
   navigator.geolocation.getCurrentPosition(
@@ -391,7 +416,10 @@ async function setDomZone(zoneId) {
       sendSetDomZone(zoneId, pos.coords.latitude, pos.coords.longitude);
       settingDomZone = false;
     },
-    (err) => { domZoneError = err.message; settingDomZone = false; },
+    (err) => {
+      domZoneError = err.message;
+      settingDomZone = false;
+    },
     { enableHighAccuracy: true, timeout: 10_000 },
   );
 }
