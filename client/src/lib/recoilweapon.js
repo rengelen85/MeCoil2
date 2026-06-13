@@ -1,10 +1,16 @@
 // ES-module port of the Scope project's recoilweapon.js (DroopCat/Scope)
 // Converted from IIFE + window global to a named export singleton.
 
+import { createIrDeduper } from './irDedup.js';
+
 const CONFIG_UUID = 'e6f59d14-8230-4a5c-b22f-c062b1d329e3';
 const TELEMETRY_UUID = 'e6f59d12-8230-4a5c-b22f-c062b1d329e3';
 const CONTROL_UUID = 'e6f59d13-8230-4a5c-b22f-c062b1d329e3';
+const ID_UUID = 'e6f59d11-8230-4a5c-b22f-c062b1d329e3';
 const SERVICE_UUID = 'e6f59d10-8230-4a5c-b22f-c062b1d329e3';
+
+// Control characteristic action bitmask (see docs/recoil_protocol_BLE.md).
+const ACTION = { NONE: 0x0000, SYNC: 0x0080 };
 
 function isBitSet(position, byte) {
   return (byte >> position) & 1;
@@ -20,7 +26,8 @@ let lastButtonCount = {
   power: 0,
   recoil: 0,
 };
-let lastShotCount = 0;
+// Per-shooter IR de-duplication (see irDedup.js for the why).
+const irDeduper = createIrDeduper();
 let packetCounter = null;
 
 class RecoilGun {
@@ -44,6 +51,13 @@ class RecoilGun {
     this.isConnected = false;
     this.telemetry = {};
     this.buttons = {};
+
+    // Device info read from the ID characteristic on connect.
+    this.gunModel = 'unknown'; // 'rifle' | 'pistol' | 'unknown'
+    this.firmwareVersion = null;
+    // Shooter ID the gun has acknowledged (telemetry byte 16). Used to confirm
+    // that a setGunId()/SYNC actually latched.
+    this.acceptedGunId = null;
   }
 
   connect() {
@@ -69,6 +83,20 @@ class RecoilGun {
     this._CONFIGCHAR = await service.getCharacteristic(CONFIG_UUID);
     this._TELEMETRYCHAR = await service.getCharacteristic(TELEMETRY_UUID);
 
+    // Read the ID characteristic once: byte 10 is the gun model (1 = rifle,
+    // 2 = pistol) and bytes 0-1 are the firmware version (little-endian). A
+    // failed read must not abort the connection.
+    try {
+      const idChar = await service.getCharacteristic(ID_UUID);
+      const id = await idChar.readValue();
+      this.firmwareVersion = id.getUint16(0, true);
+      this.gunModel = { 1: 'rifle', 2: 'pistol' }[id.getUint8(10)] ?? 'unknown';
+    } catch {
+      this.gunModel = 'unknown';
+    }
+
+    irDeduper.reset();
+    this.acceptedGunId = null;
     this.isConnected = true;
   }
 
@@ -101,9 +129,45 @@ class RecoilGun {
     this.sendControlPacket(0x0000);
   }
 
+  // Assign this gun its shooter ID. Control byte 4 is what the gun stamps into
+  // every outgoing IR shot (payload bits 10-15), so it must be latched with the
+  // SYNC action. A plain settings write (0x0000) does not commit it. Confirmed
+  // in the official Recoil app, SimpleCoil and FreeCoil.
   setGunId(shotId) {
     this.gunSettings.shotId = shotId;
-    this.sendControlPacket(0x0000);
+    this.sendControlPacket(ACTION.SYNC);
+  }
+
+  // Verify the gun latched the shooter ID we sent. Telemetry byte 16 echoes the
+  // accepted shooter ID; re-send SYNC up to `retries` times if it hasn't been
+  // acknowledged yet. Non-fatal: resolves false (caller logs) rather than
+  // throwing. The byte-16 meaning is reverse-engineered (FreeCoil) and should be
+  // validated against real hardware.
+  async confirmGunId(expectedId, { retries = 2, timeoutMs = 600 } = {}) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      if (
+        await this._waitFor(() => this.acceptedGunId === expectedId, timeoutMs)
+      )
+        return true;
+      this.setGunId(expectedId); // re-send SYNC and wait again
+    }
+    return this.acceptedGunId === expectedId;
+  }
+
+  _waitFor(predicate, timeoutMs) {
+    return new Promise((resolve) => {
+      if (predicate()) return resolve(true);
+      const start = Date.now();
+      const timer = setInterval(() => {
+        if (predicate()) {
+          clearInterval(timer);
+          resolve(true);
+        } else if (Date.now() - start >= timeoutMs) {
+          clearInterval(timer);
+          resolve(false);
+        }
+      }, 50);
+    });
   }
 
   powerOff() {
@@ -209,7 +273,11 @@ class RecoilGun {
     telemetry.batteryVoltage = value.getInt16(6, true);
     telemetry.ammo = value.getUint8(14);
     telemetry.flags = value.getUint8(15);
-    telemetry.weaponType = value.getUint8(16);
+    // Byte 16 echoes the shooter ID the gun has latched; byte 17 echoes the
+    // active weapon-profile slot (FreeCoil decode). Used to confirm setGunId().
+    telemetry.playerIdAccepted = value.getUint8(16);
+    telemetry.weaponProfileEcho = value.getUint8(17);
+    this.acceptedGunId = telemetry.playerIdAccepted;
 
     if (telemetry.ammo !== lastAmmo) {
       this._EVENTS.ammoChanged?.(telemetry.ammo);
@@ -227,10 +295,7 @@ class RecoilGun {
       eventCount: value.getUint8(10) & 0x0f,
     };
     ir1.exists = ir1.sensor !== 0;
-    if (ir1.exists && ir1.shotCount !== lastShotCount) {
-      this._EVENTS.irEvent?.(ir1);
-      lastShotCount = ir1.shotCount;
-    }
+    this._emitIrHit(ir1);
 
     // IR Event 2
     const ir2 = {
@@ -243,13 +308,17 @@ class RecoilGun {
       eventCount: value.getUint8(13) & 0x0f,
     };
     ir2.exists = ir2.sensor !== 0;
-    if (ir2.exists && ir2.shotCount !== lastShotCount) {
-      this._EVENTS.irEvent?.(ir2);
-      lastShotCount = ir2.shotCount;
-    }
+    this._emitIrHit(ir2);
 
     this._EVENTS.telemetry?.(telemetry);
     this.telemetry = telemetry;
+  }
+
+  // Emit an IR hit unless it duplicates this shooter's previous shot.
+  _emitIrHit(ev) {
+    if (!ev.exists) return;
+    if (!irDeduper.isNewShot(ev.shooterID, ev.shotCount)) return;
+    this._EVENTS.irEvent?.(ev);
   }
 
   setWeaponProfile(weaponProfile, slot) {
