@@ -143,16 +143,22 @@ export function resetGame() {
   infectionState.set(null);
 }
 
-export function saveSession(name) {
+export function saveSession(name, playerId) {
   localStorage.setItem('mecoil_username', name);
+  if (playerId != null) {
+    localStorage.setItem('mecoil_player_id', String(playerId));
+  }
 }
 
 export function loadSession() {
-  return localStorage.getItem('mecoil_username');
+  const name = localStorage.getItem('mecoil_username');
+  const rawId = localStorage.getItem('mecoil_player_id');
+  return { username: name, playerId: rawId != null ? Number(rawId) : null };
 }
 
 export function clearSession() {
   localStorage.removeItem('mecoil_username');
+  localStorage.removeItem('mecoil_player_id');
   username.set('');
   myId.set(null);
   screen.set('setup');

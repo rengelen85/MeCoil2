@@ -146,6 +146,10 @@ export function sendRegister(name) {
   send({ type: C2S.REGISTER, username: name });
 }
 
+export function sendRejoin(playerId, name) {
+  send({ type: C2S.REJOIN, playerId, username: name });
+}
+
 export function sendListRooms() {
   send({ type: C2S.LIST_ROOMS });
 }
@@ -216,13 +220,14 @@ function _handle(msg) {
     case S2C.REGISTERED:
       isReconnecting.set(false);
       myId.set(msg.playerId);
-      saveSession(get(username));
+      saveSession(get(username), msg.playerId);
       screen.set('roomselect');
       break;
 
     case S2C.REJOIN_FAILED:
-      // Grace period expired — send REGISTER to start a fresh session
+      // Grace period expired — clear stored id and register fresh
       isReconnecting.set(false);
+      localStorage.removeItem('mecoil_player_id');
       send({ type: C2S.REGISTER, username: get(username) });
       break;
 
