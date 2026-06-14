@@ -1,12 +1,21 @@
 <script>
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
-import { APACHE_RADIUS_M, AIRSTRIKE_RADIUS_M } from '../../../shared/messages.js';
-import { sendCollect } from '../lib/network.js';
-import { apacheArmed, apachePreview, airstrikeArmed, airstrikePreview, gameArea } from '../stores/game.js';
 import {
-  apaches,
+  AIRSTRIKE_RADIUS_M,
+  APACHE_RADIUS_M,
+} from '../../../shared/messages.js';
+import { sendCollect } from '../lib/network.js';
+import {
+  airstrikeArmed,
+  airstrikePreview,
+  apacheArmed,
+  apachePreview,
+  gameArea,
+} from '../stores/game.js';
+import {
   airstrikes,
+  apaches,
   ctfBases,
   ctfFlags,
   domZones,
@@ -19,14 +28,35 @@ import {
 } from '../stores/map.js';
 
 const TILE_LAYERS = {
-  dark:    { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',             maxZoom: 19, subdomains: 'abcd' },
-  voyager: { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',  maxZoom: 19, subdomains: 'abcd' },
-  light:   { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',            maxZoom: 19, subdomains: 'abcd' },
-  osm:     { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',                        maxZoom: 19, subdomains: 'abc'  },
+  dark: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    maxZoom: 19,
+    subdomains: 'abcd',
+  },
+  voyager: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    maxZoom: 19,
+    subdomains: 'abcd',
+  },
+  light: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    maxZoom: 19,
+    subdomains: 'abcd',
+  },
+  osm: {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    maxZoom: 19,
+    subdomains: 'abc',
+  },
 };
 const STYLE_CYCLE = ['dark', 'voyager', 'light', 'osm'];
-const STYLE_ICON  = { dark: '🌑', voyager: '🌤️', light: '☀️', osm: '🗺️' };
-const STYLE_LABEL = { dark: 'Dark', voyager: 'Voyager', light: 'Light', osm: 'Standard' };
+const STYLE_ICON = { dark: '🌑', voyager: '🌤️', light: '☀️', osm: '🗺️' };
+const STYLE_LABEL = {
+  dark: 'Dark',
+  voyager: 'Voyager',
+  light: 'Light',
+  osm: 'Standard',
+};
 
 let mapEl;
 let map;
@@ -108,7 +138,10 @@ onMount(async () => {
 
   map = L.map(mapEl, { zoomControl: true, attributionControl: false });
   const cfg = TILE_LAYERS[mapStyle];
-  tileLayer = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, subdomains: cfg.subdomains }).addTo(map);
+  tileLayer = L.tileLayer(cfg.url, {
+    maxZoom: cfg.maxZoom,
+    subdomains: cfg.subdomains,
+  }).addTo(map);
 
   // Player's own marker: circle + direction cone
   const myIcon = L.divIcon({

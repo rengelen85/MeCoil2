@@ -18,8 +18,8 @@ import {
 } from '../lib/ble.js';
 import { isInArea } from '../lib/geometry.js';
 import {
-  sendDeployApache,
   sendDeployAirstrike,
+  sendDeployApache,
   sendLeaveRoom,
   sendPosition,
   sendStopGame,
@@ -31,13 +31,13 @@ import {
 } from '../lib/simulator.js';
 import {
   activeGunMode,
-  apacheArmed,
-  apachePreview,
-  apacheReady,
   airstrikeArmed,
   airstrikePreview,
   airstrikeReady,
   amIInfected,
+  apacheArmed,
+  apachePreview,
+  apacheReady,
   bleConnected,
   ctfState,
   dominationState,
@@ -61,8 +61,8 @@ import {
   timeRemaining,
 } from '../stores/game.js';
 import {
-  apaches,
   airstrikes,
+  apaches,
   gpsError,
   myPosition,
   startGPS,
@@ -159,9 +159,7 @@ $: incomingStrike = $airstrikes.length
 $: apacheCountdown = $apaches.length
   ? Math.max(
       0,
-      Math.ceil(
-        (Math.max(...$apaches.map((a) => a.endsAt)) - now) / 1000,
-      ),
+      Math.ceil((Math.max(...$apaches.map((a) => a.endsAt)) - now) / 1000),
     )
   : null;
 

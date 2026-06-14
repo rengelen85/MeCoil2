@@ -1,11 +1,11 @@
 import { get } from 'svelte/store';
 import { C2S, GAME_STATES, S2C } from '../../../shared/messages.js';
 import {
-  apacheArmed,
-  apacheReady,
   airstrikeArmed,
   airstrikeReady,
   ammo,
+  apacheArmed,
+  apacheReady,
   bulletsPerMag,
   countdownAt,
   ctfState,
@@ -52,8 +52,8 @@ import {
   winner,
 } from '../stores/game.js';
 import {
-  apaches,
   airstrikes,
+  apaches,
   ctfBases,
   ctfFlags,
   domZones,
@@ -62,7 +62,12 @@ import {
   powerups,
   teammates,
 } from '../stores/map.js';
-import { playApacheWarning, playAirstrikeWarning, playKilled, playRespawn } from './audio.js';
+import {
+  playAirstrikeWarning,
+  playApacheWarning,
+  playKilled,
+  playRespawn,
+} from './audio.js';
 
 let ws = null;
 let _serverUrl = null;
