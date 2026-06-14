@@ -21,6 +21,7 @@ export class Player {
     this.radarUntil = 0; // sees all enemies until this timestamp
     this.shieldUntil = 0; // damage is halved until this timestamp
     this.airstrikesAvailable = 0; // held airstrikes ready to deploy
+    this.apachesAvailable = 0; // held apache support calls ready to deploy
 
     // Health / respawn
     this.maxHp = 100;
@@ -55,6 +56,7 @@ export class Player {
     this.radarUntil = 0;
     this.shieldUntil = 0;
     this.airstrikesAvailable = 0;
+    this.apachesAvailable = 0;
     this.maxHp = maxHp;
     this.hp = maxHp;
     this.isAlive = true;

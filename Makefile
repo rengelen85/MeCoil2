@@ -1,4 +1,5 @@
-.PHONY: install dev dev-server dev-client build start test gen-certs phone-test lint fmt
+.PHONY: install dev dev-server dev-client build start test gen-certs phone-test lint fmt \
+        mobile-prereqs mobile-install apk-debug apk-release android-run android-emulator
 
 # Install all dependencies and generate certs
 init: install-prereqs install gen-certs
@@ -82,3 +83,48 @@ fmt:
 # Phones need the mkcert root CA installed once — see mkcert docs.
 phone-test: gen-certs build
 	node server/index.js
+
+# ── Android / Mobile ──────────────────────────────────────────────────────────
+
+# Install Android build prerequisites on Ubuntu/Debian (JDK only).
+# After this, install Android Studio from https://developer.android.com/studio
+# then add to ~/.bashrc or ~/.zshrc:
+#   export ANDROID_HOME=$$HOME/Android/Sdk
+#   export PATH=$$PATH:$$ANDROID_HOME/emulator:$$ANDROID_HOME/platform-tools
+mobile-prereqs:
+	sudo apt update
+	sudo apt install -y openjdk-17-jdk
+	@echo ""
+	@echo "Next: install Android Studio, set ANDROID_HOME, and create an AVD."
+
+# Install mobile app dependencies
+mobile-install:
+	npm install --prefix mobile
+
+# Build a debug APK.
+# Output: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+apk-debug: mobile-install
+	cd mobile/android && ./gradlew assembleDebug
+	@echo "APK ready: mobile/android/app/build/outputs/apk/debug/app-debug.apk"
+
+# Build a release APK (signed with the debug keystore — replace for distribution).
+# Output: mobile/android/app/build/outputs/apk/release/app-release.apk
+apk-release: mobile-install
+	cd mobile/android && ./gradlew assembleRelease
+	@echo "APK ready: mobile/android/app/build/outputs/apk/release/app-release.apk"
+
+# Build and run on a connected device or running emulator (also starts Metro).
+android-run: mobile-install
+	cd mobile && npm run android
+
+# Start an Android emulator.  Lists available AVDs when AVD= is not set.
+# Usage:  make android-emulator AVD=Pixel_9_API_35
+android-emulator:
+	@if [ -z "$(AVD)" ]; then \
+		echo "Available AVDs:"; \
+		"$$ANDROID_HOME/emulator/emulator" -list-avds; \
+		echo ""; \
+		echo "Re-run as: make android-emulator AVD=<name>"; \
+	else \
+		"$$ANDROID_HOME/emulator/emulator" -avd $(AVD) & \
+	fi

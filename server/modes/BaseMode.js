@@ -1,18 +1,22 @@
 import {
   AIRSTRIKE_RADIUS_M,
+  APACHE_RADIUS_M,
   GUN_MODE_DAMAGE,
   PLASMA_DAMAGE_PER_AMMO,
   POWERUP_TYPES,
   S2C,
 } from '../../shared/messages.js';
 
-const STATE_INTERVAL_MS = 1_000;
-const POSITION_INTERVAL_MS = 1_000;
+const STATE_INTERVAL_MS = 500;
+const POSITION_INTERVAL_MS = 500;
 const ENEMY_VISIBLE_MS = 3_000;
 const RADAR_DURATION_MS = 60_000; // radar reveals all enemies for one minute
 const SHIELD_PICKUP_MS = 120_000; // shield from a power-up lasts 2 minutes
 const SHIELD_RESPAWN_MS = 20_000; // shield granted on respawn lasts 20 seconds
 const AIRSTRIKE_WARNING_MS = 8_000; // evacuation window before detonation
+const APACHE_DURATION_MS = 60_000; // apache zone stays active for 1 minute
+const APACHE_DAMAGE = 10; // HP removed per damage tick inside the zone
+const APACHE_TICK_MS = 2_000; // damage applied every 2 seconds
 
 function haversineMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -27,6 +31,7 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 }
 
 let nextAirstrikeId = 1;
+let nextApacheId = 1;
 
 export class BaseMode {
   constructor(players, config, broadcast, powerupManager, onEnd) {
@@ -42,6 +47,8 @@ export class BaseMode {
     this._ended = false;
     this._powerupsStarted = false;
     this._airstrikeTimers = [];
+    // id -> { deployerId, lat, lng, endsAt, damageInterval, expireTimer }
+    this._apacheZones = new Map();
   }
 
   start() {
@@ -77,6 +84,11 @@ export class BaseMode {
     }
     for (const t of this._airstrikeTimers) clearTimeout(t);
     this._airstrikeTimers = [];
+    for (const z of this._apacheZones.values()) {
+      clearInterval(z.damageInterval);
+      clearTimeout(z.expireTimer);
+    }
+    this._apacheZones.clear();
     this.powerupManager.stop();
   }
 
@@ -249,6 +261,7 @@ export class BaseMode {
       lng: victim.lng,
     });
 
+    if (victim.respawnTimer) clearTimeout(victim.respawnTimer);
     victim.respawnTimer = setTimeout(
       () => this._respawn(victim),
       respawnSecs * 1_000,
@@ -261,6 +274,7 @@ export class BaseMode {
   }
 
   _respawn(player) {
+    if (this._ended) return;
     player.respawnTimer = null;
     player.hp = player.maxHp;
     player.ammo = this.config.bulletsPerMag ?? 30;
@@ -308,6 +322,10 @@ export class BaseMode {
         // Not an instant effect — the player holds it and deploys it later.
         player.airstrikesAvailable++;
         break;
+      case POWERUP_TYPES.APACHE_SUPPORT:
+        // Not an instant effect — the player holds it and deploys it later.
+        player.apachesAvailable++;
+        break;
     }
   }
 
@@ -339,6 +357,8 @@ export class BaseMode {
   }
 
   _detonateAirstrike(deployer, id, lat, lng) {
+    if (this._ended) return;
+
     const victims = [];
     for (const p of this.players.values()) {
       if (!p.isAlive || p.lat === null) continue;
@@ -362,6 +382,7 @@ export class BaseMode {
     });
 
     for (const victim of victims) {
+      if (this._ended) break;
       victim.hp = 0;
       victim.timesHit++;
       this.broadcast({
@@ -371,6 +392,79 @@ export class BaseMode {
         maxHp: victim.maxHp,
       });
       this._killPlayer(victim, deployer);
+    }
+  }
+
+  // Deploy an Apache Support helicopter that lingers for APACHE_DURATION_MS and
+  // deals APACHE_DAMAGE every APACHE_TICK_MS to enemies inside APACHE_RADIUS_M.
+  deployApache(deployer, lat, lng) {
+    if (!deployer || !deployer.isAlive) return;
+    if (deployer.apachesAvailable <= 0) return;
+    if (typeof lat !== 'number' || typeof lng !== 'number') return;
+    deployer.apachesAvailable--;
+
+    const id = nextApacheId++;
+    const endsAt = Date.now() + APACHE_DURATION_MS;
+
+    this.broadcast({
+      type: S2C.APACHE_ACTIVE,
+      id,
+      lat,
+      lng,
+      radius: APACHE_RADIUS_M,
+      endsAt,
+      by: deployer.username,
+    });
+
+    const damageInterval = setInterval(() => {
+      this._apacheTickDamage(deployer, id, lat, lng);
+    }, APACHE_TICK_MS);
+
+    const expireTimer = setTimeout(() => {
+      clearInterval(damageInterval);
+      this._apacheZones.delete(id);
+      this.broadcast({ type: S2C.APACHE_EXPIRED, id });
+    }, APACHE_DURATION_MS);
+
+    this._apacheZones.set(id, {
+      deployerId: deployer.id,
+      lat,
+      lng,
+      endsAt,
+      damageInterval,
+      expireTimer,
+    });
+  }
+
+  _apacheTickDamage(deployer, id, lat, lng) {
+    if (this._ended) return;
+    if (!this._apacheZones.has(id)) return;
+
+    for (const p of this.players.values()) {
+      if (!p.isAlive || p.lat === null) continue;
+      if (haversineMeters(lat, lng, p.lat, p.lng) > APACHE_RADIUS_M) continue;
+      // Respect friendly fire: spare the deployer and teammates unless enabled.
+      if (
+        !this.config.friendlyFire &&
+        (p.id === deployer.id || this._areTeammates(deployer, p))
+      )
+        continue;
+
+      let dmg = APACHE_DAMAGE;
+      if (Date.now() < p.shieldUntil) dmg = Math.ceil(dmg / 2);
+      p.hp = Math.max(0, p.hp - dmg);
+      p.timesHit++;
+
+      this.broadcast({
+        type: S2C.PLAYER_HP,
+        playerId: p.id,
+        hp: p.hp,
+        maxHp: p.maxHp,
+      });
+
+      if (p.hp <= 0 && !this._ended) {
+        this._killPlayer(p, deployer);
+      }
     }
   }
 }

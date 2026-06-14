@@ -3,7 +3,7 @@ import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Circle, LatLng, PROVIDER_DEFAULT, MapPressEvent } from 'react-native-maps';
 import { useMapStore } from '../stores/map.js';
 import { useGameStore } from '../stores/game.js';
-import { AIRSTRIKE_RADIUS_M } from 'shared/messages.js';
+import { AIRSTRIKE_RADIUS_M, APACHE_RADIUS_M } from 'shared/messages.js';
 
 const POWERUP_EMOJI: Record<string, string> = {
   fullReload: '🔋',
@@ -12,19 +12,25 @@ const POWERUP_EMOJI: Record<string, string> = {
   stealth: '👻',
   radar: '📡',
   airstrike: '🚀',
+  apacheSupport: '🚁',
 };
 
 export default function GameMap() {
-  const { myPosition, teammates, firingEnemies, powerups, airstrikes, graves, heading } = useMapStore();
-  const { airstrikeArmed, airstrikePreview, setAirstrikeArmed, setAirstrikePreview } = useGameStore();
+  const { myPosition, teammates, firingEnemies, powerups, airstrikes, apaches, graves, heading } = useMapStore();
+  const {
+    airstrikeArmed, airstrikePreview, setAirstrikeArmed, setAirstrikePreview,
+    apacheArmed, apachePreview, setApacheArmed, setApachePreview,
+  } = useGameStore();
 
-  // Tapping while armed (or while a preview is already placed) positions / moves
-  // the pending preview circle. The actual strike deploys only on Confirm.
   function onMapPress(e: MapPressEvent) {
-    if (!airstrikeArmed && !airstrikePreview) return;
     const { latitude, longitude } = e.nativeEvent.coordinate;
-    setAirstrikePreview({ lat: latitude, lng: longitude });
-    if (airstrikeArmed) setAirstrikeArmed(false);
+    if (apacheArmed || apachePreview) {
+      setApachePreview({ lat: latitude, lng: longitude });
+      if (apacheArmed) setApacheArmed(false);
+    } else if (airstrikeArmed || airstrikePreview) {
+      setAirstrikePreview({ lat: latitude, lng: longitude });
+      if (airstrikeArmed) setAirstrikeArmed(false);
+    }
   }
 
   if (!myPosition) {
@@ -150,6 +156,43 @@ export default function GameMap() {
           </Marker>
         </React.Fragment>
       ))}
+
+      {/* Pending-confirmation apache preview (dashed green, before Confirm is pressed) */}
+      {apachePreview && (
+        <React.Fragment>
+          <Circle
+            center={{ latitude: apachePreview.lat, longitude: apachePreview.lng }}
+            radius={APACHE_RADIUS_M}
+            strokeColor="#69f0ae"
+            strokeWidth={2}
+            lineDashPattern={[8, 5]}
+            fillColor="rgba(105,240,174,0.12)"
+          />
+          <Marker
+            coordinate={{ latitude: apachePreview.lat, longitude: apachePreview.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}>
+            <Text style={styles.apachePreviewMarker}>🚁</Text>
+          </Marker>
+        </React.Fragment>
+      )}
+
+      {/* Active apache support zones (solid green) */}
+      {apaches.map(a => (
+        <React.Fragment key={`ap-${a.id}`}>
+          <Circle
+            center={{ latitude: a.lat, longitude: a.lng }}
+            radius={a.radius}
+            strokeColor="#00c853"
+            strokeWidth={2}
+            fillColor="rgba(0,200,83,0.18)"
+          />
+          <Marker
+            coordinate={{ latitude: a.lat, longitude: a.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}>
+            <Text style={styles.apacheZoneMarker}>🚁</Text>
+          </Marker>
+        </React.Fragment>
+      ))}
     </MapView>
   );
 }
@@ -228,5 +271,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
     overflow: 'hidden',
+  },
+  apachePreviewMarker: {
+    fontSize: 22,
+    opacity: 0.7,
+  },
+  apacheZoneMarker: {
+    fontSize: 24,
   },
 });

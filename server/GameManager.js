@@ -258,6 +258,11 @@ export class GameManager {
         if (this.state !== GAME_STATES.PLAYING) return;
         this._mode?.deployAirstrike(player, msg.lat, msg.lng);
         break;
+
+      case C2S.DEPLOY_APACHE:
+        if (this.state !== GAME_STATES.PLAYING) return;
+        this._mode?.deployApache(player, msg.lat, msg.lng);
+        break;
     }
   }
 

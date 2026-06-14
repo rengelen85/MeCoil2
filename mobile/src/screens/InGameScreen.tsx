@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/index.js';
 import { useGameStore, ScoreEntry } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
-import { sendPosition, sendStopGame, sendDeployAirstrike } from '../lib/network.js';
+import { sendPosition, sendStopGame, sendDeployAirstrike, sendDeployApache } from '../lib/network.js';
 import { applyGunAssignment, connectBle, setGunMode, GUN_MODES, GUN_MODE_CYCLE, GunMode } from '../lib/ble.js';
 import GameMap from '../components/GameMap.js';
 
@@ -28,6 +28,8 @@ export default function InGameScreen(_props: Props) {
     ammo, maxAmmo, isReloading, shieldActive, stealthActive,
     radarActive, airstrikeReady, airstrikeArmed, airstrikePreview,
     setAirstrikeArmed, setAirstrikePreview, setAirstrikeReady,
+    apacheReady, apacheArmed, apachePreview,
+    setApacheArmed, setApachePreview, setApacheReady,
     timeRemaining, scores, myId, isHost, bleConnected, gunSlotId,
     killFeed, hp, maxHp, isAlive, respawnCountdown,
   } = useGameStore();
@@ -36,7 +38,7 @@ export default function InGameScreen(_props: Props) {
   const hpPct = maxHp > 0 ? Math.min(100, Math.round((hp / maxHp) * 100)) : 0;
   const hpColor = hpPct > 50 ? '#00e676' : hpPct > 25 ? '#ffeb3b' : '#ff5252';
 
-  const { startGPS, stopGPS, startHeading, stopHeading, airstrikes } =
+  const { startGPS, stopGPS, startHeading, stopHeading, airstrikes, apaches } =
     useMapStore();
 
   // 1s ticker so the incoming-airstrike countdown updates live.
@@ -47,6 +49,9 @@ export default function InGameScreen(_props: Props) {
   }, []);
   const incomingStrike = airstrikes.length
     ? Math.max(0, Math.ceil((Math.min(...airstrikes.map(a => a.detonateAt)) - now) / 1000))
+    : null;
+  const apacheCountdown = apaches.length
+    ? Math.max(0, Math.ceil((Math.max(...apaches.map(a => a.endsAt)) - now) / 1000))
     : null;
 
   function toggleAirstrike() {
@@ -64,6 +69,23 @@ export default function InGameScreen(_props: Props) {
 
   function cancelAirstrike() {
     setAirstrikePreview(null);
+  }
+
+  function toggleApache() {
+    if (apacheReady <= 0) return;
+    setApachePreview(null);
+    setApacheArmed(!apacheArmed);
+  }
+
+  function confirmApache() {
+    if (!apachePreview) return;
+    sendDeployApache(apachePreview.lat, apachePreview.lng);
+    setApachePreview(null);
+    setApacheReady(Math.max(0, apacheReady - 1));
+  }
+
+  function cancelApache() {
+    setApachePreview(null);
   }
 
   const onPosition = useCallback(
@@ -118,6 +140,18 @@ export default function InGameScreen(_props: Props) {
         </View>
       )}
 
+      {/* Apache zone active warning */}
+      {apacheCountdown !== null && (
+        <View
+          style={[styles.apacheWarning, incomingStrike !== null && styles.apacheWarningOffset]}
+          pointerEvents="none">
+          <Text style={styles.apacheWarningTitle}>
+            🚁 APACHE ZONE{apaches.length > 1 ? ` (${apaches.length})` : ''} ACTIVE
+          </Text>
+          <Text style={styles.apacheWarningCount}>{apacheCountdown}s remaining</Text>
+        </View>
+      )}
+
       {/* Radar active indicator */}
       {radarActive && (
         <View style={styles.radarBadge} pointerEvents="none">
@@ -138,6 +172,22 @@ export default function InGameScreen(_props: Props) {
       ) : airstrikeArmed ? (
         <View style={styles.airstrikeArmedHint} pointerEvents="none">
           <Text style={styles.airstrikeArmedHintText}>Tap the map to place the strike zone</Text>
+        </View>
+      ) : null}
+
+      {/* Apache: armed hint or pending-confirm prompt */}
+      {apachePreview ? (
+        <View style={styles.apacheConfirmBar}>
+          <TouchableOpacity style={styles.btnConfirmApache} onPress={confirmApache}>
+            <Text style={styles.btnConfirmApacheText}>✓ Deploy Apache</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btnCancelStrike} onPress={cancelApache}>
+            <Text style={styles.btnCancelStrikeText}>✗ Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      ) : apacheArmed ? (
+        <View style={styles.apacheArmedHint} pointerEvents="none">
+          <Text style={styles.apacheArmedHintText}>Tap the map to place the Apache zone</Text>
         </View>
       ) : null}
 
@@ -214,6 +264,13 @@ export default function InGameScreen(_props: Props) {
             <TouchableOpacity onPress={toggleAirstrike}>
               <Text style={[styles.airstrikeBtn, airstrikeArmed && styles.airstrikeBtnArmed]}>
                 🚀 {airstrikeReady}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {apacheReady > 0 && (
+            <TouchableOpacity onPress={toggleApache}>
+              <Text style={[styles.apacheBtn, apacheArmed && styles.apacheBtnArmed]}>
+                🚁 {apacheReady}
               </Text>
             </TouchableOpacity>
           )}
@@ -540,6 +597,83 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   stopBtnText: { color: '#e63946', fontWeight: '700' },
+  apacheWarning: {
+    position: 'absolute',
+    top: 92,
+    alignSelf: 'center',
+    zIndex: 50,
+    backgroundColor: 'rgba(0,30,0,0.85)',
+    borderWidth: 1,
+    borderColor: '#00c853',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  apacheWarningOffset: {
+    top: 148,
+  },
+  apacheWarningTitle: {
+    color: '#00e676',
+    fontWeight: '900',
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  apacheWarningCount: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  apacheArmedHint: {
+    position: 'absolute',
+    bottom: 130,
+    alignSelf: 'center',
+    zIndex: 50,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  apacheArmedHintText: {
+    color: '#69f0ae',
+    fontSize: 12,
+  },
+  apacheConfirmBar: {
+    position: 'absolute',
+    bottom: 130,
+    alignSelf: 'center',
+    zIndex: 50,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  btnConfirmApache: {
+    backgroundColor: '#00c853',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  btnConfirmApacheText: {
+    color: '#000',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  apacheBtn: {
+    color: '#00e676',
+    fontSize: 14,
+    fontWeight: '700',
+    backgroundColor: 'rgba(0,200,83,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,200,83,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  apacheBtnArmed: {
+    color: '#000',
+    backgroundColor: '#00c853',
+  },
 });
 
 // Per-mode accent applied on top of styles.gunMode. AUTO keeps the base style.
