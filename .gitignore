@@ -6,6 +6,7 @@ org-set-up.md
 CLAUDE.md
 *.bak
 .claude/*
+*.tar.gz
 
 # Mobile build artifacts
 mobile/android/build/

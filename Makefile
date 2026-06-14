@@ -1,6 +1,8 @@
 .PHONY: install dev dev-server dev-client build start test gen-certs phone-test lint fmt \
         mobile-prereqs mobile-install apk-debug apk-release android-run android-emulator
 
+SHELL_RC := $(HOME)/.bashrc
+
 # Install all dependencies and generate certs
 init: install-prereqs install gen-certs
 	sudo chown -R $$USER:$$USER .
@@ -87,15 +89,61 @@ phone-test: gen-certs build
 # ── Android / Mobile ──────────────────────────────────────────────────────────
 
 # Install Android build prerequisites on Ubuntu/Debian (JDK only).
-# After this, install Android Studio from https://developer.android.com/studio
-# then add to ~/.bashrc or ~/.zshrc:
-#   export ANDROID_HOME=$$HOME/Android/Sdk
-#   export PATH=$$PATH:$$ANDROID_HOME/emulator:$$ANDROID_HOME/platform-tools
+# After this, install Android Studio via make install-android-studio, complete the wizard, and create an AVD.
 mobile-prereqs:
 	sudo apt update
 	sudo apt install -y openjdk-17-jdk
 	@echo ""
-	@echo "Next: install Android Studio, set ANDROID_HOME, and create an AVD."
+	@echo "Next: install Android Studio, complete the wizard, and create an AVD."
+
+ANDROID_STUDIO_VERSION = 2026.1.1.9
+ANDROID_STUDIO_TAR = android-studio-quail1-patch1-linux.tar.gz
+ANDROID_STUDIO_URL = https://edgedl.me.gvt1.com/android/studio/ide-zips/$(ANDROID_STUDIO_VERSION)/$(ANDROID_STUDIO_TAR)
+INSTALL_DIR = /opt/android-studio
+
+# Build number from https://developer.android.com/studio#command-line-tools-only
+CMDLINE_TOOLS_BUILD = 13114758
+CMDLINE_TOOLS_ZIP   = commandlinetools-linux-$(CMDLINE_TOOLS_BUILD)_latest.zip
+CMDLINE_TOOLS_URL   = https://dl.google.com/android/repository/$(CMDLINE_TOOLS_ZIP)
+
+install-android-studio:
+	@if [ ! -f $(ANDROID_STUDIO_TAR) ]; then \
+		echo "Downloading Android Studio..."; \
+		wget -nc $(ANDROID_STUDIO_URL); \
+	else \
+		echo "File already exists, skipping download."; \
+	fi
+	sudo mkdir -p $(INSTALL_DIR)
+	sudo tar -xzf $(ANDROID_STUDIO_TAR) -C /opt/
+	sudo mv /opt/android-studio $(INSTALL_DIR) || true
+	@echo "Creating symlink..."
+	sudo ln -sf $(INSTALL_DIR)/bin/studio.sh /usr/local/bin/android-studio
+	@echo "Android Studio installed!"
+	@if [ ! -d "$$HOME/Android/Sdk/cmdline-tools/latest" ]; then \
+		echo "Installing Android SDK command-line tools..."; \
+		wget -nc $(CMDLINE_TOOLS_URL); \
+		mkdir -p "$$HOME/Android/Sdk/cmdline-tools"; \
+		unzip -q $(CMDLINE_TOOLS_ZIP) -d "$$HOME/Android/Sdk/cmdline-tools/"; \
+		mv "$$HOME/Android/Sdk/cmdline-tools/cmdline-tools" "$$HOME/Android/Sdk/cmdline-tools/latest"; \
+		rm -f $(CMDLINE_TOOLS_ZIP); \
+		yes | "$$HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true; \
+		echo "Command-line tools installed."; \
+	else \
+		echo "Command-line tools already installed, skipping."; \
+	fi
+	@if ! grep -q "# ANDROID SDK START" $(SHELL_RC); then \
+		echo "" >> $(SHELL_RC); \
+		echo "# ANDROID SDK START" >> $(SHELL_RC); \
+		echo "export ANDROID_HOME=\$$HOME/Android/Sdk" >> $(SHELL_RC); \
+		echo "export PATH=\$$PATH:\$$ANDROID_HOME/emulator:\$$ANDROID_HOME/platform-tools:\$$ANDROID_HOME/cmdline-tools/latest/bin" >> $(SHELL_RC); \
+		echo "# ANDROID SDK END" >> $(SHELL_RC); \
+	else \
+		echo "Android SDK environment variables already set in $(SHELL_RC), skipping."; \
+	fi
+	@echo "Android env ensured in $(SHELL_RC)"
+	@echo "Run this to apply changes now:"
+	@echo "source ~/.bashrc"
+	android-studio
 
 # Install mobile app dependencies
 mobile-install:
