@@ -57,6 +57,58 @@ npm run lint          # lint JS/TS/Svelte sources (Biome)
 npm run fmt           # auto-format JS/TS/Svelte sources (Biome)
 ```
 
+### Android Mobile App (React Native)
+
+A native Android app is available in the `mobile/` directory. It enables true P2P play: one phone hosts the Node.js server, others join over WiFi/hotspot.
+
+**Prerequisites:**
+- Android Studio (latest stable, or matching your Android API 36 SDK version)
+- Java Development Kit (JDK) 17+
+- Android SDK API 36 (`android/build.gradle` → `compileSdkVersion`)
+- Android NDK **27.1.12297006** — **must match the pinned version** in `android/build.gradle` → `ndkVersion`. Other NDK versions may cause build failures.
+- `ANDROID_HOME` environment variable pointing to your Android SDK root (e.g., `C:\Users\...\AppData\Local\Android\Sdk`), or create `mobile/android/local.properties` with `sdk.dir=<path>`
+
+**Build & install:**
+```sh
+cd mobile
+npm install
+npm run android      # build + deploy to connected device/emulator
+npm run start        # Metro bundler only (for development)
+```
+
+**Troubleshooting:**
+
+- **`[CXX1214] User has minSdkVersion 22 but library was built for 24`**: This misleading error usually indicates a **corrupt/incomplete NDK install**. Check `%LOCALAPPDATA%\Android\Sdk\ndk\27.1.12297006\meta\platforms.json` — if it doesn't exist or the folder is small (<1 GB), reinstall the NDK:
+  ```sh
+  %LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat --install "ndk;27.1.12297006"
+  ```
+  Then run `npm run android` again.
+
+- **`ANDROID_HOME` pointing to wrong location**: Ensure it's the SDK root (`Sdk/`), not a subdirectory like `Sdk/platform-tools/`. Or create `mobile/android/local.properties` with the correct path.
+
+- **CMake/prefab parse errors**: Run the clean script to wipe stale caches:
+  - **Linux/macOS**: `make android-clean`
+  - **Windows**: `powershell -ExecutionPolicy Bypass -File mobile\android-clean.ps1`
+
+- **`ninja: error: mkdir(…): No such file or directory`** (Windows only): This occurs when the C++ native module build path exceeds Windows' 260-character `MAX_PATH` limit. The repo root path is too long when combined with deep `node_modules/` nesting and generated object-file directories.
+  
+  **Fix**:
+  1. **Enable Windows long-path support** (requires admin):
+     ```powershell
+     # Run as Administrator
+     New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -Type DWord -Force
+     ```
+  2. **Replace the SDK's ninja with a long-path-aware version** (v1.12.1+):
+     ```powershell
+     # Download ninja 1.12.1 from https://github.com/ninja-build/ninja/releases
+     # and replace: %LOCALAPPDATA%\Android\Sdk\cmake\3.22.1\bin\ninja.exe
+     ```
+  3. Clean and rebuild:
+     ```sh
+     powershell -ExecutionPolicy Bypass -File mobile\android-clean.ps1
+     npm run android
+     ```
+
 ---
 
 ## Playing From a Phone
@@ -228,6 +280,10 @@ When a player's WiFi drops, the client automatically reconnects with exponential
 MeCoil/
 ├── server/           # Node.js game server and game modes
 ├── client/           # Vite + Svelte web client
+├── mobile/           # React Native Android app (P2P server hosting)
+│   ├── src/          # React Native screens and components
+│   ├── android/      # Android-specific build config (Gradle)
+│   └── nodejs-assets/nodejs-project/ # On-device Node.js server
 ├── shared/           # Shared protocol constants
 ├── docs/             # Hardware protocol documentation
 ├── certs/            # HTTPS certificates (gitignored)
@@ -310,6 +366,9 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
 2. Add a constant to `shared/messages.js` → `GAME_MODES`.
 3. Import and instantiate in `GameManager._startGame()`.
 4. Add a `<option>` for it in `client/src/screens/Lobby.svelte`.
+5. If a native mobile app exists, also add the mode to:
+   - `mobile/src/screens/LobbyScreen.tsx` (add the `<option>`)
+   - Update `mobile/nodejs-assets/nodejs-project/shared/messages.js` if the mode is exposed to mobile (keep it in sync with the root `shared/messages.js`)
 
 ### Adding a weapon profile
 

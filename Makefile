@@ -1,5 +1,5 @@
 .PHONY: install dev dev-server dev-client build start test gen-certs phone-test lint fmt \
-        mobile-prereqs mobile-install apk-debug apk-release android-run android-emulator create-avd
+        mobile-prereqs mobile-install apk-debug apk-release android-run android-emulator create-avd android-clean
 
 SHELL_RC := $(HOME)/.bashrc
 
@@ -232,3 +232,36 @@ android-emulator:
 	else \
 		"$$ANDROID_HOME/emulator/emulator" -avd $(AVD) & \
 	fi
+
+# Clean Android build cache and perform clean Gradle build.
+# Use when hitting stale CMake cache errors (e.g. CXX1214 minSdkVersion mismatch) or other Gradle failures.
+# Linux/macOS equivalent of mobile/android-clean.ps1.
+android-clean:
+	@NDK_VERSION="27.1.12297006"; \
+	NDK_DIR="$$ANDROID_HOME/ndk/$$NDK_VERSION"; \
+	if [ -d "$$NDK_DIR" ]; then \
+		if [ ! -f "$$NDK_DIR/meta/platforms.json" ]; then \
+			echo "WARNING: NDK $$NDK_VERSION looks incomplete (missing meta/platforms.json)."; \
+			echo "This causes CXX5101 / CXX1214 errors. Re-download via sdkmanager:"; \
+			echo "  sdkmanager \"ndk;$$NDK_VERSION\""; \
+		else \
+			echo "NDK $$NDK_VERSION looks complete."; \
+		fi; \
+	else \
+		echo "WARNING: NDK $$NDK_VERSION not found at $$NDK_DIR."; \
+	fi; \
+	echo "Deleting CMake cache (.cxx)..."; \
+	CXX_DIR="mobile/android/app/.cxx"; \
+	if [ -d "$$CXX_DIR" ]; then \
+		rm -rf "$$CXX_DIR"; \
+		echo "  Deleted $$CXX_DIR"; \
+	else \
+		echo "  Already clean."; \
+	fi; \
+	echo "Running gradlew clean..."; \
+	cd mobile/android && ./gradlew clean; \
+	if [ $$? -ne 0 ]; then \
+		echo "ERROR: gradlew clean failed. Check output above."; \
+		exit 1; \
+	fi; \
+	echo "Done. You can now run: npm run android"
