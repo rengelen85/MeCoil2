@@ -7,11 +7,11 @@ SHELL_RC := $(HOME)/.bashrc
 init: install-prereqs install gen-certs
 	sudo chown -R $$USER:$$USER .
 
-# Install Node.js (Ubuntu/Debian) & mkcert
+# Install Node.js (Ubuntu/Debian) & openssl
 install-prereqs:
 	sudo apt update
-	sudo apt install nodejs
-	sudo apt install npm
+	sudo apt install nodejs -y
+	sudo apt install npm -y
 	sudo apt install openssl libssl-dev -y
 
 # Check installed Node.js version
@@ -265,3 +265,5 @@ android-clean:
 		exit 1; \
 	fi; \
 	echo "Done. You can now run: npm run android"
+
+include Makefile-mac.mk
