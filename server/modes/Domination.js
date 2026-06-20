@@ -49,6 +49,7 @@ export class Domination extends BaseMode {
     this._deathstreakEnabled = config.deathstreakEnabled ?? false;
     this._deathstreakCount = config.deathstreakCount ?? 3;
     this._deathStreaks = new Map(); // playerId → consecutive deaths since last kill
+    this._deathTimes = new Map(); // playerId → ms timestamp of death
   }
 
   _areTeammates(a, b) {
@@ -110,6 +111,28 @@ export class Domination extends BaseMode {
         zone._activeTeam = null;
       }
     }
+
+    // If a dead player was waiting for location-based respawn (no timer scheduled)
+    // but their team now owns no zones, start a fallback auto-respawn timer.
+    const respawnSecs = this.config.respawnDelaySecs ?? 10;
+    for (const player of this.players.values()) {
+      if (player.isAlive || player.respawnTimer !== null) continue;
+      if (this._ownedZonesFor(player.team).length === 0) {
+        const elapsed = Date.now() - (this._deathTimes.get(player.id) ?? 0);
+        const remaining = Math.max(0, respawnSecs * 1_000 - elapsed);
+        player.respawnAt = Date.now() + remaining;
+        player.respawnTimer = setTimeout(
+          () => this._respawn(player),
+          remaining,
+        );
+      }
+    }
+  }
+
+  _ownedZonesFor(team) {
+    return this._zones.filter((z) =>
+      team === TEAMS.RED ? z._controlValue >= 1.0 : z._controlValue <= -1.0,
+    );
   }
 
   // Award points to each team for every zone they fully own, on each scoring tick.
@@ -195,27 +218,83 @@ export class Domination extends BaseMode {
       .reduce((sum, p) => sum + p.kills, 0);
   }
 
-  // Override: track per-player deathstreaks and flag for powerup on next respawn.
+  // Override: track deathstreaks and use zone-based respawn with a fallback timer.
   _killPlayer(victim, killer) {
+    const credited = killer && killer.id !== victim.id;
+
     if (this._deathstreakEnabled) {
       const streak = (this._deathStreaks.get(victim.id) ?? 0) + 1;
       this._deathStreaks.set(victim.id, streak);
 
       if (streak % this._deathstreakCount === 0) {
         const enemyTeam = victim.team === TEAMS.RED ? TEAMS.BLUE : TEAMS.RED;
-        const teamIsBehind =
-          this._teamPoints[victim.team] < this._teamPoints[enemyTeam];
-        if (teamIsBehind) {
+        if (this._teamPoints[victim.team] < this._teamPoints[enemyTeam]) {
           victim._pendingDeathstreakPowerup = true;
         }
       }
 
-      // A kill resets the killer's own deathstreak.
-      const credited = killer && killer.id !== victim.id;
       if (credited) this._deathStreaks.set(killer.id, 0);
     }
 
-    super._killPlayer(victim, killer);
+    victim.deaths++;
+    victim.isAlive = false;
+    victim.shieldUntil = 0;
+    if (credited) killer.kills++;
+    this._deathTimes.set(victim.id, Date.now());
+    this.killFeed.push({
+      at: Date.now(),
+      shooterName: credited ? killer.username : 'Airstrike',
+      victimName: victim.username,
+    });
+
+    // If the team owns at least one zone, use location-based respawn so the player
+    // must walk to a friendly zone. Otherwise fall back to a timed auto-respawn.
+    const ownedZones = this._ownedZonesFor(victim.team);
+    // Enable this log line to debug respawn behavior when a player dies.
+    // console.log('[DOM] _killPlayer debug — victim.team:', victim.team, 'zones:', this._zones.map(z => ({ id: z.id, cv: z._controlValue })), 'ownedZones:', ownedZones.length);
+    const hasZone = ownedZones.length > 0;
+    const respawnSecs = this.config.respawnDelaySecs ?? 10;
+
+    this.broadcast({
+      type: S2C.PLAYER_DEAD,
+      playerId: victim.id,
+      username: victim.username,
+      killerId: credited ? killer.id : null,
+      killerName: credited ? killer.username : null,
+      respawnIn: hasZone ? null : respawnSecs,
+      lat: victim.lat,
+      lng: victim.lng,
+    });
+
+    if (victim.respawnTimer) clearTimeout(victim.respawnTimer);
+    if (hasZone) {
+      victim.respawnTimer = null; // onPositionUpdate handles zone-proximity respawn
+    } else {
+      victim.respawnAt = Date.now() + respawnSecs * 1_000;
+      victim.respawnTimer = setTimeout(
+        () => this._respawn(victim),
+        respawnSecs * 1_000,
+      );
+    }
+  }
+
+  // Location-based respawn: fires on every position update for dead players.
+  onPositionUpdate(player) {
+    if (player.lat === null || player.isAlive || player.respawnTimer !== null)
+      return;
+
+    const elapsed = Date.now() - (this._deathTimes.get(player.id) ?? 0);
+    if (elapsed < (this.config.respawnDelaySecs ?? 10) * 1_000) return;
+
+    for (const zone of this._ownedZonesFor(player.team)) {
+      if (
+        haversineMeters(player.lat, player.lng, zone.lat, zone.lng) <=
+        ZONE_RADIUS_M
+      ) {
+        this._respawn(player);
+        return;
+      }
+    }
   }
 
   // Override: apply pending deathstreak powerup before resuming play.

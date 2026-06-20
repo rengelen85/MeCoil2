@@ -262,6 +262,7 @@ export class BaseMode {
     });
 
     if (victim.respawnTimer) clearTimeout(victim.respawnTimer);
+    victim.respawnAt = Date.now() + respawnSecs * 1_000;
     victim.respawnTimer = setTimeout(
       () => this._respawn(victim),
       respawnSecs * 1_000,
@@ -276,6 +277,7 @@ export class BaseMode {
   _respawn(player) {
     if (this._ended) return;
     player.respawnTimer = null;
+    player.respawnAt = 0;
     player.hp = player.maxHp;
     player.ammo = this.config.bulletsPerMag ?? 30;
     player.isAlive = true;
