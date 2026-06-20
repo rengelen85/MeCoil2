@@ -203,6 +203,7 @@ export async function tryAutoReconnectBle() {
 // Called from InGame.svelte after the game starts and the server assigns a gun slot.
 export async function applyGunAssignment(slotId, profile = DEFAULT_PROFILE) {
   if (!get(bleConnected)) return;
+  if (slotId == null) return; // no slot assigned yet - nothing to program
   const mag = magazineSize();
   _activeProfile = profile;
   _activeMode = 'auto'; // matches DEFAULT_PROFILE; the in-game toggle re-syncs it
