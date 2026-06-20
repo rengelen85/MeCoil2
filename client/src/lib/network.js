@@ -318,6 +318,10 @@ function _handle(msg) {
       ctfBases.set({ red: null, blue: null });
       ctfFlags.set({ red: null, blue: null });
       domZones.set([]);
+      // On a reconnect mid-round the server sends a snapshot of our live state
+      // so we restore it instead of starting fresh (preserves health, held
+      // airstrikes/apaches and any active buffs).
+      if (msg.resume) _applyResumeState(msg.resume);
       screen.set('ingame');
       break;
     }
@@ -460,6 +464,24 @@ function _handle(msg) {
       resetGame();
       screen.set('roomselect');
       break;
+  }
+}
+
+// Restore the local player's live state after a mid-round reconnect, overriding
+// the fresh-start defaults the GAME_STARTED handler just applied. Buff and
+// respawn timers are resumed from the remaining milliseconds the server reports.
+function _applyResumeState(r) {
+  maxHp.set(r.maxHp);
+  hp.set(r.hp);
+  isAlive.set(r.isAlive);
+  if (r.ammo != null) ammo.set(r.ammo);
+  airstrikeReady.set(r.airstrikesAvailable ?? 0);
+  apacheReady.set(r.apachesAvailable ?? 0);
+  if (r.shieldMs > 0) _startShieldCountdown(Math.round(r.shieldMs / 1_000));
+  if (r.stealthMs > 0) _startStealthCountdown(Math.round(r.stealthMs / 1_000));
+  if (r.radarMs > 0) _startRadarCountdown(Math.round(r.radarMs / 1_000));
+  if (!r.isAlive && r.respawnMs != null) {
+    _startRespawnCountdown(Math.round(r.respawnMs / 1_000));
   }
 }
 

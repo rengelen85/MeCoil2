@@ -62,6 +62,7 @@ npm run fmt           # auto-format JS/TS/Svelte sources (Biome)
 A native Android app is available in the `mobile/` directory. It enables true P2P play: one phone hosts the Node.js server, others join over WiFi/hotspot.
 
 **Prerequisites:**
+
 - Android Studio (latest stable, or matching your Android API 36 SDK version)
 - Java Development Kit (JDK) 17+
 - Android SDK API 36 (`android/build.gradle` → `compileSdkVersion`)
@@ -69,6 +70,7 @@ A native Android app is available in the `mobile/` directory. It enables true P2
 - `ANDROID_HOME` environment variable pointing to your Android SDK root (e.g., `C:\Users\...\AppData\Local\Android\Sdk`), or create `mobile/android/local.properties` with `sdk.dir=<path>`
 
 **Build & install:**
+
 ```sh
 cd mobile
 npm install
@@ -79,9 +81,11 @@ npm run start        # Metro bundler only (for development)
 **Troubleshooting:**
 
 - **`[CXX1214] User has minSdkVersion 22 but library was built for 24`**: This misleading error usually indicates a **corrupt/incomplete NDK install**. Check `%LOCALAPPDATA%\Android\Sdk\ndk\27.1.12297006\meta\platforms.json` — if it doesn't exist or the folder is small (<1 GB), reinstall the NDK:
+
   ```sh
   %LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat --install "ndk;27.1.12297006"
   ```
+
   Then run `npm run android` again.
 
 - **`ANDROID_HOME` pointing to wrong location**: Ensure it's the SDK root (`Sdk/`), not a subdirectory like `Sdk/platform-tools/`. Or create `mobile/android/local.properties` with the correct path.
@@ -91,19 +95,24 @@ npm run start        # Metro bundler only (for development)
   - **Windows**: `powershell -ExecutionPolicy Bypass -File mobile\android-clean.ps1`
 
 - **`ninja: error: mkdir(…): No such file or directory`** (Windows only): This occurs when the C++ native module build path exceeds Windows' 260-character `MAX_PATH` limit. The repo root path is too long when combined with deep `node_modules/` nesting and generated object-file directories.
-  
+
   **Fix**:
   1. **Enable Windows long-path support** (requires admin):
+
      ```powershell
      # Run as Administrator
      New-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -Type DWord -Force
      ```
+
   2. **Replace the SDK's ninja with a long-path-aware version** (v1.12.1+):
+
      ```powershell
      # Download ninja 1.12.1 from https://github.com/ninja-build/ninja/releases
      # and replace: %LOCALAPPDATA%\Android\Sdk\cmake\3.22.1\bin\ninja.exe
      ```
+
   3. Clean and rebuild:
+
      ```sh
      powershell -ExecutionPolicy Bypass -File mobile\android-clean.ps1
      npm run android
@@ -270,7 +279,9 @@ The current mode is displayed as a colored badge in the bottom-left HUD (`SEMI`,
 
 ### WiFi Drop Management
 
-When a player's WiFi drops, the client automatically reconnects with exponential backoff (1s → 2s → 4s … 15s max). While reconnecting, a spinner overlay appears but gameplay continues in the background — the server holds the player's session for 30 seconds, preserving their kills, deaths, ammo, and gun configuration. On reconnect success, the player is restored to the game instantly. If reconnection fails, they fall back to re-registering as a new player. BLE state is unaffected by the disconnect.
+When a player's WiFi drops, the client automatically reconnects with exponential backoff (1s → 2s → 4s … 15s max). While reconnecting, a spinner overlay appears but gameplay continues in the background — the server holds the player's session for **90 seconds**, preserving their **team assignment, health, ammo, held power-ups (airstrikes/apaches), active buffs (shield/stealth/radar), and all stats (kills/deaths)**.
+
+On reconnect success, the player is restored to the game instantly, maintaining the same team and game state as if the disconnect never happened. If reconnection fails after exhausting retries, they fall back to re-registering as a new player. BLE state is unaffected by the disconnect.
 
 ---
 

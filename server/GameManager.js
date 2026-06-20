@@ -94,14 +94,12 @@ export class GameManager {
     });
 
     if (this.state === GAME_STATES.PLAYING) {
-      // Preserve kills/deaths/hits across the rejoin reset
-      const { kills, deaths, hits, timesHit } = player;
-      player.resetForGame(player.maxHp);
-      player.kills = kills;
-      player.deaths = deaths;
-      player.hits = hits;
-      player.timesHit = timesHit;
-
+      // The player carried their full game state (team, health, ammo, held
+      // power-ups, active buffs, kills/deaths) on the Player object through the
+      // brief disconnect, so we reset nothing. We re-deliver the running round
+      // and attach a snapshot the client restores from, keeping the reconnect
+      // seamless instead of dropping them in fresh on the wrong team.
+      const now = Date.now();
       player.send({
         type: S2C.GAME_STARTED,
         gameId: this.gameId,
@@ -112,6 +110,21 @@ export class GameManager {
         gunAssignments: { [player.id]: player.gunSlotId },
         gameArea: this.config.gameArea ?? null,
         ...this._gameplaySettings(),
+        resume: {
+          hp: player.hp,
+          maxHp: player.maxHp,
+          isAlive: player.isAlive,
+          ammo: player.ammo,
+          airstrikesAvailable: player.airstrikesAvailable,
+          apachesAvailable: player.apachesAvailable,
+          shieldMs: Math.max(0, player.shieldUntil - now),
+          stealthMs: Math.max(0, player.stealthUntil - now),
+          radarMs: Math.max(0, player.radarUntil - now),
+          respawnMs:
+            !player.isAlive && player.respawnAt
+              ? Math.max(0, player.respawnAt - now)
+              : null,
+        },
       });
     }
 

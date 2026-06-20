@@ -1,6 +1,7 @@
 .PHONY: install dev dev-server dev-client build start test gen-certs phone-test lint fmt \
         mobile-prereqs mobile-install apk-debug apk-release android-run android-emulator create-avd android-clean
 
+SHELL := /bin/bash
 SHELL_RC := $(HOME)/.bashrc
 
 # Install all dependencies and generate certs
@@ -13,6 +14,8 @@ install-prereqs:
 	sudo apt install nodejs -y
 	sudo apt install npm -y
 	sudo apt install openssl libssl-dev -y
+	curl -LsSf https://astral.sh/uv/install.sh | sh
+	@echo "Please restart the terminal for all changes to take effect"
 
 # Check installed Node.js version
 check-prereqs:

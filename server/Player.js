@@ -28,9 +28,10 @@ export class Player {
     this.hp = 100;
     this.isAlive = true;
     this.respawnTimer = null;
+    this.respawnAt = 0; // wall-clock time a timed respawn will fire (0 = none/zone-based)
 
     // Reconnect state
-    this.disconnected = false; // true during the 30s grace period after WebSocket close
+    this.disconnected = false; // true during the reconnect grace period after WebSocket close
 
     // Map state
     this.lat = null;
@@ -64,6 +65,7 @@ export class Player {
       clearTimeout(this.respawnTimer);
       this.respawnTimer = null;
     }
+    this.respawnAt = 0;
     this.lastFireAt = 0;
     this.lastFireMode = null;
     this.lastFireAmmo = 0;

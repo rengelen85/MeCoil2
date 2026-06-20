@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { C2S, S2C } from '../shared/messages.js';
 import { GameManager } from './GameManager.js';
 
-const RECONNECT_GRACE_MS = 30_000;
+// Grace window during which a dropped player's session (team, health, held
+// power-ups, stats) is kept alive for a transparent REJOIN. Sized to comfortably
+// cover the client's auto-reconnect retry budget (~75s) so a typical WiFi blip
+// restores the session instead of falling through to a fresh register.
+const RECONNECT_GRACE_MS = 90_000;
 
 let nextRoomId = 1;
 

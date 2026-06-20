@@ -386,8 +386,12 @@ $: immunityActive =
           <div class="respawn-count respawn-ctf-timer">{$respawnCountdown}s</div>
         {/if}
       {:else if $gameConfig.mode === GAME_MODES.DOMINATION}
-        <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
-        <div class="respawn-hint">Head to a friendly zone after respawn</div>
+        {#if $respawnCountdown != null}
+          <div class="respawn-count">Respawning in {$respawnCountdown}…</div>
+          <div class="respawn-hint">No friendly zone — you'll spawn anywhere</div>
+        {:else}
+          <div class="respawn-count">Head to a friendly zone to respawn</div>
+        {/if}
       {:else}
         <div class="respawn-count">Respawning in {$respawnCountdown ?? 0}…</div>
       {/if}
