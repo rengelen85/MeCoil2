@@ -17,7 +17,6 @@ import {
   sendJoinRoom,
   sendCreateRoom,
 } from '../lib/network.js';
-import { isServerHost } from '../lib/server.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomSelect'>;
 
@@ -62,12 +61,6 @@ export default function RoomSelectScreen(_props: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.heading}>Game Rooms</Text>
-
-      {isServerHost() && (
-        <View style={styles.hostBadge}>
-          <Text style={styles.hostBadgeText}>You are hosting</Text>
-        </View>
-      )}
 
       <FlatList
         data={rooms}
@@ -128,18 +121,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
     marginTop: 48,
-  },
-  hostBadge: {
-    backgroundColor: '#1a3a1a',
-    borderColor: '#2d6a2d',
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 8,
-    marginBottom: 12,
-  },
-  hostBadgeText: {
-    color: '#5cb85c',
-    fontSize: 13,
   },
   list: {
     flex: 1,

@@ -13,13 +13,53 @@ export function setPositionGetter(fn: () => { lat: number | null; lng: number | 
   _getPosition = fn;
 }
 
+/**
+ * Turn whatever the user typed into a usable WebSocket URL.
+ *
+ * Mirrors the web client: the server speaks WebSocket on the `/ws` path and
+ * runs over TLS, so a bare host/IP becomes `wss://<host>/ws`. A user who needs
+ * a plain connection or a custom path can type the full URL themselves.
+ */
+export function normalizeServerUrl(input: string): string {
+  let s = input.trim().replace(/\/+$/, '');
+  if (!/^wss?:\/\//i.test(s)) {
+    s = `wss://${s}`;
+  }
+  const m = s.match(/^(wss?:\/\/[^/]+)(\/.*)?$/i);
+  if (m && !m[2]) {
+    s = `${m[1]}/ws`;
+  }
+  return s;
+}
+
 export function connect(serverUrl: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    let settled = false;
     ws = new WebSocket(serverUrl);
-    ws.onopen = () => resolve();
-    ws.onerror = () => reject(new Error('WebSocket connection failed'));
+    ws.onopen = () => {
+      settled = true;
+      resolve();
+    };
+    ws.onerror = (e: { message?: string } = {}) => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(e.message || `Could not reach ${serverUrl}`));
+    };
     ws.onmessage = e => _handle(JSON.parse(e.data));
-    ws.onclose = () => {
+    ws.onclose = (e: { code?: number; reason?: string } = {}) => {
+      // A close before the socket ever opened means the connect failed; surface
+      // the close code (e.g. 1006 = abnormal, often TLS/handshake/network).
+      if (!settled) {
+        settled = true;
+        reject(
+          new Error(
+            `Connection closed before opening (code ${e.code ?? '?'}${
+              e.reason ? `: ${e.reason}` : ''
+            })`,
+          ),
+        );
+        return;
+      }
       useGameStore.getState().setGameState(GAME_STATES.WAITING);
     };
   });

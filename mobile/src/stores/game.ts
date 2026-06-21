@@ -267,3 +267,9 @@ export const saveSession = (name: string) =>
 
 export const loadSession = (): Promise<string | null> =>
   AsyncStorage.getItem('mecoil_username');
+
+export const saveServerUrl = (url: string) =>
+  AsyncStorage.setItem('mecoil_server', url);
+
+export const loadServerUrl = (): Promise<string | null> =>
+  AsyncStorage.getItem('mecoil_server');

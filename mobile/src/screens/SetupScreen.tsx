@@ -11,15 +11,19 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/index.js';
-import { useGameStore, loadSession } from '../stores/game.js';
-import { connect, sendRegister } from '../lib/network.js';
-import { startServer, getServerUrl } from '../lib/server.js';
+import {
+  useGameStore,
+  loadSession,
+  loadServerUrl,
+  saveServerUrl,
+} from '../stores/game.js';
+import { connect, sendRegister, normalizeServerUrl } from '../lib/network.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Setup'>;
 
-export default function SetupScreen({ navigation }: Props) {
+export default function SetupScreen({ navigation: _navigation }: Props) {
   const [name, setName] = useState('');
-  const [serverUrl, setServerUrl] = useState('ws://192.168.43.1:3000');
+  const [serverUrl, setServerUrl] = useState('');
   const [connecting, setConnecting] = useState(false);
   const { setUsername } = useGameStore();
 
@@ -27,44 +31,26 @@ export default function SetupScreen({ navigation }: Props) {
     loadSession().then(saved => {
       if (saved) setName(saved);
     });
+    loadServerUrl().then(saved => {
+      if (saved) setServerUrl(saved);
+    });
   }, []);
 
-  async function handleHostGame() {
-    if (!name.trim()) {
-      Alert.alert('Enter your name first');
-      return;
-    }
-    setConnecting(true);
-    try {
-      startServer();
-      // Give Node.js thread a moment to bind the port
-      await new Promise<void>(resolve => setTimeout(resolve, 800));
-      await connect(getServerUrl());
-      setUsername(name.trim());
-      sendRegister(name.trim());
-    } catch (e: unknown) {
-      Alert.alert('Failed to start server', (e as Error).message);
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  async function handleJoinGame() {
+  async function handleConnect() {
     if (!name.trim()) {
       Alert.alert('Enter your name first');
       return;
     }
     if (!serverUrl.trim()) {
-      Alert.alert('Enter the host address');
+      Alert.alert('Enter the server address');
       return;
     }
     setConnecting(true);
     try {
-      const url = serverUrl.trim().startsWith('ws')
-        ? serverUrl.trim()
-        : `ws://${serverUrl.trim()}`;
+      const url = normalizeServerUrl(serverUrl);
       await connect(url);
       setUsername(name.trim());
+      saveServerUrl(serverUrl.trim());
       sendRegister(name.trim());
     } catch (e: unknown) {
       Alert.alert('Connection failed', (e as Error).message);
@@ -92,38 +78,28 @@ export default function SetupScreen({ navigation }: Props) {
           maxLength={20}
         />
 
-        <TouchableOpacity
-          style={[styles.btn, styles.btnPrimary, connecting && styles.btnDisabled]}
-          onPress={handleHostGame}
-          disabled={connecting}>
-          <Text style={styles.btnText}>
-            {connecting ? 'Starting…' : 'Host Game'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or join</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <Text style={styles.label}>Host address</Text>
+        <Text style={styles.label}>Server address</Text>
         <TextInput
           style={styles.input}
           value={serverUrl}
           onChangeText={setServerUrl}
-          placeholder="192.168.43.1:3000"
+          placeholder="mecoil.example.com or 192.168.1.42:3000"
           placeholderTextColor="#666"
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="url"
         />
+        <Text style={styles.hint}>
+          Enter the IP address or hostname of the MeCoil server. Defaults to a
+          secure (wss://) connection.
+        </Text>
 
         <TouchableOpacity
-          style={[styles.btn, styles.btnSecondary, connecting && styles.btnDisabled]}
-          onPress={handleJoinGame}
+          style={[styles.btn, styles.btnPrimary, connecting && styles.btnDisabled]}
+          onPress={handleConnect}
           disabled={connecting}>
           <Text style={styles.btnText}>
-            {connecting ? 'Connecting…' : 'Join Game'}
+            {connecting ? 'Connecting…' : 'Connect'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -170,7 +146,13 @@ const styles = StyleSheet.create({
     padding: 14,
     color: '#fff',
     fontSize: 16,
-    marginBottom: 16,
+    marginBottom: 8,
+  },
+  hint: {
+    color: '#666',
+    fontSize: 12,
+    marginBottom: 20,
+    lineHeight: 16,
   },
   btn: {
     borderRadius: 8,
@@ -181,11 +163,6 @@ const styles = StyleSheet.create({
   btnPrimary: {
     backgroundColor: '#e63946',
   },
-  btnSecondary: {
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#444',
-  },
   btnDisabled: {
     opacity: 0.5,
   },
@@ -193,20 +170,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#333',
-  },
-  dividerText: {
-    color: '#666',
-    paddingHorizontal: 12,
-    fontSize: 13,
   },
 });
