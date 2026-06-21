@@ -9,6 +9,7 @@ Players connect from the browser on their phones. No app to install. A full nati
 ## Hardware
 
 - **Goliath Recoil** laser tag guns (model SRG-series, sold under the "Recoil" brand)
+- A smartphone
 - A machine to run the server — a laptop, desktop, or Raspberry Pi on the same WiFi
 
 **BLE gun support**: Chrome or Edge on Android only. iOS is blocked at the browser level and is not supported for gun pairing. iOS players can still join and play using the built-in keyboard simulator (or physical keyboard on a desktop).
@@ -59,7 +60,7 @@ npm run fmt           # auto-format JS/TS/Svelte sources (Biome)
 
 ### Android Mobile App (React Native)
 
-A native Android app is available in the `mobile/` directory. It enables true P2P play: one phone hosts the Node.js server, others join over WiFi/hotspot.
+A native Android app is available in the `mobile/` directory. It is a pure client: on the Setup screen the player enters the IP address or hostname of a MeCoil server (the same server the web client uses) and connects. The app does not run its own server.
 
 **Prerequisites:**
 
@@ -291,10 +292,9 @@ On reconnect success, the player is restored to the game instantly, maintaining 
 MeCoil/
 ├── server/           # Node.js game server and game modes
 ├── client/           # Vite + Svelte web client
-├── mobile/           # React Native Android app (P2P server hosting)
+├── mobile/           # React Native Android app (client only)
 │   ├── src/          # React Native screens and components
-│   ├── android/      # Android-specific build config (Gradle)
-│   └── nodejs-assets/nodejs-project/ # On-device Node.js server
+│   └── android/      # Android-specific build config (Gradle)
 ├── shared/           # Shared protocol constants
 ├── docs/             # Hardware protocol documentation
 ├── certs/            # HTTPS certificates (gitignored)
@@ -377,9 +377,7 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
 2. Add a constant to `shared/messages.js` → `GAME_MODES`.
 3. Import and instantiate in `GameManager._startGame()`.
 4. Add a `<option>` for it in `client/src/screens/Lobby.svelte`.
-5. If a native mobile app exists, also add the mode to:
-   - `mobile/src/screens/LobbyScreen.tsx` (add the `<option>`)
-   - Update `mobile/nodejs-assets/nodejs-project/shared/messages.js` if the mode is exposed to mobile (keep it in sync with the root `shared/messages.js`)
+5. If a native mobile app exists, also add the mode to `mobile/src/screens/LobbyScreen.tsx` (add the `<option>`). The mobile app is a pure client and shares the root `shared/messages.js`, so no separate copy needs to be kept in sync.
 
 ### Adding a weapon profile
 
