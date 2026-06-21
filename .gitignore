@@ -1,13 +1,19 @@
+# Excluded folders
+.claude/
+.env/
+.idea/
 node_modules/
 client/dist/
 certs/
-.env
-org-set-up.md
-CLAUDE.md
+
+# Excluded file extensions
 *.bak
-.claude/*
 *.tar.gz
 *.zip
+
+# Excluded files
+org-set-up.md
+CLAUDE.md
 
 # Mobile build artifacts
 mobile/android/build/

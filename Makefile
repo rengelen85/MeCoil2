@@ -99,7 +99,8 @@ mobile-prereqs:
 	sudo apt install -y libpulse0
 	sudo apt install -y unzip
 	@echo ""
-	@echo "Next: install Android Studio, complete the wizard, and create an AVD."
+	@echo "Next: install Android Studio, complete the wizard. Make sure to include (Tools > SDK Manager > SDK Tools) Android SDK Command-line Tools, Android SDK Build-Tools, NDK (Side by Side) and CMake."
+	@echo "Then: Create an AVD or connect a physical android device in Android Studio Device Manager and run `make android-run`."
 
 ANDROID_STUDIO_VERSION = 2026.1.1.9
 ANDROID_STUDIO_TAR = android-studio-quail1-patch1-linux.tar.gz
@@ -111,7 +112,7 @@ CMDLINE_TOOLS_BUILD = 13114758
 CMDLINE_TOOLS_ZIP   = commandlinetools-linux-$(CMDLINE_TOOLS_BUILD)_latest.zip
 CMDLINE_TOOLS_URL   = https://dl.google.com/android/repository/$(CMDLINE_TOOLS_ZIP)
 
-install-android-studio:
+install-android-studio: android-env-vars
 	@if [ ! -f $(ANDROID_STUDIO_TAR) ]; then \
 		echo "Downloading Android Studio..."; \
 		wget -nc $(ANDROID_STUDIO_URL); \
@@ -149,12 +150,23 @@ install-android-studio:
 	else \
 		echo "Android SDK environment variables already set in $(SHELL_RC), skipping."; \
 	fi
-	@echo "Android env ensured in $(SHELL_RC)"
-	@echo "Run this to apply changes now:"
-	@echo "source ~/.bashrc"
 	@echo "In Android Studio: SDK Manager → SDK Tools → Android SDK Command-line Tools → Apply.""
 	@echo "Then re-run: make create-avd"
 	android-studio
+
+android-env-vars:
+	@if ! grep -q "# ANDROID SDK START" $(SHELL_RC); then \
+		echo "" >> $(SHELL_RC); \
+		echo "# ANDROID SDK START" >> $(SHELL_RC); \
+		echo "export ANDROID_HOME=\$$HOME/Android/Sdk" >> $(SHELL_RC); \
+		echo "export PATH=\$$PATH:\$$ANDROID_HOME/emulator:\$$ANDROID_HOME/platform-tools:\$$ANDROID_HOME/cmdline-tools/latest/bin" >> $(SHELL_RC); \
+		echo "# ANDROID SDK END" >> $(SHELL_RC); \
+	else \
+		echo "Android SDK environment variables already set in $(SHELL_RC), skipping."; \
+	fi
+	@echo "Android env ensured in $(SHELL_RC)"
+	@echo "Run this to apply changes now:"
+	@echo "source ~/.bashrc"
 
 install-android-avd:
 	@SDKMANAGER="$$HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager"; \
@@ -221,8 +233,15 @@ apk-release: mobile-install
 	@echo "APK ready: mobile/android/app/build/outputs/apk/release/app-release.apk"
 
 # Build and run on a connected device or running emulator (also starts Metro).
-android-run: mobile-install
+android-run: mobile-install android-env-vars
+	adb reverse tcp:8081 tcp:8081
 	cd mobile && npm run android
+
+android-run-adb:
+	adb reverse tcp:8081 tcp:8081
+	adb install -r mobile/android/app/build/outputs/apk/debug/app-debug.apk
+	npm --prefix mobile start
+
 
 # Start an Android emulator.  Lists available AVDs when AVD= is not set.
 # Usage:  make android-emulator AVD=Pixel_6_API_36
