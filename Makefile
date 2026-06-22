@@ -138,10 +138,13 @@ android-run: mobile-install android-env-vars
 	adb reverse tcp:8081 tcp:8081
 	cd mobile && npm run android
 
-# If android-run doesn't start the app as expected, try this make target instead (requires a running emulator or connected device):
-android-run-adb:
+# If android-run (react-native run-android) fails to launch the app, use this instead.
+# Builds a fresh debug APK (apk-debug → gradlew assembleDebug), installs it, launches
+# the activity, then starts Metro. Requires a running emulator or connected device.
+android-run-adb: apk-debug
 	adb reverse tcp:8081 tcp:8081
 	adb install -r mobile/android/app/build/outputs/apk/debug/app-debug.apk
+	adb shell am start -n com.mecoilmobile/.MainActivity
 	npm --prefix mobile start
 
 include Makefile-mac.mk
