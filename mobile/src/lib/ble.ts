@@ -16,10 +16,10 @@ import { sendFire, sendHit } from './network.js';
 import { useGameStore } from '../stores/game.js';
 import { playReload } from './audio.js';
 
-const SERVICE_UUID      = 'E6F59D10-E878-41BA-A3CE-3B5999FA3D7B';
-const CHAR_TELEMETRY    = 'E6F59D12-E878-41BA-A3CE-3B5999FA3D7B';
-const CHAR_CONTROL      = 'E6F59D13-E878-41BA-A3CE-3B5999FA3D7B';
-const CHAR_CONFIG       = 'E6F59D14-E878-41BA-A3CE-3B5999FA3D7B';
+const SERVICE_UUID      = 'e6f59d10-8230-4a5c-b22f-c062b1d329e3';
+const CHAR_TELEMETRY    = 'e6f59d12-8230-4a5c-b22f-c062b1d329e3';
+const CHAR_CONTROL      = 'e6f59d13-8230-4a5c-b22f-c062b1d329e3';
+const CHAR_CONFIG       = 'e6f59d14-8230-4a5c-b22f-c062b1d329e3';
 const DEVICE_NAME_PREFIX = 'SRG';
 
 // Control-characteristic Action bitmask (see docs/recoil_protocol_BLE.md).
