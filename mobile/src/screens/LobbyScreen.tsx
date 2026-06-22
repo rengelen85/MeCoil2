@@ -377,7 +377,7 @@ export default function LobbyScreen(_props: Props) {
                 <Switch
                   value={gameConfig.friendlyFire ?? false}
                   onValueChange={v => sendGameConfig({ friendlyFire: v })}
-                  trackColor={{ true: '#e63946' }}
+                  trackColor={{ true: '#00e5ff' }}
                 />
               </View>
             )}
@@ -396,14 +396,14 @@ export default function LobbyScreen(_props: Props) {
                         key: 'red',
                         lat: gameConfig.redBase.lat,
                         lng: gameConfig.redBase.lng,
-                        color: '#e63946',
+                        color: '#ff5252',
                         label: 'Red',
                       },
                       gameConfig.blueBase && {
                         key: 'blue',
                         lat: gameConfig.blueBase.lat,
                         lng: gameConfig.blueBase.lng,
-                        color: '#457b9d',
+                        color: '#448aff',
                         label: 'Blue',
                       },
                     ].filter(Boolean) as PreviewMarker[]
@@ -490,7 +490,7 @@ export default function LobbyScreen(_props: Props) {
                   <Switch
                     value={gameConfig.deathstreakEnabled ?? false}
                     onValueChange={v => sendGameConfig({ deathstreakEnabled: v })}
-                    trackColor={{ true: '#e63946' }}
+                    trackColor={{ true: '#00e5ff' }}
                   />
                 </View>
                 {gameConfig.deathstreakEnabled && (
@@ -730,7 +730,7 @@ export default function LobbyScreen(_props: Props) {
           <TouchableOpacity
             style={[styles.btn, styles.btnStart]}
             onPress={handleStartGame}>
-            <Text style={styles.btnText}>{allReady ? 'Start Game' : 'Force Start'}</Text>
+            <Text style={[styles.btnText, styles.btnTextDark]}>{allReady ? 'Start Game' : 'Force Start'}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -782,8 +782,8 @@ const styles = StyleSheet.create({
   playerName: { color: '#fff', fontSize: 15, fontWeight: '500' },
   teamRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   playerTeam: { fontSize: 12, textTransform: 'uppercase', fontWeight: '600' },
-  teamRed: { color: '#e63946' },
-  teamBlue: { color: '#457b9d' },
+  teamRed: { color: '#ff5252' },
+  teamBlue: { color: '#448aff' },
   switchTeamBtn: {
     borderWidth: 1,
     borderColor: '#444',
@@ -798,7 +798,7 @@ const styles = StyleSheet.create({
     color: '#555',
     letterSpacing: 1,
   },
-  readyBadgeOn: { color: '#5cb85c' },
+  readyBadgeOn: { color: '#00c853' },
   configSection: {
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
@@ -819,7 +819,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#333',
-    color: '#e63946',
+    color: '#00e5ff',
   },
   spacer: { height: 4 },
   hint: {
@@ -877,11 +877,11 @@ const styles = StyleSheet.create({
     borderColor: '#444',
   },
   modePillActive: {
-    backgroundColor: '#e63946',
-    borderColor: '#e63946',
+    backgroundColor: '#00e5ff',
+    borderColor: '#00e5ff',
   },
   modePillText: { color: '#888', fontSize: 12, fontWeight: '600' },
-  modePillTextActive: { color: '#fff' },
+  modePillTextActive: { color: '#000' },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -905,11 +905,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   placeBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
-  placeBtnRed: { backgroundColor: 'rgba(230,57,70,0.18)', borderColor: 'rgba(230,57,70,0.6)' },
-  placeBtnBlue: { backgroundColor: 'rgba(69,123,157,0.22)', borderColor: 'rgba(69,123,157,0.7)' },
+  placeBtnRed: { backgroundColor: 'rgba(255,82,82,0.18)', borderColor: 'rgba(255,82,82,0.6)' },
+  placeBtnBlue: { backgroundColor: 'rgba(68,138,255,0.22)', borderColor: 'rgba(68,138,255,0.7)' },
   placeBtnDom: { backgroundColor: 'rgba(255,152,0,0.15)', borderColor: 'rgba(255,152,0,0.55)' },
   placeBtnArea: { backgroundColor: 'rgba(255,152,0,0.13)', borderColor: 'rgba(255,152,0,0.5)' },
-  placeBtnClear: { backgroundColor: 'rgba(230,57,70,0.12)', borderColor: 'rgba(230,57,70,0.45)' },
+  placeBtnClear: { backgroundColor: 'rgba(255,82,82,0.12)', borderColor: 'rgba(255,82,82,0.45)' },
   areaTypeRow: {
     flexDirection: 'row',
     gap: 6,
@@ -939,7 +939,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#262626',
   },
   cornerLabel: { color: '#aaa', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
-  cornerRemove: { color: '#e63946', fontSize: 14, paddingHorizontal: 6 },
+  cornerRemove: { color: '#ff5252', fontSize: 14, paddingHorizontal: 6 },
   actions: {
     gap: 10,
     marginTop: 10,
@@ -949,10 +949,11 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
   },
-  btnGun: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#457b9d' },
-  btnGunConnected: { backgroundColor: 'rgba(69,123,157,0.25)', borderWidth: 1, borderColor: '#457b9d' },
-  btnReady: { backgroundColor: '#5cb85c' },
+  btnGun: { backgroundColor: 'rgba(0,229,255,0.12)', borderWidth: 1, borderColor: 'rgba(0,229,255,0.4)' },
+  btnGunConnected: { backgroundColor: 'rgba(0,229,255,0.22)', borderWidth: 1, borderColor: '#00e5ff' },
+  btnReady: { backgroundColor: '#00c853' },
   btnUnready: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#444' },
-  btnStart: { backgroundColor: '#e63946' },
+  btnStart: { backgroundColor: '#00e5ff' },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  btnTextDark: { color: '#000' },
 });

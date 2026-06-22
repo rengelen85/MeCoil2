@@ -6,7 +6,22 @@ import { useGameStore, ScoreEntry } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
 import { sendPosition, sendStopGame, sendDeployAirstrike, sendDeployApache } from '../lib/network.js';
 import { applyGunAssignment, connectBle, setGunMode, GUN_MODES, GUN_MODE_CYCLE, GunMode } from '../lib/ble.js';
+import { GAME_MODES } from 'shared/messages.js';
 import GameMap from '../components/GameMap.js';
+
+// Short top-bar label per game mode (mirrors the web client).
+const MODE_LABELS: Record<string, string> = {
+  [GAME_MODES.FFA]: 'FFA',
+  [GAME_MODES.TEAM_DEATHMATCH]: 'TDM',
+  [GAME_MODES.CAPTURE_THE_FLAG]: 'CTF',
+  [GAME_MODES.DOMINATION]: 'DOM',
+  [GAME_MODES.INFECTION]: 'INF',
+};
+const TEAM_MODES: string[] = [
+  GAME_MODES.TEAM_DEATHMATCH,
+  GAME_MODES.CAPTURE_THE_FLAG,
+  GAME_MODES.DOMINATION,
+];
 
 type Props = NativeStackScreenProps<RootStackParamList, 'InGame'>;
 
@@ -31,10 +46,13 @@ export default function InGameScreen(_props: Props) {
     apacheReady, apacheArmed, apachePreview,
     setApacheArmed, setApachePreview, setApacheReady,
     timeRemaining, scores, myId, isHost, bleConnected, gunSlotId,
-    killFeed, hp, maxHp, isAlive, respawnCountdown,
+    killFeed, hp, maxHp, isAlive, respawnCountdown, gameConfig, players,
   } = useGameStore();
 
   const myScore = findMyScore(scores, myId);
+  const modeLabel = MODE_LABELS[gameConfig.mode] ?? gameConfig.mode;
+  const isTeamMode = TEAM_MODES.includes(gameConfig.mode);
+  const myTeam = players.find(p => p.id === myId)?.team ?? null;
   const hpPct = maxHp > 0 ? Math.min(100, Math.round((hp / maxHp) * 100)) : 0;
   const hpColor = hpPct > 50 ? '#00e676' : hpPct > 25 ? '#ffeb3b' : '#ff5252';
 
@@ -124,7 +142,6 @@ export default function InGameScreen(_props: Props) {
 
   const mins = String(Math.floor(timeRemaining / 60)).padStart(2, '0');
   const secs = String(timeRemaining % 60).padStart(2, '0');
-  const topScore = scores[0];
 
   return (
     <View style={styles.container}>
@@ -191,25 +208,47 @@ export default function InGameScreen(_props: Props) {
         </View>
       ) : null}
 
-      {/* Top HUD */}
-      <View style={styles.topHud}>
+      {/* Top HUD: timer centered (mirrors web) */}
+      <View style={styles.timerWrap} pointerEvents="none">
         <Text style={styles.timer}>
           {mins}:{secs}
         </Text>
-        {topScore && (
-          <Text style={styles.topScore}>
-            {topScore.username} {topScore.kills}
-          </Text>
+      </View>
+
+      {/* Top HUD row: mode/team badge (left), stop (right, host only) */}
+      <View style={styles.topHud} pointerEvents="box-none">
+        <View style={styles.topBadges} pointerEvents="none">
+          <View style={styles.modeBadge}>
+            <Text style={styles.modeBadgeText}>{modeLabel}</Text>
+          </View>
+          {isTeamMode && myTeam && myTeam !== 'none' && (
+            <View
+              style={[
+                styles.teamBadge,
+                myTeam === 'red' ? styles.teamBadgeRed : styles.teamBadgeBlue,
+              ]}>
+              <Text
+                style={[
+                  styles.teamBadgeText,
+                  { color: myTeam === 'red' ? '#ff5252' : '#448aff' },
+                ]}>
+                {myTeam.toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+        {isHost && (
+          <TouchableOpacity
+            style={styles.stopBtn}
+            onPress={sendStopGame}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.stopBtnText}>■ Stop</Text>
+          </TouchableOpacity>
         )}
       </View>
 
-      {/* Personal stats + health (always visible) */}
-      <View style={styles.statsBar}>
-        <View style={styles.statsRow}>
-          <Text style={styles.stat}>💀 {myScore?.kills ?? 0}</Text>
-          <Text style={styles.stat}>🎯 {myScore?.hits ?? 0}</Text>
-          <Text style={styles.stat}>🩸 {myScore?.timesHit ?? 0}</Text>
-        </View>
+      {/* Personal stats + health (bottom-right, mirrors web) */}
+      <View style={styles.bottomRight} pointerEvents="none">
         <View style={styles.healthLabelRow}>
           <Text style={styles.healthLabel}>
             ♥ {hp}
@@ -221,6 +260,11 @@ export default function InGameScreen(_props: Props) {
           <View
             style={[styles.healthFill, { width: `${hpPct}%`, backgroundColor: hpColor }]}
           />
+        </View>
+        <View style={styles.statsRow}>
+          <Text style={styles.stat}>💀 {myScore?.kills ?? 0}</Text>
+          <Text style={styles.stat}>🎯 {myScore?.hits ?? 0}</Text>
+          <Text style={styles.stat}>🩸 {myScore?.timesHit ?? 0}</Text>
         </View>
       </View>
 
@@ -286,15 +330,6 @@ export default function InGameScreen(_props: Props) {
             </TouchableOpacity>
           )}
         </View>
-
-        {isHost && (
-          <TouchableOpacity
-            style={styles.stopBtn}
-            onPress={sendStopGame}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.stopBtnText}>■ Stop</Text>
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );
@@ -308,12 +343,46 @@ const styles = StyleSheet.create({
   topHud: {
     position: 'absolute',
     top: 48,
-    left: 0,
-    right: 0,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    pointerEvents: 'none',
+    alignItems: 'center',
+  },
+  topBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modeBadge: {
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  modeBadgeText: {
+    color: '#00e5ff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  teamBadge: {
+    borderRadius: 6,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  teamBadgeRed: { backgroundColor: 'rgba(255,82,82,0.2)', borderColor: 'rgba(255,82,82,0.7)' },
+  teamBadgeBlue: { backgroundColor: 'rgba(68,138,255,0.2)', borderColor: 'rgba(68,138,255,0.7)' },
+  teamBadgeText: { fontSize: 12, fontWeight: '900', letterSpacing: 2 },
+  timerWrap: {
+    position: 'absolute',
+    top: 48,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   timer: {
     color: '#fff',
@@ -324,24 +393,17 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 4,
   },
-  topScore: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
-  },
-  statsBar: {
+  bottomRight: {
     position: 'absolute',
-    top: 88,
-    left: 16,
-    width: 180,
+    bottom: 40,
+    right: 16,
+    width: 160,
+    alignItems: 'flex-end',
   },
   statsRow: {
     flexDirection: 'row',
     gap: 6,
-    marginBottom: 6,
+    marginTop: 6,
   },
   stat: {
     backgroundColor: 'rgba(0,0,0,0.7)',
@@ -369,6 +431,7 @@ const styles = StyleSheet.create({
   healthMax: { color: '#aaa', fontSize: 12, fontWeight: '400' },
   healthShield: { fontSize: 14, marginLeft: 6 },
   healthTrack: {
+    width: '100%',
     height: 8,
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 4,
@@ -401,14 +464,17 @@ const styles = StyleSheet.create({
   },
   killFeed: {
     position: 'absolute',
-    top: 170,
-    left: 16,
+    top: 92,
+    right: 16,
+    maxWidth: 220,
+    alignItems: 'flex-end',
     pointerEvents: 'none',
   },
   killFeedEntry: {
     color: 'rgba(255,255,255,0.7)',
     fontSize: 13,
     marginBottom: 2,
+    textAlign: 'right',
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
@@ -417,10 +483,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 32,
     left: 16,
-    right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
+    gap: 8,
   },
   ammoBlock: {
     flexDirection: 'row',
