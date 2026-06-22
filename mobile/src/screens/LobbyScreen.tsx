@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   PermissionsAndroid,
+  Modal,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -107,9 +108,27 @@ function NumberRow({
 export default function LobbyScreen(_props: Props) {
   const {
     players, myId, isHost, hostId, roomName, gameConfig, gameState, bleConnected,
+    countdownAt,
   } = useGameStore();
 
+  // Drive the lobby countdown banner. While in the COUNTDOWN state, tick a local
+  // timer down from `countdownAt` (set by the COUNTDOWN message) so all players
+  // see "Game starts in N…".
+  const [countdown, setCountdown] = useState<number | null>(null);
+  useEffect(() => {
+    if (gameState !== GAME_STATES.COUNTDOWN || countdownAt === null) {
+      setCountdown(null);
+      return;
+    }
+    const tick = () =>
+      setCountdown(Math.max(0, Math.ceil((countdownAt - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 200);
+    return () => clearInterval(id);
+  }, [gameState, countdownAt]);
+
   const [connectingGun, setConnectingGun] = useState(false);
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
 
   function handleConnectGun() {
     setConnectingGun(true);
@@ -328,6 +347,12 @@ export default function LobbyScreen(_props: Props) {
 
       <Text style={styles.roomName}>{roomName}</Text>
 
+      {gameState === GAME_STATES.COUNTDOWN && countdown !== null && (
+        <View style={styles.countdownBanner}>
+          <Text style={styles.countdownText}>Game starts in {countdown}…</Text>
+        </View>
+      )}
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>Players ({players.length})</Text>
@@ -337,22 +362,46 @@ export default function LobbyScreen(_props: Props) {
         {isHost && (
           <View style={styles.configSection}>
             <Text style={styles.sectionTitle}>Game Mode</Text>
-            <View style={styles.modeRow}>
-              {(Object.values(GAME_MODES) as string[]).map(m => (
-                <TouchableOpacity
-                  key={m}
-                  style={[styles.modePill, mode === m && styles.modePillActive]}
-                  onPress={() => handleModeChange(m)}>
-                  <Text
-                    style={[
-                      styles.modePillText,
-                      mode === m && styles.modePillTextActive,
-                    ]}>
-                    {m.toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => setModeMenuOpen(true)}>
+              <Text style={styles.dropdownText}>{MODE_LABELS[mode] ?? mode}</Text>
+              <Text style={styles.dropdownCaret}>▾</Text>
+            </TouchableOpacity>
+            <Modal
+              visible={modeMenuOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setModeMenuOpen(false)}>
+              <TouchableOpacity
+                style={styles.modalOverlay}
+                activeOpacity={1}
+                onPress={() => setModeMenuOpen(false)}>
+                <View style={styles.dropdownMenu}>
+                  {(Object.values(GAME_MODES) as string[]).map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      style={[
+                        styles.dropdownItem,
+                        mode === m && styles.dropdownItemActive,
+                      ]}
+                      onPress={() => {
+                        handleModeChange(m);
+                        setModeMenuOpen(false);
+                      }}>
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          mode === m && styles.dropdownItemTextActive,
+                        ]}>
+                        {MODE_LABELS[m] ?? m}
+                      </Text>
+                      {mode === m && <Text style={styles.dropdownCheck}>✓</Text>}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </TouchableOpacity>
+            </Modal>
 
             <View style={styles.spacer} />
             <NumberRow
@@ -721,9 +770,11 @@ export default function LobbyScreen(_props: Props) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.btn, me?.ready ? styles.btnUnready : styles.btnReady]}
+          style={[styles.btn, me?.ready ? styles.btnReadyActive : styles.btnReadyNeutral]}
           onPress={handleReadyToggle}>
-          <Text style={styles.btnText}>{me?.ready ? 'Not Ready' : 'Ready'}</Text>
+          <Text style={[styles.btnText, !me?.ready && styles.btnReadyNeutralText]}>
+            {me?.ready ? '✓ Ready' : 'Ready'}
+          </Text>
         </TouchableOpacity>
 
         {isHost && (
@@ -757,6 +808,20 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 16,
+  },
+  countdownBanner: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#00e5ff',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  countdownText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   scroll: {
     flex: 1,
@@ -864,24 +929,45 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   settingValue: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  modeRow: {
+  dropdown: {
     flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  modePill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0a0a0a',
     borderWidth: 1,
     borderColor: '#444',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
   },
-  modePillActive: {
-    backgroundColor: '#00e5ff',
-    borderColor: '#00e5ff',
+  dropdownText: { color: '#fff', fontSize: 15, fontWeight: '500' },
+  dropdownCaret: { color: '#888', fontSize: 14 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    padding: 32,
   },
-  modePillText: { color: '#888', fontSize: 12, fontWeight: '600' },
-  modePillTextActive: { color: '#000' },
+  dropdownMenu: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#262626',
+  },
+  dropdownItemActive: { backgroundColor: 'rgba(0,229,255,0.1)' },
+  dropdownItemText: { color: '#ccc', fontSize: 16 },
+  dropdownItemTextActive: { color: '#00e5ff', fontWeight: '600' },
+  dropdownCheck: { color: '#00e5ff', fontSize: 16, fontWeight: '700' },
   toggleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -951,8 +1037,9 @@ const styles = StyleSheet.create({
   },
   btnGun: { backgroundColor: 'rgba(0,229,255,0.12)', borderWidth: 1, borderColor: 'rgba(0,229,255,0.4)' },
   btnGunConnected: { backgroundColor: 'rgba(0,229,255,0.22)', borderWidth: 1, borderColor: '#00e5ff' },
-  btnReady: { backgroundColor: '#00c853' },
-  btnUnready: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#444' },
+  btnReadyNeutral: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#444' },
+  btnReadyNeutralText: { color: '#ccc' },
+  btnReadyActive: { backgroundColor: '#00c853' },
   btnStart: { backgroundColor: '#00e5ff' },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   btnTextDark: { color: '#000' },
