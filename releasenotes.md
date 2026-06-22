@@ -1,5 +1,42 @@
 # Release Notes
 
+## [0.3.0] — 2026-06-22
+
+### Added
+
+- **Full game customization in Android lobby**: Host can now configure all game options (mode, time limit, respawns, power-ups, team sizes, zone settings) directly from the Android app lobby screen
+- **Map previews in Android lobby**: Game host sees a live map preview of the play area, CTF bases, and domination zones while configuring a game
+- **OpenStreetMap in Android app**: Replaced Google Maps with key-free OpenStreetMap raster tiles — no API key required, consistent with the web client
+- **MapShapes component**: New shared helper for rendering metre-radius circles, polygons, and lines on the MapLibre map
+- **BLE gun status overlay in Android**: In-game BLE connection status indicator with error details displayed as an overlay in InGameScreen
+- **ScoreBoard component for Android**: Live scoreboard ported from web client to the Android app
+- **Recoil weapon logic for Android**: Full `recoilweapon.ts` module ported — fire modes, ammo tracking, reload state
+- **MeCoil app icon**: Custom MeCoil logo applied to the Android app launcher icon (all densities)
+- **Logo asset and generator**: `mobile/assets/logo.png` and `mobile/scripts/gen_logo.py` for reproducible icon generation
+- **Android Makefile**: Extracted Android-specific `make` targets into a separate `Makefile-android.mk` to keep the root Makefile clean
+
+### Changed
+
+- **Android server architecture**: The Android app no longer runs its own embedded Node.js server. It now connects to the same shared web server, simplifying the codebase and removing ~2 400 lines of duplicated server code
+- **Android BLE**: Significantly overhauled — improved scanning, connection state machine, per-device deduplication, reconnect logic, and error recovery
+- **Smoother map rotation on Android**: GameMap now interpolates compass heading for fluid map turning instead of snapping
+- **Android network layer**: Synced with web client — full message handling, ammo/respawn/powerup events, kill feed, and round-state updates
+- **Android geo utilities**: Extended `geo.ts` with GeoJSON helpers (circle features, polygon bounds) aligned with web client
+- **Visual refresh for Android setup and lobby screens**: Updated layouts, typography, and colour scheme including MeCoil branding on the start screen
+- **Visual refresh for Android in-game screen**: Improved HUD layout and map controls
+- **Visual refresh for room selection screen**: Cleaner room list card styling
+
+### Fixed
+
+- **BLE connection on Android**: Added missing Bluetooth permission declarations to `AndroidManifest.xml` that were preventing connections on some devices
+
+### Removed
+
+- **Embedded Node.js server for Android**: Removed `mobile/nodejs-assets/nodejs-project/` (GameManager, Player, PowerupManager, RoomManager, BaseMode, FFA, TeamDeathmatch) — the shared web server is used instead
+- **`nodejs-mobile-react-native` dependency**: No longer needed now that the Android app connects to the external server
+
+---
+
 ## [0.2.0] — 2026-06-20
 
 ### Added
