@@ -51,6 +51,51 @@ export function lineFeature(points: { lat: number; lng: number }[]): GeoJSON.Fea
   };
 }
 
+type LatLngPt = { lat: number; lng: number };
+type Area =
+  | { type: 'circle'; lat: number; lng: number; radiusM: number }
+  | { type: 'polygon'; points: LatLngPt[] };
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Ray-casting point-in-polygon on lat/lng directly — fine for the small areas
+// involved. Mirrors client/src/lib/geometry.js.
+function isInPolygon(lat: number, lng: number, points: LatLngPt[]): boolean {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = points[i].lng;
+    const yi = points[i].lat;
+    const xj = points[j].lng;
+    const yj = points[j].lat;
+    const intersect =
+      yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/** True if lat/lng is inside the given play area, or if area is null. */
+export function isInArea(lat: number, lng: number, area: Area | null | undefined): boolean {
+  if (!area) return true;
+  if (area.type === 'circle') {
+    return haversineMeters(lat, lng, area.lat, area.lng) <= area.radiusM;
+  }
+  if (area.type === 'polygon') {
+    return isInPolygon(lat, lng, area.points);
+  }
+  return true;
+}
+
 /**
  * Bounding box [west, south, east, north] enclosing all points, or null if none.
  * Matches MapLibre's `LngLatBounds` tuple order.

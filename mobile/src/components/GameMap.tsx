@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View, Text } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import {
   Map as MapView,
   Camera,
@@ -11,18 +11,31 @@ import { NativeSyntheticEvent } from 'react-native';
 import { useMapStore } from '../stores/map.js';
 import { useGameStore } from '../stores/game.js';
 import { AIRSTRIKE_RADIUS_M, APACHE_RADIUS_M } from 'shared/messages.js';
+import { sendCollect } from '../lib/network.js';
 import { OSM_STYLE } from '../lib/mapStyle.js';
-import { MeterCircle } from './MapShapes.js';
+import { MeterCircle, ShapePolygon } from './MapShapes.js';
 
 const POWERUP_EMOJI: Record<string, string> = {
-  fullReload: '🔋',
+  fastReload: '🔋',
   healthPack: '🩹',
   shield: '🛡️',
   stealth: '👻',
   radar: '📡',
   airstrike: '🚀',
   apacheSupport: '🚁',
+  immunity: '💉',
 };
+
+// CTF/Domination overlay tuning — mirrors the web client (Map.svelte).
+const TEAM_COLORS: Record<string, string> = { red: '#ff5252', blue: '#448aff' };
+const DOM_ZONE_COLORS: Record<string, string> = {
+  red: '#ff5252',
+  blue: '#448aff',
+  neutral: '#9e9e9e',
+};
+const CTF_BASE_RADIUS_M = 7.5;
+const DOM_ZONE_RADIUS_M = 7.5;
+const GAME_AREA_COLOR = '#ff9800';
 
 export default function GameMap() {
   // NOTE: `heading` is intentionally NOT pulled from the store here. Compass
@@ -31,10 +44,14 @@ export default function GameMap() {
   // tick, which is what made rotation laggy. Instead we drive the camera
   // bearing imperatively from a store subscription below (mirrors the web
   // client's cheap CSS-transform approach in Map.svelte).
-  const { myPosition, teammates, firingEnemies, powerups, airstrikes, apaches, graves } = useMapStore();
+  const {
+    myPosition, teammates, firingEnemies, powerups, airstrikes, apaches, graves,
+    ctfBases, ctfFlags, domZones,
+  } = useMapStore();
   const {
     airstrikeArmed, airstrikePreview, setAirstrikeArmed, setAirstrikePreview,
     apacheArmed, apachePreview, setApacheArmed, setApachePreview,
+    gameArea,
   } = useGameStore();
 
   const cameraRef = useRef<CameraRef>(null);
@@ -118,6 +135,84 @@ export default function GameMap() {
         duration={250}
       />
 
+      {/* Play-area boundary (circle or polygon) — dashed orange outline */}
+      {gameArea?.type === 'circle' && (
+        <MeterCircle
+          id="game-area"
+          lat={gameArea.lat}
+          lng={gameArea.lng}
+          radiusM={gameArea.radiusM}
+          color={GAME_AREA_COLOR}
+          fillOpacity={0.06}
+          dashed
+        />
+      )}
+      {gameArea?.type === 'polygon' && gameArea.points.length >= 3 && (
+        <ShapePolygon id="game-area" points={gameArea.points} color={GAME_AREA_COLOR} fillOpacity={0.06} />
+      )}
+
+      {/* CTF: team base circles */}
+      {(['red', 'blue'] as const).map(team => {
+        const base = ctfBases[team];
+        if (!base) return null;
+        return (
+          <MeterCircle
+            key={`ctf-base-${team}`}
+            id={`ctf-base-${team}`}
+            lat={base.lat}
+            lng={base.lng}
+            radiusM={CTF_BASE_RADIUS_M}
+            color={TEAM_COLORS[team]}
+            fillOpacity={0.15}
+          />
+        );
+      })}
+
+      {/* CTF: flag markers (at base, carried, or dropped) */}
+      {(['red', 'blue'] as const).map(team => {
+        const flag = ctfFlags[team];
+        if (!flag || flag.lat == null || flag.lng == null) return null;
+        const icon = flag.state === 'carried' ? '🏃' : '🚩';
+        return (
+          <Marker key={`ctf-flag-${team}`} id={`ctf-flag-${team}`} lngLat={[flag.lng, flag.lat]} anchor="center">
+            <Text style={[styles.flagIcon, { color: TEAM_COLORS[team] }, flag.state === 'dropped' && styles.flagDropped]}>
+              {icon}
+            </Text>
+          </Marker>
+        );
+      })}
+
+      {/* Domination: control-zone circles + labels (letter, capture %, contested) */}
+      {domZones.map(zone => {
+        if (zone.lat == null || zone.lng == null) return null;
+        const color = DOM_ZONE_COLORS[zone.owner] ?? DOM_ZONE_COLORS.neutral;
+        const progress = Math.round(Math.abs(zone.controlValue ?? 0) * 100);
+        const capColor = zone.capturingTeam ? DOM_ZONE_COLORS[zone.capturingTeam] : color;
+        return (
+          <React.Fragment key={`dom-${zone.id}`}>
+            <MeterCircle
+              id={`dom-${zone.id}`}
+              lat={zone.lat}
+              lng={zone.lng}
+              radiusM={DOM_ZONE_RADIUS_M}
+              color={color}
+              fillOpacity={0.12}
+            />
+            <Marker id={`dom-${zone.id}-label`} lngLat={[zone.lng, zone.lat]} anchor="center">
+              <View style={[styles.domZone, { borderColor: color }]}>
+                <Text style={[styles.domZoneLetter, { color }]}>{zone.id}</Text>
+                {progress > 0 && progress < 100 && (
+                  <View style={styles.domZoneBar}>
+                    <View style={[styles.domZoneFill, { width: `${progress}%`, backgroundColor: capColor }]} />
+                  </View>
+                )}
+                {zone.contested && <Text style={styles.domZoneContested}>⚡</Text>}
+              </View>
+            </Marker>
+          </React.Fragment>
+        );
+      })}
+
       {/* My position */}
       <Marker id="me" lngLat={[myPosition.lng, myPosition.lat]} anchor="center">
         <View style={styles.myDot} />
@@ -137,12 +232,15 @@ export default function GameMap() {
         </Marker>
       ))}
 
-      {/* Power-ups */}
+      {/* Power-ups — tap to collect (mirrors the web client's marker click) */}
       {powerups.map(p => (
         <Marker key={`pu-${p.id}`} id={`pu-${p.id}`} lngLat={[p.lng, p.lat]} anchor="center">
-          <View style={styles.powerupDot}>
+          <TouchableOpacity
+            style={styles.powerupDot}
+            onPress={() => sendCollect(p.id)}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={styles.powerupEmoji}>{POWERUP_EMOJI[p.type] ?? '📦'}</Text>
-          </View>
+          </TouchableOpacity>
         </Marker>
       ))}
 
@@ -290,5 +388,49 @@ const styles = StyleSheet.create({
   apachePreviewMarker: {
     fontSize: 22,
     opacity: 0.7,
+  },
+  flagIcon: {
+    fontSize: 22,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  flagDropped: {
+    opacity: 0.85,
+  },
+  domZone: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  domZoneLetter: {
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 16,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  domZoneBar: {
+    width: 26,
+    height: 3,
+    marginTop: 2,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  domZoneFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  domZoneContested: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    fontSize: 12,
   },
 });

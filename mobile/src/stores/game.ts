@@ -54,6 +54,45 @@ export interface DomZoneSpot {
   lng: number;
 }
 
+// ── Live game-mode state (mirrors the web client's stores/game.js shapes) ──────
+export interface FlagState {
+  state: string; // 'base' | 'carried' | 'dropped'
+  lat: number | null;
+  lng: number | null;
+  carrierId?: number | null;
+}
+
+export interface CtfState {
+  flags?: { red: FlagState | null; blue: FlagState | null };
+  captures?: { red: number; blue: number };
+  bases?: { red: LatLng | null; blue: LatLng | null };
+}
+
+export interface ImmunityState {
+  hasImmunity?: boolean;
+  gracePeriodUntil?: number;
+}
+
+export interface InfectionState {
+  infectedIds: number[];
+  immunePlayers?: Record<number, ImmunityState>;
+}
+
+export interface DomZone {
+  id: string;
+  lat: number | null;
+  lng: number | null;
+  owner: string; // 'red' | 'blue' | 'neutral'
+  controlValue?: number;
+  capturingTeam?: string | null;
+  contested?: boolean;
+}
+
+export interface DominationState {
+  zones: DomZone[];
+  teamPoints?: { red: number; blue: number };
+}
+
 export interface GameConfig {
   mode: string;
   timeLimit: number;
@@ -99,13 +138,18 @@ interface GameStore {
   winner: string | null;
   gameId: string | null;
   roundId: string | null;
+  isReconnecting: boolean;
   ammo: number;
   maxAmmo: number;
   isReloading: boolean;
   shieldActive: boolean;
   shieldCountdown: number | null;
   stealthActive: boolean;
+  stealthCountdown: number | null;
+  fastReloadActive: boolean;
+  fastReloadCountdown: number | null;
   radarActive: boolean;
+  radarCountdown: number | null;
   airstrikeReady: number;
   airstrikeArmed: boolean;
   airstrikePreview: { lat: number; lng: number } | null;
@@ -116,10 +160,25 @@ interface GameStore {
   maxHp: number;
   isAlive: boolean;
   respawnCountdown: number | null;
+  killedBy: string | null;
+  lastHitAt: number | null;
+  lastShotHitAt: number | null;
   bulletsPerMag: number;
   reloadDelaySecs: number;
   bleConnected: boolean;
-  gunSlotId: number;
+  // null until the server assigns a slot in GAME_STARTED. Never default to a
+  // real slot (0): that is the host's slot, and assuming it makes hits between
+  // this player and the host resolve as self-hits the server drops.
+  gunSlotId: number | null;
+  // Live game-mode state, set from GAME_STATE ticks (null when not in that mode).
+  ctfState: CtfState | null;
+  infectionState: InfectionState | null;
+  dominationState: DominationState | null;
+  // Optional play-area boundary, mirrored out of gameConfig for the map/HUD.
+  gameArea: GameArea | null;
+  // Current fire mode (a key of GUN_MODES). Updated by the on-screen toggle and
+  // by the gun's power button, read by the in-game HUD.
+  activeGunMode: 'semi' | 'burst' | 'auto' | 'plasma';
   rooms: RoomInfo[];
   roomName: string;
 
@@ -139,13 +198,18 @@ interface GameStore {
   setWinner: (w: string | null) => void;
   setGameId: (id: string | null) => void;
   setRoundId: (id: string | null) => void;
+  setIsReconnecting: (v: boolean) => void;
   setAmmo: (n: number) => void;
   setMaxAmmo: (n: number) => void;
   setIsReloading: (v: boolean) => void;
   setShieldActive: (v: boolean) => void;
   setShieldCountdown: (n: number | null) => void;
   setStealthActive: (v: boolean) => void;
+  setStealthCountdown: (n: number | null) => void;
+  setFastReloadActive: (v: boolean) => void;
+  setFastReloadCountdown: (n: number | null) => void;
   setRadarActive: (v: boolean) => void;
+  setRadarCountdown: (n: number | null) => void;
   setAirstrikeReady: (n: number) => void;
   setAirstrikeArmed: (v: boolean) => void;
   setAirstrikePreview: (pos: { lat: number; lng: number } | null) => void;
@@ -156,10 +220,18 @@ interface GameStore {
   setMaxHp: (n: number) => void;
   setIsAlive: (v: boolean) => void;
   setRespawnCountdown: (n: number | null) => void;
+  setKilledBy: (name: string | null) => void;
+  setLastHitAt: (t: number | null) => void;
+  setLastShotHitAt: (t: number | null) => void;
   setBulletsPerMag: (n: number) => void;
   setReloadDelaySecs: (n: number) => void;
   setBleConnected: (v: boolean) => void;
-  setGunSlotId: (id: number) => void;
+  setGunSlotId: (id: number | null) => void;
+  setCtfState: (s: CtfState | null) => void;
+  setInfectionState: (s: InfectionState | null) => void;
+  setDominationState: (s: DominationState | null) => void;
+  setGameArea: (a: GameArea | null) => void;
+  setActiveGunMode: (m: 'semi' | 'burst' | 'auto' | 'plasma') => void;
   setRooms: (r: RoomInfo[]) => void;
   setRoomName: (name: string) => void;
   resetGame: () => void;
@@ -198,13 +270,18 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   winner: null,
   gameId: null,
   roundId: null,
+  isReconnecting: false,
   ammo: 30,
   maxAmmo: 30,
   isReloading: false,
   shieldActive: false,
   shieldCountdown: null,
   stealthActive: false,
+  stealthCountdown: null,
+  fastReloadActive: false,
+  fastReloadCountdown: null,
   radarActive: false,
+  radarCountdown: null,
   airstrikeReady: 0,
   airstrikeArmed: false,
   airstrikePreview: null,
@@ -215,10 +292,18 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   maxHp: 100,
   isAlive: true,
   respawnCountdown: null,
+  killedBy: null,
+  lastHitAt: null,
+  lastShotHitAt: null,
   bulletsPerMag: 30,
   reloadDelaySecs: 3,
   bleConnected: false,
-  gunSlotId: 0,
+  gunSlotId: null,
+  ctfState: null,
+  infectionState: null,
+  dominationState: null,
+  gameArea: null,
+  activeGunMode: 'auto',
   rooms: [],
   roomName: '',
 
@@ -239,13 +324,18 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setWinner: w => set({ winner: w }),
   setGameId: id => set({ gameId: id }),
   setRoundId: id => set({ roundId: id }),
+  setIsReconnecting: v => set({ isReconnecting: v }),
   setAmmo: n => set({ ammo: n }),
   setMaxAmmo: n => set({ maxAmmo: n }),
   setIsReloading: v => set({ isReloading: v }),
   setShieldActive: v => set({ shieldActive: v }),
   setShieldCountdown: n => set({ shieldCountdown: n }),
   setStealthActive: v => set({ stealthActive: v }),
+  setStealthCountdown: n => set({ stealthCountdown: n }),
+  setFastReloadActive: v => set({ fastReloadActive: v }),
+  setFastReloadCountdown: n => set({ fastReloadCountdown: n }),
   setRadarActive: v => set({ radarActive: v }),
+  setRadarCountdown: n => set({ radarCountdown: n }),
   setAirstrikeReady: n => set({ airstrikeReady: n }),
   setAirstrikeArmed: v => set({ airstrikeArmed: v }),
   setAirstrikePreview: pos => set({ airstrikePreview: pos }),
@@ -256,10 +346,18 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setMaxHp: n => set({ maxHp: n }),
   setIsAlive: v => set({ isAlive: v }),
   setRespawnCountdown: n => set({ respawnCountdown: n }),
+  setKilledBy: name => set({ killedBy: name }),
+  setLastHitAt: t => set({ lastHitAt: t }),
+  setLastShotHitAt: t => set({ lastShotHitAt: t }),
   setBulletsPerMag: n => set({ bulletsPerMag: n }),
   setReloadDelaySecs: n => set({ reloadDelaySecs: n }),
   setBleConnected: v => set({ bleConnected: v }),
   setGunSlotId: id => set({ gunSlotId: id }),
+  setCtfState: s => set({ ctfState: s }),
+  setInfectionState: s => set({ infectionState: s }),
+  setDominationState: s => set({ dominationState: s }),
+  setGameArea: a => set({ gameArea: a }),
+  setActiveGunMode: m => set({ activeGunMode: m }),
   setRooms: r => set({ rooms: r }),
   setRoomName: name => set({ roomName: name }),
 
@@ -276,7 +374,11 @@ export const useGameStore = create<GameStore>((set, _get) => ({
       shieldActive: false,
       shieldCountdown: null,
       stealthActive: false,
+      stealthCountdown: null,
+      fastReloadActive: false,
+      fastReloadCountdown: null,
       radarActive: false,
+      radarCountdown: null,
       airstrikeReady: 0,
       airstrikeArmed: false,
       airstrikePreview: null,
@@ -285,6 +387,12 @@ export const useGameStore = create<GameStore>((set, _get) => ({
       apachePreview: null,
       isAlive: true,
       respawnCountdown: null,
+      killedBy: null,
+      lastHitAt: null,
+      lastShotHitAt: null,
+      ctfState: null,
+      infectionState: null,
+      dominationState: null,
     }),
 
 }));
@@ -295,11 +403,18 @@ export const useGameStore = create<GameStore>((set, _get) => ({
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const saveSession = (name: string) =>
+export const saveSession = (name: string, playerId?: number | null) => {
   AsyncStorage.setItem('mecoil_username', name);
+  if (playerId != null) {
+    AsyncStorage.setItem('mecoil_player_id', String(playerId));
+  }
+};
 
 export const loadSession = (): Promise<string | null> =>
   AsyncStorage.getItem('mecoil_username');
+
+export const clearStoredPlayerId = () =>
+  AsyncStorage.removeItem('mecoil_player_id');
 
 export const saveServerUrl = (url: string) =>
   AsyncStorage.setItem('mecoil_server', url);

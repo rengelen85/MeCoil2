@@ -1,10 +1,21 @@
 import { create } from 'zustand';
 import Geolocation from '@react-native-community/geolocation';
 import CompassHeading from 'react-native-compass-heading';
+import type { FlagState, DomZone } from './game.js';
 
 export interface Position {
   lat: number;
   lng: number;
+}
+
+export interface CtfBases {
+  red: Position | null;
+  blue: Position | null;
+}
+
+export interface CtfFlags {
+  red: FlagState | null;
+  blue: FlagState | null;
 }
 
 export interface PlayerPosition extends Position {
@@ -42,6 +53,9 @@ interface MapStore {
   airstrikes: AirstrikePosition[];
   apaches: ApachePosition[];
   graves: GravePosition[];
+  ctfBases: CtfBases;
+  ctfFlags: CtfFlags;
+  domZones: DomZone[];
   gpsError: string | null;
   heading: number | null;
 
@@ -52,6 +66,9 @@ interface MapStore {
   setAirstrikes: (a: AirstrikePosition[]) => void;
   setApaches: (a: ApachePosition[]) => void;
   setGraves: (g: GravePosition[]) => void;
+  setCtfBases: (b: CtfBases) => void;
+  setCtfFlags: (f: CtfFlags) => void;
+  setDomZones: (z: DomZone[]) => void;
   setGpsError: (err: string | null) => void;
   setHeading: (h: number | null) => void;
   startGPS: (onPosition: (lat: number, lng: number) => void) => void;
@@ -71,6 +88,9 @@ export const useMapStore = create<MapStore>((set, _get) => ({
   airstrikes: [],
   apaches: [],
   graves: [],
+  ctfBases: { red: null, blue: null },
+  ctfFlags: { red: null, blue: null },
+  domZones: [],
   gpsError: null,
   heading: null,
 
@@ -81,6 +101,9 @@ export const useMapStore = create<MapStore>((set, _get) => ({
   setAirstrikes: a => set({ airstrikes: a }),
   setApaches: a => set({ apaches: a }),
   setGraves: g => set({ graves: g }),
+  setCtfBases: b => set({ ctfBases: b }),
+  setCtfFlags: f => set({ ctfFlags: f }),
+  setDomZones: z => set({ domZones: z }),
   setGpsError: err => set({ gpsError: err }),
   setHeading: h => set({ heading: h }),
 

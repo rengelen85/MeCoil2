@@ -4,10 +4,12 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/index.js';
 import { useGameStore, ScoreEntry } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
-import { sendPosition, sendStopGame, sendDeployAirstrike, sendDeployApache } from '../lib/network.js';
+import { sendPosition, sendStopGame, sendDeployAirstrike, sendDeployApache, sendLeaveRoom } from '../lib/network.js';
 import { applyGunAssignment, connectBle, setGunMode, GUN_MODES, GUN_MODE_CYCLE, GunMode } from '../lib/ble.js';
+import { isInArea } from '../lib/geo.js';
 import { GAME_MODES } from 'shared/messages.js';
 import GameMap from '../components/GameMap.js';
+import ScoreBoard from '../components/ScoreBoard.js';
 
 // Short top-bar label per game mode (mirrors the web client).
 const MODE_LABELS: Record<string, string> = {
@@ -41,13 +43,17 @@ function findMyScore(scores: ScoreEntry[], myId: number | null): ScoreEntry | nu
 export default function InGameScreen(_props: Props) {
   const {
     ammo, maxAmmo, isReloading, shieldActive, stealthActive,
-    radarActive, airstrikeReady, airstrikeArmed, airstrikePreview,
+    radarActive, radarCountdown, airstrikeReady, airstrikeArmed, airstrikePreview,
     setAirstrikeArmed, setAirstrikePreview, setAirstrikeReady,
     apacheReady, apacheArmed, apachePreview,
     setApacheArmed, setApachePreview, setApacheReady,
     timeRemaining, scores, myId, isHost, bleConnected, gunSlotId,
-    killFeed, hp, maxHp, isAlive, respawnCountdown, gameConfig, players,
+    killFeed, hp, maxHp, isAlive, respawnCountdown, killedBy, gameConfig, players,
+    activeGunMode, roundId, ctfState, infectionState, dominationState,
+    gameArea, lastHitAt, lastShotHitAt, fastReloadActive,
   } = useGameStore();
+
+  const [showScores, setShowScores] = useState(false);
 
   const myScore = findMyScore(scores, myId);
   const modeLabel = MODE_LABELS[gameConfig.mode] ?? gameConfig.mode;
@@ -56,8 +62,45 @@ export default function InGameScreen(_props: Props) {
   const hpPct = maxHp > 0 ? Math.min(100, Math.round((hp / maxHp) * 100)) : 0;
   const hpColor = hpPct > 50 ? '#00e676' : hpPct > 25 ? '#ffeb3b' : '#ff5252';
 
-  const { startGPS, stopGPS, startHeading, stopHeading, airstrikes, apaches } =
+  const { startGPS, stopGPS, startHeading, stopHeading, airstrikes, apaches, myPosition } =
     useMapStore();
+
+  // CTF: capture tally for the top bar.
+  const ctfCaptures =
+    gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG && ctfState ? ctfState.captures : null;
+
+  // Infection: am I infected, and is my immunity currently active?
+  const amIInfected =
+    gameConfig.mode === GAME_MODES.INFECTION &&
+    !!infectionState &&
+    infectionState.infectedIds.includes(myId ?? -1);
+  const gunLocked =
+    gameConfig.mode === GAME_MODES.INFECTION && !!infectionState && !amIInfected;
+  const myImmunity = infectionState?.immunePlayers?.[myId ?? -1];
+  const immunityActive =
+    !!myImmunity?.hasImmunity ||
+    (myImmunity?.gracePeriodUntil != null && Date.now() < myImmunity.gracePeriodUntil);
+
+  // Out-of-bounds when a play area is set and my GPS position falls outside it.
+  const outOfBounds =
+    !!gameArea && !!myPosition && !isInArea(myPosition.lat, myPosition.lng, gameArea);
+
+  // Brief red flash on incoming damage; "HIT" pip when our own shot lands.
+  const [hitFlash, setHitFlash] = useState(false);
+  useEffect(() => {
+    if (!lastHitAt) return;
+    setHitFlash(true);
+    const t = setTimeout(() => setHitFlash(false), 350);
+    return () => clearTimeout(t);
+  }, [lastHitAt]);
+
+  const [shotHit, setShotHit] = useState(false);
+  useEffect(() => {
+    if (!lastShotHitAt) return;
+    setShotHit(true);
+    const t = setTimeout(() => setShotHit(false), 600);
+    return () => clearTimeout(t);
+  }, [lastShotHitAt]);
 
   // 1s ticker so the incoming-airstrike countdown updates live.
   const [now, setNow] = useState(Date.now());
@@ -131,12 +174,13 @@ export default function InGameScreen(_props: Props) {
     connectBle().catch(e => Alert.alert('BLE Error', e.message));
   }
 
-  const [gunMode, setGunModeState] = useState<GunMode>('auto');
+  // Fire mode lives in the store so the gun's power button (which cycles modes
+  // over BLE) and the on-screen toggle stay in sync. setGunMode updates it.
+  const gunMode = activeGunMode as GunMode;
 
   function cycleGunMode() {
     const i = GUN_MODE_CYCLE.indexOf(gunMode);
     const next = GUN_MODE_CYCLE[(i + 1) % GUN_MODE_CYCLE.length];
-    setGunModeState(next);
     setGunMode(next).catch(e => Alert.alert('BLE Error', e.message));
   }
 
@@ -172,8 +216,69 @@ export default function InGameScreen(_props: Props) {
       {/* Radar active indicator */}
       {radarActive && (
         <View style={styles.radarBadge} pointerEvents="none">
-          <Text style={styles.radarBadgeText}>📡 RADAR</Text>
+          <Text style={styles.radarBadgeText}>
+            📡 RADAR{radarCountdown != null
+              ? ` ${Math.floor(radarCountdown / 60)}:${String(radarCountdown % 60).padStart(2, '0')}`
+              : ''}
+          </Text>
         </View>
+      )}
+
+      {/* Out-of-bounds warning */}
+      {outOfBounds && (
+        <View style={styles.oobWarning} pointerEvents="none">
+          <Text style={styles.oobWarningText}>⚠ OUT OF BOUNDS — RETURN TO PLAY AREA</Text>
+        </View>
+      )}
+
+      {/* CTF: flag capture scores */}
+      {ctfCaptures && (
+        <View style={styles.ctfBar} pointerEvents="none">
+          <Text style={styles.ctfRed}>🚩 RED {ctfCaptures.red ?? 0}</Text>
+          <Text style={styles.ctfSep}>—</Text>
+          <Text style={styles.ctfBlue}>BLUE {ctfCaptures.blue ?? 0} 🚩</Text>
+        </View>
+      )}
+
+      {/* Domination: zone status + team point scores */}
+      {gameConfig.mode === GAME_MODES.DOMINATION && dominationState && (
+        <View style={styles.domBar} pointerEvents="none">
+          <Text style={[styles.domTeam, styles.domRed]}>{dominationState.teamPoints?.red ?? 0}</Text>
+          <View style={styles.domZones}>
+            {dominationState.zones.map(zone => (
+              <View
+                key={zone.id}
+                style={[
+                  styles.domZone,
+                  zone.owner === 'red' && styles.domZoneRed,
+                  zone.owner === 'blue' && styles.domZoneBlue,
+                  zone.owner === 'neutral' && styles.domZoneNeutral,
+                ]}>
+                <Text style={styles.domZoneId}>{zone.id}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={[styles.domTeam, styles.domBlue]}>{dominationState.teamPoints?.blue ?? 0}</Text>
+        </View>
+      )}
+
+      {/* Infection: role indicator + gun-lock notice */}
+      {gameConfig.mode === GAME_MODES.INFECTION && infectionState && (
+        <>
+          <View
+            style={[styles.infRole, amIInfected ? styles.infInfected : styles.infSurvivor]}
+            pointerEvents="none">
+            <Text style={[styles.infRoleText, { color: amIInfected ? '#ff5252' : '#00c853' }]}>
+              {amIInfected ? '🧟 INFECTED' : '🧍 SURVIVOR'}
+            </Text>
+            {immunityActive && <Text style={styles.infImmune}>🛡 IMMUNE</Text>}
+          </View>
+          {gunLocked && (
+            <View style={styles.gunLocked} pointerEvents="none">
+              <Text style={styles.gunLockedText}>🔒 GUN LOCKED</Text>
+            </View>
+          )}
+        </>
       )}
 
       {/* Airstrike: armed hint or pending-confirm prompt */}
@@ -237,15 +342,36 @@ export default function InGameScreen(_props: Props) {
             </View>
           )}
         </View>
-        {isHost && (
+        <View style={styles.topRightBtns}>
+          {isHost && (
+            <TouchableOpacity
+              style={styles.stopBtn}
+              onPress={sendStopGame}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={styles.stopBtnText}>■ Stop</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={styles.stopBtn}
-            onPress={sendStopGame}
+            style={styles.scoresBtn}
+            onPress={() => setShowScores(v => !v)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={styles.stopBtnText}>■ Stop</Text>
+            <Text style={styles.scoresBtnText}>{showScores ? '✕' : '⊞'}</Text>
           </TouchableOpacity>
-        )}
+        </View>
       </View>
+
+      {/* Scoreboard overlay — who's leading */}
+      {showScores && (
+        <View style={styles.scoresOverlay}>
+          <ScoreBoard />
+          {roundId ? (
+            <Text style={styles.roundId}>Round {roundId.slice(0, 8)}</Text>
+          ) : null}
+          <TouchableOpacity style={styles.leaveBtn} onPress={sendLeaveRoom}>
+            <Text style={styles.leaveBtnText}>Leave</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Personal stats + health (bottom-right, mirrors web) */}
       <View style={styles.bottomRight} pointerEvents="none">
@@ -268,13 +394,44 @@ export default function InGameScreen(_props: Props) {
         </View>
       </View>
 
+      {/* Incoming-damage red flash */}
+      {hitFlash && <View style={styles.hitFlash} pointerEvents="none" />}
+
+      {/* Outgoing-hit confirmation pip */}
+      {shotHit && (
+        <View style={styles.shotHitWrap} pointerEvents="none">
+          <Text style={styles.shotHit}>HIT</Text>
+        </View>
+      )}
+
       {/* Respawn overlay */}
       {!isAlive && (
         <View style={styles.respawnOverlay} pointerEvents="none">
           <Text style={styles.respawnTitle}>YOU ARE DOWN</Text>
-          <Text style={styles.respawnCount}>
-            Respawning in {respawnCountdown ?? 0}…
-          </Text>
+          {killedBy ? (
+            <Text style={styles.respawnKiller}>
+              Killed by <Text style={styles.killerName}>{killedBy}</Text>
+            </Text>
+          ) : null}
+          {gameConfig.mode === GAME_MODES.CAPTURE_THE_FLAG ? (
+            <>
+              <Text style={styles.respawnCount}>Return to your base to respawn</Text>
+              {respawnCountdown != null && (
+                <Text style={styles.respawnCtfTimer}>{respawnCountdown}s</Text>
+              )}
+            </>
+          ) : gameConfig.mode === GAME_MODES.DOMINATION ? (
+            respawnCountdown != null ? (
+              <>
+                <Text style={styles.respawnCount}>Respawning in {respawnCountdown}…</Text>
+                <Text style={styles.respawnHint}>No friendly zone — you'll spawn anywhere</Text>
+              </>
+            ) : (
+              <Text style={styles.respawnCount}>Head to a friendly zone to respawn</Text>
+            )
+          ) : (
+            <Text style={styles.respawnCount}>Respawning in {respawnCountdown ?? 0}…</Text>
+          )}
         </View>
       )}
 
@@ -294,6 +451,7 @@ export default function InGameScreen(_props: Props) {
       <View style={styles.bottomHud}>
         {/* Ammo */}
         <View style={styles.ammoBlock}>
+          <Text style={styles.ammoIcon}>🔫</Text>
           <Text style={styles.ammoCount}>
             {isReloading ? 'RELOADING' : ammo}
           </Text>
@@ -304,6 +462,7 @@ export default function InGameScreen(_props: Props) {
         <View style={styles.statusIcons}>
           {shieldActive && <Text style={styles.statusIcon}>🛡</Text>}
           {stealthActive && <Text style={styles.statusIcon}>👻</Text>}
+          {fastReloadActive && <Text style={styles.statusIcon}>🔋</Text>}
           {airstrikeReady > 0 && (
             <TouchableOpacity onPress={toggleAirstrike}>
               <Text style={[styles.airstrikeBtn, airstrikeArmed && styles.airstrikeBtnArmed]}>
@@ -462,6 +621,151 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
   },
+  respawnKiller: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 15,
+    marginBottom: 8,
+  },
+  killerName: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  respawnCtfTimer: {
+    color: '#ff5252',
+    fontSize: 42,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  respawnHint: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  hitFlash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,30,30,0.4)',
+    zIndex: 70,
+  },
+  shotHitWrap: {
+    position: 'absolute',
+    top: '42%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 65,
+  },
+  shotHit: {
+    color: '#00e676',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 5,
+    textShadowColor: 'rgba(0,230,118,0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+  },
+  oobWarning: {
+    position: 'absolute',
+    top: 168,
+    alignSelf: 'center',
+    zIndex: 50,
+    backgroundColor: 'rgba(40,25,0,0.9)',
+    borderWidth: 1,
+    borderColor: '#ff9800',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  oobWarningText: {
+    color: '#ff9800',
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 1,
+  },
+  ctfBar: {
+    position: 'absolute',
+    top: 84,
+    alignSelf: 'center',
+    zIndex: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+  },
+  ctfRed: { color: '#ff5252', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
+  ctfBlue: { color: '#448aff', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
+  ctfSep: { color: 'rgba(255,255,255,0.3)', fontSize: 13 },
+  domBar: {
+    position: 'absolute',
+    top: 84,
+    alignSelf: 'center',
+    zIndex: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  domTeam: { fontSize: 16, fontWeight: '700', minWidth: 28, textAlign: 'center' },
+  domRed: { color: '#ff5252' },
+  domBlue: { color: '#448aff' },
+  domZones: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  domZone: {
+    minWidth: 28,
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  domZoneRed: { backgroundColor: 'rgba(255,82,82,0.25)', borderColor: 'rgba(255,82,82,0.6)' },
+  domZoneBlue: { backgroundColor: 'rgba(68,138,255,0.25)', borderColor: 'rgba(68,138,255,0.6)' },
+  domZoneNeutral: { backgroundColor: 'rgba(255,255,255,0.06)' },
+  domZoneId: { color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  infRole: {
+    position: 'absolute',
+    top: 84,
+    left: 16,
+    zIndex: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  infInfected: { borderColor: 'rgba(255,82,82,0.6)' },
+  infSurvivor: { borderColor: 'rgba(0,200,83,0.6)' },
+  infRoleText: { fontSize: 13, fontWeight: '700', letterSpacing: 1 },
+  infImmune: { color: '#ffd740', fontSize: 11, letterSpacing: 0.5 },
+  gunLocked: {
+    position: 'absolute',
+    top: 118,
+    left: 16,
+    zIndex: 40,
+    backgroundColor: 'rgba(40,0,0,0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,82,82,0.5)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  gunLockedText: { color: '#ff5252', fontSize: 11, fontWeight: '700', letterSpacing: 1 },
   killFeed: {
     position: 'absolute',
     top: 92,
@@ -489,6 +793,10 @@ const styles = StyleSheet.create({
   ammoBlock: {
     flexDirection: 'row',
     alignItems: 'baseline',
+  },
+  ammoIcon: {
+    fontSize: 20,
+    marginRight: 6,
   },
   ammoCount: {
     color: '#fff',
@@ -654,6 +962,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(224,64,251,0.15)',
     borderColor: 'rgba(224,64,251,0.5)',
   },
+  topRightBtns: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   stopBtn: {
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 6,
@@ -661,6 +974,37 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   stopBtnText: { color: '#e63946', fontWeight: '700' },
+  scoresBtn: {
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  scoresBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  scoresOverlay: {
+    position: 'absolute',
+    top: 88,
+    left: 16,
+    zIndex: 60,
+    gap: 8,
+    alignItems: 'flex-start',
+  },
+  roundId: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.35)',
+    letterSpacing: 1,
+  },
+  leaveBtn: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  leaveBtnText: { color: '#ccc', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
   apacheWarning: {
     position: 'absolute',
     top: 92,
