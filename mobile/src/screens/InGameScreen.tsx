@@ -115,6 +115,16 @@ export default function InGameScreen(_props: Props) {
     ? Math.max(0, Math.ceil((Math.max(...apaches.map(a => a.endsAt)) - now) / 1000))
     : null;
 
+  // The centered score-overview bar (CTF captures / Domination zones) sits at the
+  // top-centre. When it's present the airstrike/apache warning badges must drop
+  // below it instead of overlapping; airstrike and apache then stack under each
+  // other. Without a score bar they keep the original (higher) position.
+  const hasTopScoreBar =
+    !!ctfCaptures || (gameConfig.mode === GAME_MODES.DOMINATION && !!dominationState);
+  const warnBaseTop = hasTopScoreBar ? 134 : 92;
+  const airstrikeWarnTop = warnBaseTop;
+  const apacheWarnTop = incomingStrike !== null ? warnBaseTop + 56 : warnBaseTop;
+
   function toggleAirstrike() {
     if (airstrikeReady <= 0) return;
     setAirstrikePreview(null);
@@ -193,7 +203,7 @@ export default function InGameScreen(_props: Props) {
 
       {/* Incoming airstrike warning */}
       {incomingStrike !== null && (
-        <View style={styles.airstrikeWarning} pointerEvents="none">
+        <View style={[styles.airstrikeWarning, { top: airstrikeWarnTop }]} pointerEvents="none">
           <Text style={styles.airstrikeWarningTitle}>⚠ INCOMING AIRSTRIKE</Text>
           <Text style={styles.airstrikeWarningCount}>
             {incomingStrike}s — CLEAR THE ZONE
@@ -204,7 +214,7 @@ export default function InGameScreen(_props: Props) {
       {/* Apache zone active warning */}
       {apacheCountdown !== null && (
         <View
-          style={[styles.apacheWarning, incomingStrike !== null && styles.apacheWarningOffset]}
+          style={[styles.apacheWarning, { top: apacheWarnTop }]}
           pointerEvents="none">
           <Text style={styles.apacheWarningTitle}>
             🚁 APACHE ZONE{apaches.length > 1 ? ` (${apaches.length})` : ''} ACTIVE
@@ -1017,9 +1027,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     alignItems: 'center',
-  },
-  apacheWarningOffset: {
-    top: 148,
   },
   apacheWarningTitle: {
     color: '#00e676',

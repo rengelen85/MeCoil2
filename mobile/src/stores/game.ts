@@ -421,3 +421,9 @@ export const saveServerUrl = (url: string) =>
 
 export const loadServerUrl = (): Promise<string | null> =>
   AsyncStorage.getItem('mecoil_server');
+
+export const saveMapStyle = (style: string) =>
+  AsyncStorage.setItem('mecoil_map_style', style);
+
+export const loadMapStyle = (): Promise<string | null> =>
+  AsyncStorage.getItem('mecoil_map_style');

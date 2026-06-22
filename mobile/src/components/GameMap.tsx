@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import {
   Map as MapView,
@@ -12,8 +12,20 @@ import { useMapStore } from '../stores/map.js';
 import { useGameStore } from '../stores/game.js';
 import { AIRSTRIKE_RADIUS_M, APACHE_RADIUS_M } from 'shared/messages.js';
 import { sendCollect } from '../lib/network.js';
-import { OSM_STYLE } from '../lib/mapStyle.js';
+import {
+  MAP_STYLES,
+  MAP_STYLE_CYCLE,
+  MAP_STYLE_ICON,
+  type MapStyleId,
+} from '../lib/mapStyle.js';
+import { loadMapStyle, saveMapStyle } from '../stores/game.js';
 import { MeterCircle, ShapePolygon } from './MapShapes.js';
+import { haversineMeters } from '../lib/geo.js';
+
+// Tap tolerance for collecting a power-up. MapLibre's Marker (MarkerView) does
+// not forward touch events to its children on Android, so taps are hit-tested
+// against power-up positions via the MapView's own onPress instead.
+const POWERUP_TAP_RADIUS_M = 25;
 
 const POWERUP_EMOJI: Record<string, string> = {
   fastReload: '🔋',
@@ -60,6 +72,28 @@ export default function GameMap() {
   const accRotationRef = useRef(0);
   const prevHeadingRef = useRef<number | null>(null);
 
+  // Map tile style — cycles dark → voyager → light → standard, mirroring the
+  // web client's toggle. The choice persists across games via AsyncStorage.
+  const [mapStyleId, setMapStyleId] = useState<MapStyleId>('dark');
+  useEffect(() => {
+    loadMapStyle().then(saved => {
+      if (saved && (MAP_STYLE_CYCLE as string[]).includes(saved)) {
+        setMapStyleId(saved as MapStyleId);
+      }
+    });
+  }, []);
+
+  function cycleMapStyle() {
+    setMapStyleId(prev => {
+      const next =
+        MAP_STYLE_CYCLE[
+          (MAP_STYLE_CYCLE.indexOf(prev) + 1) % MAP_STYLE_CYCLE.length
+        ];
+      saveMapStyle(next);
+      return next;
+    });
+  }
+
   useEffect(() => {
     const applyHeading = (h: number | null) => {
       if (h === null) {
@@ -99,6 +133,17 @@ export default function GameMap() {
     } else if (airstrikeArmed || airstrikePreview) {
       setAirstrikePreview({ lat: latitude, lng: longitude });
       if (airstrikeArmed) setAirstrikeArmed(false);
+    } else {
+      // Collect the nearest power-up within tap tolerance (MarkerView children
+      // don't receive touches on Android, so we hit-test the map tap itself).
+      let nearest: { id: number; dist: number } | null = null;
+      for (const p of powerups) {
+        const dist = haversineMeters(latitude, longitude, p.lat, p.lng);
+        if (dist <= POWERUP_TAP_RADIUS_M && (!nearest || dist < nearest.dist)) {
+          nearest = { id: p.id, dist };
+        }
+      }
+      if (nearest) sendCollect(nearest.id);
     }
   }
 
@@ -111,9 +156,10 @@ export default function GameMap() {
   }
 
   return (
+    <View style={styles.root}>
     <MapView
       style={styles.map}
-      mapStyle={OSM_STYLE}
+      mapStyle={MAP_STYLES[mapStyleId]}
       onPress={onMapPress}
       // Heading-up, fixed-zoom tactical view: the player drives the camera via
       // GPS + compass, not gestures.
@@ -130,7 +176,7 @@ export default function GameMap() {
       <Camera
         ref={cameraRef}
         center={[myPosition.lng, myPosition.lat]}
-        zoom={17}
+        zoom={19}
         pitch={0}
         duration={250}
       />
@@ -232,15 +278,13 @@ export default function GameMap() {
         </Marker>
       ))}
 
-      {/* Power-ups — tap to collect (mirrors the web client's marker click) */}
+      {/* Power-ups — tap the map near one to collect it (see onMapPress; the
+          marker is display-only because MarkerView children don't get touches). */}
       {powerups.map(p => (
         <Marker key={`pu-${p.id}`} id={`pu-${p.id}`} lngLat={[p.lng, p.lat]} anchor="center">
-          <TouchableOpacity
-            style={styles.powerupDot}
-            onPress={() => sendCollect(p.id)}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <View style={styles.powerupDot} pointerEvents="none">
             <Text style={styles.powerupEmoji}>{POWERUP_EMOJI[p.type] ?? '📦'}</Text>
-          </TouchableOpacity>
+          </View>
         </Marker>
       ))}
 
@@ -310,12 +354,46 @@ export default function GameMap() {
         </React.Fragment>
       ))}
     </MapView>
+
+      {/* Map tile style toggle — tap to cycle through basemaps (web parity) */}
+      <TouchableOpacity
+        style={styles.styleToggle}
+        onPress={cycleMapStyle}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <Text style={styles.styleToggleIcon}>{MAP_STYLE_ICON[mapStyleId]}</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   map: {
     ...StyleSheet.absoluteFill,
+  },
+  styleToggle: {
+    position: 'absolute',
+    // Bottom-centre — sits in the empty gap between the ammo block (bottom-left)
+    // and the health/stats panel (bottom-right), clear of the status bar and the
+    // Stop/Scores buttons up top. marginLeft offsets half the width to centre it.
+    bottom: 36,
+    left: '50%',
+    marginLeft: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(13,13,15,0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  styleToggleIcon: {
+    fontSize: 20,
+    lineHeight: 24,
   },
   noGps: {
     ...StyleSheet.absoluteFill,
