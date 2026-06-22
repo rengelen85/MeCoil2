@@ -31,6 +31,7 @@ import {
   sendSetGameArea,
 } from '../lib/network.js';
 import { GAME_MODES, GAME_STATES, TEAMS } from 'shared/messages.js';
+import SetupPreviewMap, { PreviewMarker } from '../components/SetupPreviewMap.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Lobby'>;
 
@@ -112,12 +113,67 @@ export default function LobbyScreen(_props: Props) {
 
   const [busy, setBusy] = useState(false);
 
+  // Live GPS position for the preview maps (host only). The lobby runs its own
+  // watch — independent of the in-game watch in the map store — so it can never
+  // tear down the watch InGameScreen relies on (both screens stay mounted in the
+  // native stack).
+  const [previewPos, setPreviewPos] = useState<LatLng | null>(null);
+  const watchRef = useRef<number | null>(null);
+
   // Game-area editing state (host only). `areaType` drives which editor shows;
   // it is the local source of truth, seeded once from the server config.
   const [areaType, setAreaType] = useState<'none' | 'circle' | 'polygon'>('none');
   const [areaRadius, setAreaRadius] = useState(60);
   const [areaCorners, setAreaCorners] = useState<LatLng[]>([]);
   const areaInited = useRef(false);
+
+  const mode = gameConfig.mode;
+
+  // A preview map is shown whenever the host is placing CTF bases, Domination
+  // zones, or a game-area boundary. Only watch GPS while that's true and the
+  // game hasn't started yet.
+  const wantsPreview =
+    isHost &&
+    gameState === GAME_STATES.WAITING &&
+    (mode === GAME_MODES.CAPTURE_THE_FLAG ||
+      mode === GAME_MODES.DOMINATION ||
+      areaType !== 'none');
+
+  useEffect(() => {
+    let cancelled = false;
+    function stopWatch() {
+      if (watchRef.current !== null) {
+        Geolocation.clearWatch(watchRef.current);
+        watchRef.current = null;
+      }
+    }
+    async function startWatch() {
+      if (watchRef.current !== null) return;
+      const ok = await ensureLocationPermission();
+      if (!ok || cancelled) return;
+      watchRef.current = Geolocation.watchPosition(
+        pos => setPreviewPos({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {},
+        { enableHighAccuracy: true, distanceFilter: 2 },
+      );
+    }
+    if (wantsPreview) startWatch();
+    else stopWatch();
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsPreview]);
+
+  // Always release the watch when the lobby unmounts.
+  useEffect(
+    () => () => {
+      if (watchRef.current !== null) {
+        Geolocation.clearWatch(watchRef.current);
+        watchRef.current = null;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (areaInited.current) return;
@@ -252,7 +308,6 @@ export default function LobbyScreen(_props: Props) {
     );
   }
 
-  const mode = gameConfig.mode;
   const domZones = gameConfig.domZones ?? [];
 
   return (
@@ -323,6 +378,30 @@ export default function LobbyScreen(_props: Props) {
                 <Text style={styles.hint}>
                   Walk to each team's base and tap to set it from your GPS position.
                 </Text>
+                <SetupPreviewMap
+                  me={previewPos}
+                  markers={
+                    [
+                      gameConfig.redBase && {
+                        key: 'red',
+                        lat: gameConfig.redBase.lat,
+                        lng: gameConfig.redBase.lng,
+                        color: '#e63946',
+                        label: 'Red',
+                      },
+                      gameConfig.blueBase && {
+                        key: 'blue',
+                        lat: gameConfig.blueBase.lat,
+                        lng: gameConfig.blueBase.lng,
+                        color: '#457b9d',
+                        label: 'Blue',
+                      },
+                    ].filter(Boolean) as PreviewMarker[]
+                  }
+                />
+                <Text style={styles.previewHint}>
+                  Cyan dot = your GPS · red/blue = bases
+                </Text>
                 <View style={styles.placeRow}>
                   <TouchableOpacity
                     style={[styles.placeBtn, styles.placeBtnRed]}
@@ -350,6 +429,19 @@ export default function LobbyScreen(_props: Props) {
                 <Text style={styles.hint}>
                   Walk to each capture zone and tap to place it. A and C are team
                   sides; B is the center.
+                </Text>
+                <SetupPreviewMap
+                  me={previewPos}
+                  markers={domZones.map(z => ({
+                    key: z.id,
+                    lat: z.lat,
+                    lng: z.lng,
+                    color: z.id === 'B' ? '#e0e0e0' : '#ff9800',
+                    label: `Zone ${z.id}`,
+                  }))}
+                />
+                <Text style={styles.previewHint}>
+                  Cyan dot = your GPS · orange = zones placed
                 </Text>
                 <View style={styles.placeRow}>
                   {['A', 'B', 'C'].map(zoneId => {
@@ -439,6 +531,21 @@ export default function LobbyScreen(_props: Props) {
 
             {areaType === 'circle' && (
               <View>
+                <SetupPreviewMap
+                  me={previewPos}
+                  circle={
+                    gameConfig.gameArea?.type === 'circle'
+                      ? {
+                          lat: gameConfig.gameArea.lat,
+                          lng: gameConfig.gameArea.lng,
+                          radiusM: gameConfig.gameArea.radiusM,
+                        }
+                      : null
+                  }
+                />
+                <Text style={styles.previewHint}>
+                  Cyan dot = your GPS · orange = game area
+                </Text>
                 <NumberRow
                   label="Radius (m)"
                   value={areaRadius}
@@ -460,6 +567,21 @@ export default function LobbyScreen(_props: Props) {
 
             {areaType === 'polygon' && (
               <View>
+                <SetupPreviewMap
+                  me={previewPos}
+                  markers={areaCorners.map((c, i) => ({
+                    key: `corner-${i}`,
+                    lat: c.lat,
+                    lng: c.lng,
+                    color: '#ff9800',
+                    label: `#${i + 1}`,
+                  }))}
+                  polygon={areaCorners.length >= 3 ? areaCorners : null}
+                  polyline={areaCorners.length >= 2 ? areaCorners : null}
+                />
+                <Text style={styles.previewHint}>
+                  Cyan dot = your GPS · orange = corners / area
+                </Text>
                 <Text style={styles.hint}>
                   Walk to each corner and tap "Add corner". Need at least 3 corners.
                 </Text>
@@ -685,6 +807,12 @@ const styles = StyleSheet.create({
   },
   hintWarn: { color: '#ff9800', marginTop: 6 },
   hintOk: { color: '#00c853', marginTop: 6 },
+  previewHint: {
+    color: '#777',
+    fontSize: 10,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
   settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
