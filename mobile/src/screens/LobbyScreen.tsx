@@ -30,6 +30,7 @@ import {
   sendSetDomZone,
   sendSetGameArea,
 } from '../lib/network.js';
+import { connectBle } from '../lib/ble.js';
 import { GAME_MODES, GAME_STATES, TEAMS } from 'shared/messages.js';
 import SetupPreviewMap, { PreviewMarker } from '../components/SetupPreviewMap.js';
 
@@ -105,8 +106,17 @@ function NumberRow({
 
 export default function LobbyScreen(_props: Props) {
   const {
-    players, myId, isHost, hostId, roomName, gameConfig, gameState,
+    players, myId, isHost, hostId, roomName, gameConfig, gameState, bleConnected,
   } = useGameStore();
+
+  const [connectingGun, setConnectingGun] = useState(false);
+
+  function handleConnectGun() {
+    setConnectingGun(true);
+    connectBle()
+      .catch(e => Alert.alert('BLE Error', e.message))
+      .finally(() => setConnectingGun(false));
+  }
 
   const me = players.find(p => p.id === myId);
   const allReady = players.length > 0 && players.every(p => p.ready);
@@ -698,6 +708,19 @@ export default function LobbyScreen(_props: Props) {
 
       <View style={styles.actions}>
         <TouchableOpacity
+          style={[styles.btn, bleConnected ? styles.btnGunConnected : styles.btnGun]}
+          disabled={bleConnected || connectingGun}
+          onPress={handleConnectGun}>
+          <Text style={styles.btnText}>
+            {bleConnected
+              ? '✓ Gun Connected'
+              : connectingGun
+              ? 'Scanning for gun…'
+              : '⚷ Connect Gun'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.btn, me?.ready ? styles.btnUnready : styles.btnReady]}
           onPress={handleReadyToggle}>
           <Text style={styles.btnText}>{me?.ready ? 'Not Ready' : 'Ready'}</Text>
@@ -926,6 +949,8 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
   },
+  btnGun: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#457b9d' },
+  btnGunConnected: { backgroundColor: 'rgba(69,123,157,0.25)', borderWidth: 1, borderColor: '#457b9d' },
   btnReady: { backgroundColor: '#5cb85c' },
   btnUnready: { backgroundColor: '#1a1a1a', borderWidth: 1, borderColor: '#444' },
   btnStart: { backgroundColor: '#e63946' },

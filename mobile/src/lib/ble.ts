@@ -10,7 +10,7 @@
  * The logic mirrors client/src/lib/ble.js + recoilweapon.js from the web app.
  */
 
-import { BleManager, Device, Characteristic } from 'react-native-ble-plx';
+import { BleManager, Device, Characteristic, State } from 'react-native-ble-plx';
 import { Platform, PermissionsAndroid } from 'react-native';
 import { sendFire, sendHit } from './network.js';
 import { useGameStore } from '../stores/game.js';
@@ -95,16 +95,49 @@ let _prevReload  = 0;
 async function _requestPermissions() {
   if (Platform.OS !== 'android') return;
   const sdkInt = parseInt(String(Platform.Version), 10);
+  const granted = PermissionsAndroid.RESULTS.GRANTED;
   if (sdkInt >= 31) {
-    await PermissionsAndroid.requestMultiple([
+    const res = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
       PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
     ]);
+    if (
+      res[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN] !== granted ||
+      res[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] !== granted
+    ) {
+      throw new Error('Bluetooth permission denied — enable it in Settings to pair your gun.');
+    }
   } else {
-    await PermissionsAndroid.request(
+    const res = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     );
+    if (res !== granted) {
+      throw new Error('Location permission denied — required for Bluetooth scanning.');
+    }
   }
+}
+
+// Resolve once the BLE adapter is powered on. Scanning before this throws
+// "Cannot start scanning operation"; the manager also needs a moment to report
+// its initial state after construction. Rejects if Bluetooth is off/unsupported.
+function _waitForPoweredOn(timeoutMs = 10_000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const sub = bleManager.onStateChange(state => {
+      if (state === State.PoweredOn) {
+        clearTimeout(timer);
+        sub.remove();
+        resolve();
+      } else if (state === State.PoweredOff || state === State.Unsupported) {
+        clearTimeout(timer);
+        sub.remove();
+        reject(new Error('Bluetooth is turned off — enable it and try again.'));
+      }
+    }, true); // emitCurrentState: fire immediately with the present state
+    const timer = setTimeout(() => {
+      sub.remove();
+      reject(new Error('Bluetooth not ready — try again.'));
+    }, timeoutMs);
+  });
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -115,6 +148,7 @@ export function isBleAvailable(): boolean {
 
 export async function connectBle(): Promise<void> {
   await _requestPermissions();
+  await _waitForPoweredOn();
   _device = await _scanAndConnect();
 
   await _device.discoverAllServicesAndCharacteristics();
@@ -175,8 +209,12 @@ export async function setGunMode(mode: GunMode): Promise<void> {
 
 function _scanAndConnect(): Promise<Device> {
   return new Promise((resolve, reject) => {
-    bleManager.startDeviceScan([SERVICE_UUID], null, (error, device) => {
+    // Scan with no UUID filter (null): the gun does NOT advertise SERVICE_UUID in
+    // its advertising packet, so filtering by it returns nothing. Match by name
+    // prefix instead — mirrors the web client's `namePrefix: 'SRG'` filter.
+    bleManager.startDeviceScan(null, null, (error, device) => {
       if (error) {
+        bleManager.stopDeviceScan();
         reject(error);
         return;
       }
