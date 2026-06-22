@@ -106,6 +106,12 @@ export const sendDeployAirstrike = (lat: number, lng: number) =>
   send({ type: C2S.DEPLOY_AIRSTRIKE, lat, lng });
 export const sendDeployApache = (lat: number, lng: number) =>
   send({ type: C2S.DEPLOY_APACHE, lat, lng });
+export const sendSetBase = (team: string, lat: number, lng: number) =>
+  send({ type: C2S.SET_BASE, team, lat, lng });
+export const sendSetDomZone = (zoneId: string, lat: number, lng: number) =>
+  send({ type: C2S.SET_DOM_ZONE, zoneId, lat, lng });
+export const sendSetGameArea = (area: object | null) =>
+  send({ type: C2S.SET_GAME_AREA, area });
 
 function _handle(msg: { type: string; [key: string]: unknown }) {
   const game = useGameStore.getState();

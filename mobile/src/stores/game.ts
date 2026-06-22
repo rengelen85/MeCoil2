@@ -39,6 +39,21 @@ export interface KillFeedEntry {
   victimName: string;
 }
 
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+export type GameArea =
+  | { type: 'circle'; lat: number; lng: number; radiusM: number }
+  | { type: 'polygon'; points: LatLng[] };
+
+export interface DomZoneSpot {
+  id: string;
+  lat: number;
+  lng: number;
+}
+
 export interface GameConfig {
   mode: string;
   timeLimit: number;
@@ -48,6 +63,16 @@ export interface GameConfig {
   hpPerPlayer?: number;
   reloadDelaySecs?: number;
   respawnDelaySecs?: number;
+  // Optional play-area boundary (circle or polygon), or null for no limit.
+  gameArea?: GameArea | null;
+  // Capture the Flag — team base / flag spawn locations.
+  redBase?: LatLng | null;
+  blueBase?: LatLng | null;
+  // Domination — placed control-point zones plus tuning.
+  domZones?: DomZoneSpot[];
+  dominationTickSecs?: number;
+  deathstreakEnabled?: boolean;
+  deathstreakCount?: number;
 }
 
 export interface RoomInfo {
@@ -150,10 +175,18 @@ export const useGameStore = create<GameStore>((set, _get) => ({
     mode: GAME_MODES.FFA,
     timeLimit: 15,
     scoreLimit: 5,
+    friendlyFire: false,
     bulletsPerMag: 30,
     hpPerPlayer: 100,
     reloadDelaySecs: 3,
     respawnDelaySecs: 10,
+    gameArea: null,
+    redBase: null,
+    blueBase: null,
+    domZones: [],
+    dominationTickSecs: 2,
+    deathstreakEnabled: false,
+    deathstreakCount: 3,
   },
   players: [],
   hostId: null,
