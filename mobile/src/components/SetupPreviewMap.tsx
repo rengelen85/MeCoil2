@@ -1,14 +1,10 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
-import MapView, {
-  Marker,
-  Circle,
-  Polygon,
-  Polyline,
-  LatLng,
-  PROVIDER_DEFAULT,
-} from 'react-native-maps';
+import { Map as MapView, Camera, Marker } from '@maplibre/maplibre-react-native';
 import { LatLng as Coord } from '../stores/game.js';
+import { OSM_STYLE } from '../lib/mapStyle.js';
+import { MeterCircle, ShapePolygon, ShapeLine } from './MapShapes.js';
+import { boundsOf } from '../lib/geo.js';
 
 export interface PreviewMarker {
   key: string;
@@ -26,15 +22,11 @@ export interface PreviewCircle {
 
 const AREA_COLOR = '#ff9800';
 
-function toLatLng(c: Coord): LatLng {
-  return { latitude: c.lat, longitude: c.lng };
-}
-
 /**
  * Compact, non-interactive map used in the lobby to preview where the host has
  * placed CTF bases, Domination zones or a game-area boundary. Mirrors the web
  * client's Leaflet previews: a cyan "you" dot plus the placed markers/shapes.
- * Purely presentational — the caller owns the GPS watch and passes `me`.
+ * Key-free — renders OpenStreetMap raster tiles via MapLibre.
  */
 export default function SetupPreviewMap({
   me,
@@ -51,57 +43,22 @@ export default function SetupPreviewMap({
   polyline?: Coord[] | null;
   polylineColor?: string;
 }) {
-  const mapRef = useRef<MapView>(null);
-
-  // Every coordinate the camera should keep in view.
-  const coords: LatLng[] = [];
-  if (me) coords.push(toLatLng(me));
-  for (const m of markers) coords.push({ latitude: m.lat, longitude: m.lng });
-  if (polygon) for (const p of polygon) coords.push(toLatLng(p));
-  if (polyline) for (const p of polyline) coords.push(toLatLng(p));
+  // Every point the camera should keep in view.
+  const pts: Coord[] = [];
+  if (me) pts.push(me);
+  for (const m of markers) pts.push({ lat: m.lat, lng: m.lng });
+  if (polygon) pts.push(...polygon);
+  if (polyline) pts.push(...polyline);
   if (circle) {
-    // Approximate the circle's bounding box so fitToCoordinates frames it.
-    const dLat = circle.radiusM / 111320;
-    const dLng =
-      circle.radiusM / (111320 * Math.cos((circle.lat * Math.PI) / 180) || 1);
-    coords.push({ latitude: circle.lat + dLat, longitude: circle.lng });
-    coords.push({ latitude: circle.lat - dLat, longitude: circle.lng });
-    coords.push({ latitude: circle.lat, longitude: circle.lng + dLng });
-    coords.push({ latitude: circle.lat, longitude: circle.lng - dLng });
+    const dLat = (circle.radiusM / 6378137) * (180 / Math.PI);
+    const dLng = dLat / Math.cos((circle.lat * Math.PI) / 180);
+    pts.push({ lat: circle.lat + dLat, lng: circle.lng });
+    pts.push({ lat: circle.lat - dLat, lng: circle.lng });
+    pts.push({ lat: circle.lat, lng: circle.lng + dLng });
+    pts.push({ lat: circle.lat, lng: circle.lng - dLng });
   }
 
-  const coordsRef = useRef<LatLng[]>(coords);
-  coordsRef.current = coords;
-
-  const fit = useCallback(() => {
-    const map = mapRef.current;
-    const c = coordsRef.current;
-    if (!map || c.length === 0) return;
-    if (c.length === 1) {
-      map.animateToRegion(
-        {
-          latitude: c[0].latitude,
-          longitude: c[0].longitude,
-          latitudeDelta: 0.003,
-          longitudeDelta: 0.003,
-        },
-        250,
-      );
-    } else {
-      map.fitToCoordinates(c, {
-        edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
-        animated: true,
-      });
-    }
-  }, []);
-
-  // Re-frame whenever the set of points changes (e.g. a base/zone is placed).
-  const fitKey = JSON.stringify(coords);
-  useEffect(() => {
-    fit();
-  }, [fitKey, fit]);
-
-  if (coords.length === 0) {
+  if (pts.length === 0) {
     return (
       <View style={[styles.wrap, styles.placeholder]}>
         <Text style={styles.placeholderText}>Acquiring GPS…</Text>
@@ -109,69 +66,71 @@ export default function SetupPreviewMap({
     );
   }
 
-  const initialRegion = {
-    latitude: coords[0].latitude,
-    longitude: coords[0].longitude,
-    latitudeDelta: 0.003,
-    longitudeDelta: 0.003,
-  };
+  const bounds = boundsOf(pts)!;
+  const spanLng = bounds[2] - bounds[0];
+  const spanLat = bounds[3] - bounds[1];
+  // A single point (or a near-degenerate box) can't be framed by bounds without
+  // zooming to the max; fall back to a centred view instead.
+  const useCenter = pts.length === 1 || (spanLng < 1e-4 && spanLat < 1e-4);
+  const center: [number, number] = [
+    (bounds[0] + bounds[2]) / 2,
+    (bounds[1] + bounds[3]) / 2,
+  ];
 
   return (
     <View style={styles.wrap}>
       <MapView
-        ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={initialRegion}
-        onMapReady={fit}
-        showsUserLocation={false}
-        showsCompass={false}
-        toolbarEnabled={false}
-        pitchEnabled={false}
-        rotateEnabled={false}
-        scrollEnabled={false}
-        zoomEnabled={false}>
+        mapStyle={OSM_STYLE}
+        dragPan={false}
+        touchZoom={false}
+        doubleTapZoom={false}
+        doubleTapHoldZoom={false}
+        touchRotate={false}
+        touchPitch={false}
+        attribution={false}
+        logo={false}
+        compass={false}
+        scaleBar={false}>
+        {useCenter ? (
+          <Camera center={center} zoom={16} duration={300} />
+        ) : (
+          <Camera
+            bounds={bounds}
+            padding={{ top: 40, bottom: 40, left: 40, right: 40 }}
+            duration={300}
+          />
+        )}
+
         {me && (
-          <Marker coordinate={toLatLng(me)} anchor={{ x: 0.5, y: 0.5 }} title="You">
+          <Marker id="preview-me" lngLat={[me.lng, me.lat]} anchor="center">
             <View style={styles.youDot} />
           </Marker>
         )}
 
         {markers.map(m => (
-          <Marker
-            key={m.key}
-            coordinate={{ latitude: m.lat, longitude: m.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}
-            title={m.label}>
+          <Marker key={m.key} id={`preview-${m.key}`} lngLat={[m.lng, m.lat]} anchor="center">
             <View style={[styles.placedDot, { backgroundColor: m.color, borderColor: m.color }]} />
           </Marker>
         ))}
 
         {circle && (
-          <Circle
-            center={{ latitude: circle.lat, longitude: circle.lng }}
-            radius={circle.radiusM}
-            strokeColor={AREA_COLOR}
-            strokeWidth={2}
-            fillColor="rgba(255,152,0,0.12)"
+          <MeterCircle
+            id="preview-circle"
+            lat={circle.lat}
+            lng={circle.lng}
+            radiusM={circle.radiusM}
+            color={AREA_COLOR}
+            fillOpacity={0.12}
           />
         )}
 
         {polygon && polygon.length >= 3 && (
-          <Polygon
-            coordinates={polygon.map(toLatLng)}
-            strokeColor={AREA_COLOR}
-            strokeWidth={2}
-            fillColor="rgba(255,152,0,0.12)"
-          />
+          <ShapePolygon id="preview-polygon" points={polygon} color={AREA_COLOR} fillOpacity={0.12} />
         )}
 
         {polyline && polyline.length >= 2 && (
-          <Polyline
-            coordinates={polyline.map(toLatLng)}
-            strokeColor={polylineColor}
-            strokeWidth={2}
-          />
+          <ShapeLine id="preview-polyline" points={polyline} color={polylineColor} />
         )}
       </MapView>
     </View>

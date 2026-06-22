@@ -1,9 +1,17 @@
 import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
-import MapView, { Marker, Circle, LatLng, PROVIDER_DEFAULT, MapPressEvent } from 'react-native-maps';
+import {
+  Map as MapView,
+  Camera,
+  Marker,
+  type PressEvent,
+} from '@maplibre/maplibre-react-native';
+import { NativeSyntheticEvent } from 'react-native';
 import { useMapStore } from '../stores/map.js';
 import { useGameStore } from '../stores/game.js';
 import { AIRSTRIKE_RADIUS_M, APACHE_RADIUS_M } from 'shared/messages.js';
+import { OSM_STYLE } from '../lib/mapStyle.js';
+import { MeterCircle } from './MapShapes.js';
 
 const POWERUP_EMOJI: Record<string, string> = {
   fullReload: '🔋',
@@ -22,8 +30,8 @@ export default function GameMap() {
     apacheArmed, apachePreview, setApacheArmed, setApachePreview,
   } = useGameStore();
 
-  function onMapPress(e: MapPressEvent) {
-    const { latitude, longitude } = e.nativeEvent.coordinate;
+  function onMapPress(e: NativeSyntheticEvent<PressEvent>) {
+    const [longitude, latitude] = e.nativeEvent.lngLat;
     if (apacheArmed || apachePreview) {
       setApachePreview({ lat: latitude, lng: longitude });
       if (apacheArmed) setApacheArmed(false);
@@ -41,66 +49,53 @@ export default function GameMap() {
     );
   }
 
-  const center: LatLng = { latitude: myPosition.lat, longitude: myPosition.lng };
-
   return (
     <MapView
       style={styles.map}
-      provider={PROVIDER_DEFAULT}
-      initialRegion={{
-        ...center,
-        latitudeDelta: 0.002,
-        longitudeDelta: 0.002,
-      }}
-      region={{
-        ...center,
-        latitudeDelta: 0.002,
-        longitudeDelta: 0.002,
-      }}
-      // Rotate map to heading-up orientation (north always toward top of screen
-      // would be 0; heading-up means bearing = heading degrees)
-      camera={{ center, heading: heading ?? 0, pitch: 0, zoom: 18 }}
+      mapStyle={OSM_STYLE}
       onPress={onMapPress}
-      showsUserLocation={false}
-      showsCompass={false}
-      showsScale={false}
-      rotateEnabled={false}
-      scrollEnabled={false}
-      zoomEnabled={false}>
+      // Heading-up, fixed-zoom tactical view: the player drives the camera via
+      // GPS + compass, not gestures.
+      dragPan={false}
+      touchZoom={false}
+      doubleTapZoom={false}
+      doubleTapHoldZoom={false}
+      touchRotate={false}
+      touchPitch={false}
+      attribution={false}
+      logo={false}
+      compass={false}
+      scaleBar={false}>
+      <Camera
+        center={[myPosition.lng, myPosition.lat]}
+        zoom={17}
+        bearing={heading ?? 0}
+        pitch={0}
+        duration={250}
+      />
 
       {/* My position */}
-      <Marker coordinate={center} anchor={{ x: 0.5, y: 0.5 }}>
+      <Marker id="me" lngLat={[myPosition.lng, myPosition.lat]} anchor="center">
         <View style={styles.myDot} />
       </Marker>
 
       {/* Teammates (green) */}
       {teammates.map(t => (
-        <Marker
-          key={`tm-${t.id}`}
-          coordinate={{ latitude: t.lat, longitude: t.lng }}
-          anchor={{ x: 0.5, y: 0.5 }}
-          title={t.username}>
+        <Marker key={`tm-${t.id}`} id={`tm-${t.id}`} lngLat={[t.lng, t.lat]} anchor="center">
           <View style={styles.teammateDot} />
         </Marker>
       ))}
 
       {/* Firing enemies (red, only briefly visible after they fire) */}
       {firingEnemies.map(e => (
-        <Marker
-          key={`fe-${e.id}`}
-          coordinate={{ latitude: e.lat, longitude: e.lng }}
-          anchor={{ x: 0.5, y: 0.5 }}>
+        <Marker key={`fe-${e.id}`} id={`fe-${e.id}`} lngLat={[e.lng, e.lat]} anchor="center">
           <View style={styles.enemyDot} />
         </Marker>
       ))}
 
       {/* Power-ups */}
       {powerups.map(p => (
-        <Marker
-          key={`pu-${p.id}`}
-          coordinate={{ latitude: p.lat, longitude: p.lng }}
-          anchor={{ x: 0.5, y: 0.5 }}
-          title={p.type}>
+        <Marker key={`pu-${p.id}`} id={`pu-${p.id}`} lngLat={[p.lng, p.lat]} anchor="center">
           <View style={styles.powerupDot}>
             <Text style={styles.powerupEmoji}>{POWERUP_EMOJI[p.type] ?? '📦'}</Text>
           </View>
@@ -109,10 +104,7 @@ export default function GameMap() {
 
       {/* Tombstones at each player's last death spot, name beside the marker */}
       {graves.map(g => (
-        <Marker
-          key={`gr-${g.id}`}
-          coordinate={{ latitude: g.lat, longitude: g.lng }}
-          anchor={{ x: 0.5, y: 1 }}>
+        <Marker key={`gr-${g.id}`} id={`gr-${g.id}`} lngLat={[g.lng, g.lat]} anchor="bottom">
           <View style={styles.grave}>
             <Text style={styles.graveIcon}>🪦</Text>
             <Text style={styles.graveName}>{g.username}</Text>
@@ -123,18 +115,17 @@ export default function GameMap() {
       {/* Pending-confirmation airstrike preview (orange, before Confirm is pressed) */}
       {airstrikePreview && (
         <React.Fragment>
-          <Circle
-            center={{ latitude: airstrikePreview.lat, longitude: airstrikePreview.lng }}
-            radius={AIRSTRIKE_RADIUS_M}
-            strokeColor="#ff9800"
-            strokeWidth={2}
-            lineDashPattern={[8, 5]}
-            fillColor="rgba(255,152,0,0.18)"
+          <MeterCircle
+            id="airstrike-preview"
+            lat={airstrikePreview.lat}
+            lng={airstrikePreview.lng}
+            radiusM={AIRSTRIKE_RADIUS_M}
+            color="#ff9800"
+            fillOpacity={0.18}
+            dashed
           />
-          <Marker
-            coordinate={{ latitude: airstrikePreview.lat, longitude: airstrikePreview.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}>
-            <Text style={styles.airstrikePreviewTarget}>🎯</Text>
+          <Marker id="airstrike-preview-target" lngLat={[airstrikePreview.lng, airstrikePreview.lat]} anchor="center">
+            <Text style={styles.bigEmoji}>🎯</Text>
           </Marker>
         </React.Fragment>
       )}
@@ -142,17 +133,9 @@ export default function GameMap() {
       {/* Inbound airstrikes: blast zone + target marker */}
       {airstrikes.map(a => (
         <React.Fragment key={`as-${a.id}`}>
-          <Circle
-            center={{ latitude: a.lat, longitude: a.lng }}
-            radius={a.radius}
-            strokeColor="#ff1744"
-            strokeWidth={2}
-            fillColor="rgba(255,23,68,0.2)"
-          />
-          <Marker
-            coordinate={{ latitude: a.lat, longitude: a.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}>
-            <Text style={styles.airstrikeTarget}>💥</Text>
+          <MeterCircle id={`as-${a.id}`} lat={a.lat} lng={a.lng} radiusM={a.radius} color="#ff1744" fillOpacity={0.2} />
+          <Marker id={`as-${a.id}-t`} lngLat={[a.lng, a.lat]} anchor="center">
+            <Text style={styles.bigEmoji}>💥</Text>
           </Marker>
         </React.Fragment>
       ))}
@@ -160,17 +143,16 @@ export default function GameMap() {
       {/* Pending-confirmation apache preview (dashed green, before Confirm is pressed) */}
       {apachePreview && (
         <React.Fragment>
-          <Circle
-            center={{ latitude: apachePreview.lat, longitude: apachePreview.lng }}
-            radius={APACHE_RADIUS_M}
-            strokeColor="#69f0ae"
-            strokeWidth={2}
-            lineDashPattern={[8, 5]}
-            fillColor="rgba(105,240,174,0.12)"
+          <MeterCircle
+            id="apache-preview"
+            lat={apachePreview.lat}
+            lng={apachePreview.lng}
+            radiusM={APACHE_RADIUS_M}
+            color="#69f0ae"
+            fillOpacity={0.12}
+            dashed
           />
-          <Marker
-            coordinate={{ latitude: apachePreview.lat, longitude: apachePreview.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}>
+          <Marker id="apache-preview-marker" lngLat={[apachePreview.lng, apachePreview.lat]} anchor="center">
             <Text style={styles.apachePreviewMarker}>🚁</Text>
           </Marker>
         </React.Fragment>
@@ -179,17 +161,9 @@ export default function GameMap() {
       {/* Active apache support zones (solid green) */}
       {apaches.map(a => (
         <React.Fragment key={`ap-${a.id}`}>
-          <Circle
-            center={{ latitude: a.lat, longitude: a.lng }}
-            radius={a.radius}
-            strokeColor="#00c853"
-            strokeWidth={2}
-            fillColor="rgba(0,200,83,0.18)"
-          />
-          <Marker
-            coordinate={{ latitude: a.lat, longitude: a.lng }}
-            anchor={{ x: 0.5, y: 0.5 }}>
-            <Text style={styles.apacheZoneMarker}>🚁</Text>
+          <MeterCircle id={`ap-${a.id}`} lat={a.lat} lng={a.lng} radiusM={a.radius} color="#00c853" fillOpacity={0.18} />
+          <Marker id={`ap-${a.id}-m`} lngLat={[a.lng, a.lat]} anchor="center">
+            <Text style={styles.bigEmoji}>🚁</Text>
           </Marker>
         </React.Fragment>
       ))}
@@ -248,10 +222,7 @@ const styles = StyleSheet.create({
   powerupEmoji: {
     fontSize: 14,
   },
-  airstrikePreviewTarget: {
-    fontSize: 24,
-  },
-  airstrikeTarget: {
+  bigEmoji: {
     fontSize: 24,
   },
   grave: {
@@ -275,8 +246,5 @@ const styles = StyleSheet.create({
   apachePreviewMarker: {
     fontSize: 22,
     opacity: 0.7,
-  },
-  apacheZoneMarker: {
-    fontSize: 24,
   },
 });
