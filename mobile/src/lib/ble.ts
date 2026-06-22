@@ -22,6 +22,15 @@ const CHAR_CONTROL      = 'E6F59D13-E878-41BA-A3CE-3B5999FA3D7B';
 const CHAR_CONFIG       = 'E6F59D14-E878-41BA-A3CE-3B5999FA3D7B';
 const DEVICE_NAME_PREFIX = 'SRG';
 
+// Control-characteristic Action bitmask (see docs/recoil_protocol_BLE.md).
+const ACTION_RELOAD_MODE  = 0x0002; // enter reload (clip empty)
+const ACTION_END_RELOAD   = 0x0004; // end reload + set ammo (byte 6)
+const ACTION_MUZZLE_FLASH = 0x0010; // pulse the muzzle LED
+
+// After the first gun is seen, keep scanning this long to let other nearby guns
+// advertise, then connect to the strongest signal (the closest = in-hand gun).
+const SCAN_SETTLE_MS = 1_500;
+
 // Fallbacks used before a game starts and host settings arrive.
 const DEFAULT_MAGAZINE_SIZE = 10;
 const DEFAULT_RELOAD_MS     = 2_500;
@@ -90,6 +99,12 @@ let _activeMode: GunMode = 'auto';
 let _prevTrigger = 0;
 let _prevReload  = 0;
 
+// Control-packet counter (high nibble of byte 0). The firmware uses it to reject
+// duplicate commands, so it must increment per write. Plus the last ammo value
+// we told the gun, stamped into every control packet's WeaponAmmo byte.
+let _pktCounter = 0;
+let _ammoState  = 0;
+
 // ── Permissions ──────────────────────────────────────────────────────────────
 
 async function _requestPermissions() {
@@ -156,6 +171,9 @@ export async function connectBle(): Promise<void> {
 
   useGameStore.getState().setBleConnected(true);
 
+  // Blink the muzzle LED so the player can see which gun connected.
+  _confirmPairingFeedback(_device);
+
   _device.onDisconnected(() => {
     _device = null;
     useGameStore.getState().setBleConnected(false);
@@ -212,26 +230,51 @@ function _scanAndConnect(): Promise<Device> {
     // Scan with no UUID filter (null): the gun does NOT advertise SERVICE_UUID in
     // its advertising packet, so filtering by it returns nothing. Match by name
     // prefix instead — mirrors the web client's `namePrefix: 'SRG'` filter.
+    //
+    // When several guns are in range, connect to the strongest signal — the gun
+    // closest to the phone, i.e. the one in the player's hands. Collect matches
+    // for a short settle window after the first sighting, then pick the best RSSI.
+    const candidates = new Map<string, Device>();
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    let done = false;
+
+    const finish = (err: Error | null, device?: Device) => {
+      if (done) return;
+      done = true;
+      if (settleTimer) clearTimeout(settleTimer);
+      clearTimeout(overallTimer);
+      bleManager.stopDeviceScan();
+      if (err) {
+        reject(err);
+      } else {
+        device!.connect().then(resolve).catch(reject);
+      }
+    };
+
+    const connectStrongest = () => {
+      const best = [...candidates.values()].sort(
+        (a, b) => (b.rssi ?? -999) - (a.rssi ?? -999),
+      )[0];
+      finish(best ? null : new Error('Scan timed out — gun not found'), best);
+    };
+
     bleManager.startDeviceScan(null, null, (error, device) => {
       if (error) {
-        bleManager.stopDeviceScan();
-        reject(error);
+        finish(error);
         return;
       }
       if (device?.name?.startsWith(DEVICE_NAME_PREFIX)) {
-        bleManager.stopDeviceScan();
-        device
-          .connect()
-          .then(resolve)
-          .catch(reject);
+        // Each advertisement may be a fresh Device with updated RSSI; keep the latest.
+        candidates.set(device.id, device);
+        if (!settleTimer) settleTimer = setTimeout(connectStrongest, SCAN_SETTLE_MS);
       }
     });
 
-    // Timeout after 15 s
-    setTimeout(() => {
-      bleManager.stopDeviceScan();
-      reject(new Error('Scan timed out — gun not found'));
-    }, 15_000);
+    // Overall timeout if no gun is ever seen.
+    const overallTimer = setTimeout(
+      () => finish(new Error('Scan timed out — gun not found')),
+      15_000,
+    );
   });
 }
 
@@ -286,22 +329,46 @@ function _parseIrSlot(bytes: number[], offset: number) {
 
 // ── Control commands ─────────────────────────────────────────────────────────
 
-function _loadClip(device: Device, ammoCount: number) {
-  const cmd = new Uint8Array([0x01, ammoCount]);
-  device.writeCharacteristicWithResponseForService(
+// Build and write a 7-byte Control packet (mirrors recoilweapon.js
+// _sendControlPacket). Layout: [pktCounter<<4][IR_ack][action LE ×2][GunID]
+// [WeaponSlot][Ammo].
+function _sendControlPacket(device: Device, action: number, ammo = _ammoState) {
+  _pktCounter = (_pktCounter + 1) % 16;
+  _ammoState = ammo;
+  const pkt = new Uint8Array(7);
+  pkt[0] = _pktCounter << 4;
+  pkt[1] = 0;                    // IR_ack (none)
+  pkt[2] = action & 0xff;        // Action U16, little-endian
+  pkt[3] = (action >> 8) & 0xff;
+  pkt[4] = _gunId;               // GunID (shooter id)
+  pkt[5] = _gunId;               // WeaponType / slot
+  pkt[6] = ammo;                 // WeaponAmmo
+  return device.writeCharacteristicWithResponseForService(
     SERVICE_UUID,
     CHAR_CONTROL,
-    _bytesToBase64(cmd),
+    _bytesToBase64(pkt),
   );
 }
 
+function _loadClip(device: Device, ammoCount: number) {
+  _sendControlPacket(device, ACTION_END_RELOAD, ammoCount);
+}
+
 function _removeClip(device: Device) {
-  const cmd = new Uint8Array([0x02]);
-  device.writeCharacteristicWithResponseForService(
-    SERVICE_UUID,
-    CHAR_CONTROL,
-    _bytesToBase64(cmd),
-  );
+  _sendControlPacket(device, ACTION_RELOAD_MODE);
+}
+
+// Pulse the muzzle LED a few times as visible confirmation of which gun paired.
+// Best-effort: a write failure here must not fail the connection.
+async function _confirmPairingFeedback(device: Device) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      await _sendControlPacket(device, ACTION_MUZZLE_FLASH);
+    } catch {
+      return;
+    }
+    await new Promise<void>(r => setTimeout(() => r(), 250));
+  }
 }
 
 // ── Weapon profile TLV write ──────────────────────────────────────────────────
