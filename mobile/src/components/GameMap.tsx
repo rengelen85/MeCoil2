@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import {
   Map as MapView,
   Camera,
   Marker,
+  type CameraRef,
   type PressEvent,
 } from '@maplibre/maplibre-react-native';
 import { NativeSyntheticEvent } from 'react-native';
@@ -24,11 +25,54 @@ const POWERUP_EMOJI: Record<string, string> = {
 };
 
 export default function GameMap() {
-  const { myPosition, teammates, firingEnemies, powerups, airstrikes, apaches, graves, heading } = useMapStore();
+  // NOTE: `heading` is intentionally NOT pulled from the store here. Compass
+  // updates fire several times per second; reading heading into render would
+  // re-render the whole marker tree and restart the camera animation on every
+  // tick, which is what made rotation laggy. Instead we drive the camera
+  // bearing imperatively from a store subscription below (mirrors the web
+  // client's cheap CSS-transform approach in Map.svelte).
+  const { myPosition, teammates, firingEnemies, powerups, airstrikes, apaches, graves } = useMapStore();
   const {
     airstrikeArmed, airstrikePreview, setAirstrikeArmed, setAirstrikePreview,
     apacheArmed, apachePreview, setApacheArmed, setApachePreview,
   } = useGameStore();
+
+  const cameraRef = useRef<CameraRef>(null);
+  // Accumulated rotation avoids the wrap-around jump when heading crosses
+  // 0°/360°, so the camera always takes the shortest path (same as web).
+  const accRotationRef = useRef(0);
+  const prevHeadingRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const applyHeading = (h: number | null) => {
+      if (h === null) {
+        prevHeadingRef.current = null;
+        return;
+      }
+      if (prevHeadingRef.current === null) {
+        accRotationRef.current = h;
+      } else {
+        let delta = h - prevHeadingRef.current;
+        if (delta > 180) delta -= 360;
+        if (delta < -180) delta += 360;
+        accRotationRef.current += delta;
+      }
+      prevHeadingRef.current = h;
+      // setStop with only `bearing` rotates in place, preserving the current
+      // center/zoom; a short linear ease blends successive sensor readings.
+      cameraRef.current?.setStop({
+        bearing: accRotationRef.current,
+        duration: 250,
+        easing: 'linear',
+      });
+    };
+
+    applyHeading(useMapStore.getState().heading);
+    const unsub = useMapStore.subscribe((state, prev) => {
+      if (state.heading !== prev.heading) applyHeading(state.heading);
+    });
+    return unsub;
+  }, []);
 
   function onMapPress(e: NativeSyntheticEvent<PressEvent>) {
     const [longitude, latitude] = e.nativeEvent.lngLat;
@@ -67,9 +111,9 @@ export default function GameMap() {
       compass={false}
       scaleBar={false}>
       <Camera
+        ref={cameraRef}
         center={[myPosition.lng, myPosition.lat]}
         zoom={17}
-        bearing={heading ?? 0}
         pitch={0}
         duration={250}
       />
