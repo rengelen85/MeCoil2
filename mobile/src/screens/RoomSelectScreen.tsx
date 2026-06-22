@@ -62,6 +62,12 @@ export default function RoomSelectScreen(_props: Props) {
     <View style={styles.container}>
       <Text style={styles.heading}>Game Rooms</Text>
 
+      <TouchableOpacity
+        style={styles.createBtn}
+        onPress={() => setShowCreate(true)}>
+        <Text style={styles.createBtnText}>+ Create Room</Text>
+      </TouchableOpacity>
+
       <FlatList
         data={rooms}
         keyExtractor={r => String(r.id)}
@@ -71,12 +77,6 @@ export default function RoomSelectScreen(_props: Props) {
         }
         style={styles.list}
       />
-
-      <TouchableOpacity
-        style={styles.createBtn}
-        onPress={() => setShowCreate(true)}>
-        <Text style={styles.createBtnText}>+ Create Room</Text>
-      </TouchableOpacity>
 
       <Modal visible={showCreate} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -99,7 +99,7 @@ export default function RoomSelectScreen(_props: Props) {
               <TouchableOpacity
                 style={[styles.btn, styles.btnPrimary]}
                 onPress={handleCreate}>
-                <Text style={styles.btnText}>Create</Text>
+                <Text style={[styles.btnText, styles.btnTextDark]}>Create</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -156,27 +156,28 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   createBtn: {
-    backgroundColor: '#e63946',
+    backgroundColor: '#00e5ff',
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
-    marginTop: 12,
+    marginBottom: 16,
   },
   createBtnText: {
-    color: '#fff',
+    color: '#000',
     fontWeight: '600',
     fontSize: 16,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
   },
   modal: {
     backgroundColor: '#1a1a1a',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
     padding: 24,
+    paddingTop: 56,
   },
   modalTitle: {
     color: '#fff',
@@ -204,11 +205,12 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: 'center',
   },
-  btnPrimary: { backgroundColor: '#e63946' },
+  btnPrimary: { backgroundColor: '#00e5ff' },
   btnSecondary: {
     backgroundColor: '#111',
     borderWidth: 1,
     borderColor: '#444',
   },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  btnTextDark: { color: '#000' },
 });

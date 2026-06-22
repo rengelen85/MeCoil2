@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/index.js';
@@ -63,6 +64,11 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Image
+        source={require('../assets/logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
       <Text style={styles.title}>MeCoil</Text>
       <Text style={styles.subtitle}>Recoil Laser Tag</Text>
 
@@ -98,7 +104,7 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
           style={[styles.btn, styles.btnPrimary, connecting && styles.btnDisabled]}
           onPress={handleConnect}
           disabled={connecting}>
-          <Text style={styles.btnText}>
+          <Text style={[styles.btnText, styles.btnTextDark]}>
             {connecting ? 'Connecting…' : 'Connect'}
           </Text>
         </TouchableOpacity>
@@ -114,6 +120,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+  },
+  logo: {
+    width: 96,
+    height: 96,
+    marginBottom: 16,
   },
   title: {
     fontSize: 48,
@@ -161,7 +172,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   btnPrimary: {
-    backgroundColor: '#e63946',
+    backgroundColor: '#00e5ff',
   },
   btnDisabled: {
     opacity: 0.5,
@@ -170,5 +181,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
+  },
+  btnTextDark: {
+    color: '#000',
   },
 });

@@ -10,6 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@maplibre/maplibre-react-native": "^11.3.4",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/geolocation": "^3.4.0",
     "@react-navigation/native": "^7.0.0",
@@ -19,7 +20,6 @@
     "react-native-audio-api": "^0.12.0",
     "react-native-ble-plx": "^3.2.1",
     "react-native-compass-heading": "^1.5.0",
-    "react-native-maps": "^1.20.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.0.0",
     "shared": "file:../shared",
