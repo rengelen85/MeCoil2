@@ -273,6 +273,8 @@ The current mode is displayed as a colored badge in the bottom-left HUD (`SEMI`,
 
 **Requirements**: Chrome or Edge on Android, over HTTPS. iOS is not supported.
 
+**Mid-game gun disconnection (Android app)**: If the gun's BLE link drops during a match, a centered **⚠ GUN DISCONNECTED** warning appears and the app automatically retries the connection (reconnecting to the same gun, falling back to a scan). A **Reconnect** button on the warning lets the player retry manually. On reconnect the gun's weapon slot is re-armed automatically, so play continues without rejoining.
+
 ### Host Controls
 
 - **Force Start**: skips the ready-up wait and starts immediately (host only, in lobby)

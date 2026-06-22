@@ -5,7 +5,7 @@ import { RootStackParamList } from '../navigation/index.js';
 import { useGameStore, ScoreEntry } from '../stores/game.js';
 import { useMapStore } from '../stores/map.js';
 import { sendPosition, sendStopGame, sendDeployAirstrike, sendDeployApache, sendLeaveRoom } from '../lib/network.js';
-import { applyGunAssignment, connectBle, setGunMode, GUN_MODES, GUN_MODE_CYCLE, GunMode } from '../lib/ble.js';
+import { applyGunAssignment, connectBle, reconnectBle, setGunMode, GUN_MODES, GUN_MODE_CYCLE, GunMode } from '../lib/ble.js';
 import { isInArea } from '../lib/geo.js';
 import { GAME_MODES } from 'shared/messages.js';
 import GameMap from '../components/GameMap.js';
@@ -47,7 +47,7 @@ export default function InGameScreen(_props: Props) {
     setAirstrikeArmed, setAirstrikePreview, setAirstrikeReady,
     apacheReady, apacheArmed, apachePreview,
     setApacheArmed, setApachePreview, setApacheReady,
-    timeRemaining, scores, myId, isHost, bleConnected, gunSlotId,
+    timeRemaining, scores, myId, isHost, bleConnected, bleEverConnected, bleReconnecting, gunSlotId,
     killFeed, hp, maxHp, isAlive, respawnCountdown, killedBy, gameConfig, players,
     activeGunMode, roundId, ctfState, infectionState, dominationState,
     gameArea, lastHitAt, lastShotHitAt, fastReloadActive,
@@ -183,6 +183,13 @@ export default function InGameScreen(_props: Props) {
   function handleConnectBle() {
     connectBle().catch(e => Alert.alert('BLE Error', e.message));
   }
+
+  function handleReconnectBle() {
+    reconnectBle().catch(e => Alert.alert('Reconnect failed', e.message));
+  }
+
+  // The gun dropped after having been connected — distinct from "never paired".
+  const gunDisconnected = bleEverConnected && !bleConnected;
 
   // Fire mode lives in the store so the gun's power button (which cycles modes
   // over BLE) and the on-screen toggle stay in sync. setGunMode updates it.
@@ -442,6 +449,31 @@ export default function InGameScreen(_props: Props) {
           ) : (
             <Text style={styles.respawnCount}>Respawning in {respawnCountdown ?? 0}…</Text>
           )}
+        </View>
+      )}
+
+      {/* Gun disconnected — prominent centered warning + reconnect */}
+      {gunDisconnected && (
+        <View style={styles.gunDisconnectedOverlay} pointerEvents="box-none">
+          <View style={styles.gunDisconnectedBanner}>
+            <Text style={styles.gunDisconnectedTitle}>⚠ GUN DISCONNECTED</Text>
+            <Text style={styles.gunDisconnectedSub}>
+              {bleReconnecting
+                ? 'Reconnecting to your gun…'
+                : 'Your gun lost its connection'}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.gunReconnectBtn,
+                bleReconnecting && styles.gunReconnectBtnDisabled,
+              ]}
+              onPress={handleReconnectBle}
+              disabled={bleReconnecting}>
+              <Text style={styles.gunReconnectBtnText}>
+                {bleReconnecting ? 'Reconnecting…' : '🔌 Reconnect'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -934,6 +966,52 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontWeight: '700',
     fontSize: 14,
+  },
+  gunDisconnectedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 80,
+  },
+  gunDisconnectedBanner: {
+    backgroundColor: 'rgba(40,0,0,0.92)',
+    borderWidth: 2,
+    borderColor: '#ff1744',
+    borderRadius: 12,
+    paddingHorizontal: 28,
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  gunDisconnectedTitle: {
+    color: '#ff5252',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  gunDisconnectedSub: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 14,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  gunReconnectBtn: {
+    backgroundColor: '#ff1744',
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  gunReconnectBtnDisabled: {
+    backgroundColor: 'rgba(255,23,68,0.4)',
+  },
+  gunReconnectBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   bleWarning: {
     color: '#f4c430',

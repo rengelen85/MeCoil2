@@ -76,6 +76,16 @@ export const GUN_MODE_CYCLE: GunMode[] = ['semi', 'burst', 'auto', 'plasma'];
 const bleManager = new BleManager();
 let _device: Device | null = null;
 
+// The id of the last gun we connected to, so a mid-game drop can reconnect to
+// the same gun (via connectToDevice) instead of re-scanning the whole area.
+let _lastDeviceId: string | null = null;
+// Set right before an app-initiated cancelConnection so the disconnect handler
+// can tell a deliberate teardown apart from a gun that dropped mid-game.
+let _intentionalDisconnect = false;
+// Pending auto-reconnect timer, so we never stack more than one retry.
+let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+const RECONNECT_DELAY_MS = 2_000;
+
 // The profile currently written to the active weapon slot. Tracked so a mode
 // toggle rewrites only the TriggerMode byte instead of resetting the rest.
 let _activeProfile: WeaponProfile = DEFAULT_PROFILE;
@@ -143,32 +153,127 @@ export function isBleAvailable(): boolean {
 export async function connectBle(): Promise<void> {
   await _requestPermissions();
   await _waitForPoweredOn();
-  _device = await _scanAndConnect();
-
-  await _device.discoverAllServicesAndCharacteristics();
-
-  gun.attach(_device);
-  _setupGunHandlers();
-  gun.startTelemetry();
-
-  useGameStore.getState().setBleConnected(true);
-
-  // Blink the muzzle LED so the player can see which gun connected.
-  for (let i = 0; i < 3; i++) gun.flash();
-
-  _device.onDisconnected(() => {
-    gun.detach();
-    _device = null;
-    useGameStore.getState().setBleConnected(false);
-  });
+  const device = await _scanAndConnect();
+  await _bindDevice(device);
 }
 
 export async function disconnectBle(): Promise<void> {
+  // Mark this as deliberate so _handleDisconnect doesn't try to reconnect.
+  _intentionalDisconnect = true;
+  if (_reconnectTimer) {
+    clearTimeout(_reconnectTimer);
+    _reconnectTimer = null;
+  }
+  const game = useGameStore.getState();
+  game.setBleReconnecting(false);
+  game.setBleEverConnected(false);
   if (_device) {
-    await _device.cancelConnection();
+    try {
+      await _device.cancelConnection();
+    } catch {
+      // already gone — fall through to local cleanup
+    }
     gun.detach();
     _device = null;
   }
+}
+
+// Manual reconnect, triggered from the in-game "GUN DISCONNECTED" overlay.
+// Cancels any pending auto-reconnect and tries once; errors propagate so the
+// caller can surface them.
+export async function reconnectBle(): Promise<void> {
+  if (_reconnectTimer) {
+    clearTimeout(_reconnectTimer);
+    _reconnectTimer = null;
+  }
+  const game = useGameStore.getState();
+  game.setBleReconnecting(true);
+  try {
+    const device = await _reacquireDevice();
+    await _bindDevice(device);
+  } catch (e) {
+    game.setBleReconnecting(false);
+    throw e;
+  }
+}
+
+// Wire up a freshly-connected device: discover services, attach the gun driver,
+// start telemetry, flip the store flags, and register the disconnect watcher.
+// Shared by the initial connect, manual reconnect and auto-reconnect paths.
+async function _bindDevice(device: Device): Promise<void> {
+  _intentionalDisconnect = false;
+  _device = device;
+  _lastDeviceId = device.id;
+
+  await device.discoverAllServicesAndCharacteristics();
+
+  gun.attach(device);
+  _setupGunHandlers();
+  gun.startTelemetry();
+
+  const game = useGameStore.getState();
+  game.setBleConnected(true);
+  game.setBleEverConnected(true);
+  game.setBleReconnecting(false);
+
+  // Blink the muzzle LED so the player can see which gun (re)connected.
+  for (let i = 0; i < 3; i++) gun.flash();
+
+  // InGameScreen re-applies the gun assignment whenever bleConnected flips back
+  // to true, so a reconnect re-arms the active weapon slot automatically.
+  device.onDisconnected(() => _handleDisconnect());
+}
+
+function _handleDisconnect(): void {
+  gun.detach();
+  _device = null;
+  useGameStore.getState().setBleConnected(false);
+  if (_intentionalDisconnect) {
+    _intentionalDisconnect = false;
+    return;
+  }
+  // Unexpected drop mid-game — keep trying to bring the gun back.
+  _scheduleReconnect();
+}
+
+function _scheduleReconnect(): void {
+  if (_reconnectTimer) return;
+  const game = useGameStore.getState();
+  // Stop once the gun was deliberately disconnected (e.g. left the room).
+  if (!game.bleEverConnected) return;
+  game.setBleReconnecting(true);
+  _reconnectTimer = setTimeout(_attemptReconnect, RECONNECT_DELAY_MS);
+}
+
+async function _attemptReconnect(): Promise<void> {
+  _reconnectTimer = null;
+  const game = useGameStore.getState();
+  if (game.bleConnected || !game.bleEverConnected) {
+    game.setBleReconnecting(false);
+    return;
+  }
+  try {
+    const device = await _reacquireDevice();
+    await _bindDevice(device);
+  } catch {
+    // Still down — back off and retry until reconnected or stopped.
+    _scheduleReconnect();
+  }
+}
+
+// Reconnect to the gun we last used (fast path); fall back to a fresh scan if
+// that device is no longer directly reachable.
+async function _reacquireDevice(): Promise<Device> {
+  await _requestPermissions();
+  await _waitForPoweredOn();
+  if (_lastDeviceId) {
+    try {
+      return await bleManager.connectToDevice(_lastDeviceId, { timeout: 8_000 });
+    } catch {
+      // fall through to a full scan
+    }
+  }
+  return _scanAndConnect();
 }
 
 function _setupGunHandlers() {

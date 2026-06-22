@@ -166,6 +166,11 @@ interface GameStore {
   bulletsPerMag: number;
   reloadDelaySecs: number;
   bleConnected: boolean;
+  // True once a gun has connected this session; gates the "GUN DISCONNECTED"
+  // mid-game warning so it never shows before the player first pairs a gun.
+  bleEverConnected: boolean;
+  // True while an automatic reconnect attempt is in flight after a drop.
+  bleReconnecting: boolean;
   // null until the server assigns a slot in GAME_STARTED. Never default to a
   // real slot (0): that is the host's slot, and assuming it makes hits between
   // this player and the host resolve as self-hits the server drops.
@@ -226,6 +231,8 @@ interface GameStore {
   setBulletsPerMag: (n: number) => void;
   setReloadDelaySecs: (n: number) => void;
   setBleConnected: (v: boolean) => void;
+  setBleEverConnected: (v: boolean) => void;
+  setBleReconnecting: (v: boolean) => void;
   setGunSlotId: (id: number | null) => void;
   setCtfState: (s: CtfState | null) => void;
   setInfectionState: (s: InfectionState | null) => void;
@@ -298,6 +305,8 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   bulletsPerMag: 30,
   reloadDelaySecs: 3,
   bleConnected: false,
+  bleEverConnected: false,
+  bleReconnecting: false,
   gunSlotId: null,
   ctfState: null,
   infectionState: null,
@@ -352,6 +361,8 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setBulletsPerMag: n => set({ bulletsPerMag: n }),
   setReloadDelaySecs: n => set({ reloadDelaySecs: n }),
   setBleConnected: v => set({ bleConnected: v }),
+  setBleEverConnected: v => set({ bleEverConnected: v }),
+  setBleReconnecting: v => set({ bleReconnecting: v }),
   setGunSlotId: id => set({ gunSlotId: id }),
   setCtfState: s => set({ ctfState: s }),
   setInfectionState: s => set({ infectionState: s }),
