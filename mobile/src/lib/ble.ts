@@ -376,6 +376,12 @@ function _onReload() {
   if (game.isReloading) return;
   game.setIsReloading(true);
   playReload();
+  if (game.fastReloadActive) {
+    // Fast reload power-up: refill the clip instantly, skip the reload delay.
+    gun.loadClip(magazineSize());
+    game.setIsReloading(false);
+    return;
+  }
   // Plasma (TriggerMode 0) fires on trigger *release* and keeps charging through
   // the normal "reload mode" control action, so force the clip empty (ammo 0):
   // the firmware won't auto-fire a plasma shot with an empty clip, so the gun
