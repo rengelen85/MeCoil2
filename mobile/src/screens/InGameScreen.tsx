@@ -10,6 +10,7 @@ import { isInArea } from '../lib/geo.js';
 import { GAME_MODES } from 'shared/messages.js';
 import GameMap from '../components/GameMap.js';
 import ScoreBoard from '../components/ScoreBoard.js';
+import Compass from '../components/Compass.js';
 
 // Short top-bar label per game mode (mirrors the web client).
 const MODE_LABELS: Record<string, string> = {
@@ -489,6 +490,11 @@ export default function InGameScreen(_props: Props) {
           ))}
       </View>
 
+      {/* Heading compass — bottom-right, above the health bar */}
+      <View style={styles.compassWrap} pointerEvents="none">
+        <Compass />
+      </View>
+
       {/* Bottom HUD */}
       <View style={styles.bottomHud}>
         {/* Ammo */}
@@ -824,6 +830,12 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
+  },
+  compassWrap: {
+    position: 'absolute',
+    bottom: 120,
+    right: 16,
+    zIndex: 30,
   },
   bottomHud: {
     position: 'absolute',
