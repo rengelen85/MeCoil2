@@ -7,9 +7,9 @@ import {
   S2C,
 } from '../../shared/messages.js';
 
-const STATE_INTERVAL_MS = 500;
-const POSITION_INTERVAL_MS = 500;
-const ENEMY_VISIBLE_MS = 3_000;
+const STATE_INTERVAL_MS = 200; // how often to broadcast game state to clients
+const POSITION_INTERVAL_MS = 200; // how often to broadcast positions to clients
+const ENEMY_VISIBLE_MS = 3_000; // recent fire makes enemies visible for 3 seconds
 const RADAR_DURATION_MS = 60_000; // radar reveals all enemies for one minute
 const SHIELD_PICKUP_MS = 120_000; // shield from a power-up lasts 2 minutes
 const SHIELD_RESPAWN_MS = 20_000; // shield granted on respawn lasts 20 seconds
