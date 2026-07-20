@@ -1,0 +1,22 @@
+#!/bin/bash
+# Managed by Ansible — do not edit by hand.
+#
+# Points {{ duckdns_subdomain }}.duckdns.org at this instance's current public
+# IP. The token is fetched from Secrets Manager via the instance's IAM role —
+# no long-lived AWS credentials are stored on disk. DuckDNS auto-detects the
+# caller's IP when the "ip" query param is left blank.
+set -euo pipefail
+
+TOKEN=$(/usr/local/bin/aws secretsmanager get-secret-value \
+  --secret-id "{{ duckdns_secret_name }}" \
+  --region "{{ aws_region }}" \
+  --query SecretString --output text)
+
+RESPONSE=$(curl -fsS "https://www.duckdns.org/update?domains={{ duckdns_subdomain }}&token=${TOKEN}&ip=")
+
+if [[ "${RESPONSE}" != OK* ]]; then
+  echo "DuckDNS update failed: ${RESPONSE}" >&2
+  exit 1
+fi
+
+echo "DuckDNS updated: {{ duckdns_subdomain }}.duckdns.org -> ${RESPONSE#OK}"

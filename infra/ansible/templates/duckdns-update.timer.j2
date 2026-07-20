@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodically refresh the DuckDNS record (handles IP changes + keeps the hostname alive)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=duckdns-update.service
+
+[Install]
+WantedBy=timers.target

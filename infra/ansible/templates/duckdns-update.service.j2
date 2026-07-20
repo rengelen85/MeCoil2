@@ -1,0 +1,12 @@
+[Unit]
+Description=Update DuckDNS record with this instance's current public IP
+After=network-online.target
+Wants=network-online.target
+Before=caddy.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/duckdns-update.sh
+
+[Install]
+WantedBy=multi-user.target

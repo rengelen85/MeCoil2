@@ -6,7 +6,8 @@ After=multi-user.target
 Type=oneshot
 RemainAfterExit=yes
 # Runs once per boot. The instance's shutdown behavior is set to "stop" (in CDK),
-# so this halts the OS -> the EC2 instance STOPS (EBS + Elastic IP persist).
+# so this halts the OS -> the EC2 instance STOPS (EBS persists; the public IP is
+# released and a new one is assigned on the next start — DuckDNS picks that up).
 # Restarting the instance re-runs this unit and re-arms the timer.
 ExecStart=/usr/sbin/shutdown --no-wall +{{ auto_shutdown_minutes }} "MeCoil auto-shutdown for cost control"
 # If the unit is stopped/disabled, cancel any pending shutdown.

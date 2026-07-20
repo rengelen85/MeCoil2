@@ -185,9 +185,11 @@ Infrastructure-as-Code in [`infra/`](infra/) — AWS CDK (Python) + Ansible + Ma
   TLS and reverse-proxying to the Node server (`localhost:3000`).
 - **Locked down:** only ports 80/443 are public; SSH (22) is restricted to one source IP.
   The SSH key is generated into **AWS Secrets Manager** — never stored in the repo.
-- **Stable Elastic IP**, optional **Route53 A-record + Let's Encrypt** certificate.
+- **No Elastic IP** (that's billed 24/7): the instance gets a fresh public IP on every
+  start, and a boot-time script keeps a free **DuckDNS** hostname pointed at it, so
+  Caddy can still get a real **Let's Encrypt** certificate for it.
 - **Auto-stops after 4 hours** to keep costs near zero (the game server itself runs
-  endlessly while the instance is up). Rough cost **≈ $5–11/month**.
+  endlessly while the instance is up). Rough cost **≈ $2–4/month**.
 
 ```sh
 cp infra/aws.env.example infra/aws.env   # set AWS_REGION + SSH_ALLOWED_IP

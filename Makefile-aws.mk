@@ -4,10 +4,16 @@
 #
 # AWS credentials are read from your ENVIRONMENT (export them from the AWS
 # console). Non-secret config lives in infra/aws.env (copy from aws.env.example).
-# Nothing secret is stored in the repo.
+# Nothing secret is stored in the repo — the SSH key and DuckDNS token live in
+# Secrets Manager.
+#
+# The instance has no Elastic IP (that's billed 24/7; an auto-assigned public IP
+# is billed only while running), so its public IP changes on every start. Targets
+# that need it (ssh, aws-provision, aws-status) look it up live via the EC2 API.
 
 .PHONY: aws-prereqs aws-bootstrap aws-deploy aws-provision aws-up ssh \
-        aws-start aws-stop aws-status aws-key aws-destroy aws-synth aws-config
+        aws-start aws-stop aws-status aws-key aws-set-duckdns-token \
+        aws-destroy aws-synth aws-config
 
 REPO_ROOT   := $(CURDIR)
 CDK_DIR     := $(REPO_ROOT)/infra/cdk
@@ -18,7 +24,7 @@ KEY_NAME    := mecoil-server-key
 KEY_PATH    := $(REPO_ROOT)/infra/.ssh/mecoil.pem
 VENV_PY     := $(CDK_DIR)/.venv/bin/python
 
-# Load non-secret config (AWS_REGION, SSH_ALLOWED_IP, INSTANCE_TYPE, DOMAIN_NAME, HOSTED_ZONE).
+# Load non-secret config (AWS_REGION, SSH_ALLOWED_IP, INSTANCE_TYPE, DUCKDNS_SUBDOMAIN).
 -include $(AWS_ENV)
 export
 
@@ -27,7 +33,7 @@ INSTANCE_TYPE ?= t4g.micro
 # CDK context passed to the stack.
 CDK_CTX := -c ssh_ip=$(SSH_ALLOWED_IP) -c instance_type=$(INSTANCE_TYPE) \
            -c key_name=$(KEY_NAME) -c region=$(AWS_REGION) \
-           -c domain=$(DOMAIN_NAME) -c hosted_zone=$(HOSTED_ZONE)
+           -c duckdns_subdomain=$(DUCKDNS_SUBDOMAIN)
 
 # Run the CDK CLI (npx) with the project's Python venv first on PATH so that
 # `python3 app.py` resolves aws-cdk-lib. Region comes from config.
@@ -48,7 +54,7 @@ aws-config:
 	@test -f $(AWS_ENV) || { echo "ERROR: infra/aws.env not found. Copy infra/aws.env.example and fill it in."; exit 1; }
 	@test -n "$(AWS_REGION)" || { echo "ERROR: AWS_REGION not set in infra/aws.env"; exit 1; }
 	@test -n "$(SSH_ALLOWED_IP)" || { echo "ERROR: SSH_ALLOWED_IP not set in infra/aws.env"; exit 1; }
-	@echo "Config OK  region=$(AWS_REGION)  ssh_ip=$(SSH_ALLOWED_IP)  instance=$(INSTANCE_TYPE)  domain=$(DOMAIN_NAME:%=%)"
+	@echo "Config OK  region=$(AWS_REGION)  ssh_ip=$(SSH_ALLOWED_IP)  instance=$(INSTANCE_TYPE)  duckdns=$(DUCKDNS_SUBDOMAIN:%=%)"
 
 # One-time: install the CDK Python env, AWS CLI, and Ansible tooling.
 aws-prereqs:
@@ -64,7 +70,7 @@ aws-prereqs:
 aws-bootstrap: aws-config
 	$(CDK) bootstrap
 
-# Synthesize the CloudFormation template (no AWS calls unless a domain is set).
+# Synthesize the CloudFormation template.
 aws-synth: aws-config
 	$(CDK) synth $(CDK_CTX)
 
@@ -80,32 +86,55 @@ aws-key: aws-config
 	@chmod 600 $(KEY_PATH)
 	@echo "SSH key written to $(KEY_PATH)"
 
-# Configure the running instance with Ansible (installs Node, app, Caddy, auto-shutdown).
+# Store your DuckDNS token in Secrets Manager (get it from https://www.duckdns.org
+# after creating an account + the DUCKDNS_SUBDOMAIN you set in infra/aws.env).
+# Usage: make aws-set-duckdns-token TOKEN=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+aws-set-duckdns-token: aws-config
+	@test -n "$(TOKEN)" || { echo "Usage: make aws-set-duckdns-token TOKEN=<your-duckdns-token>"; exit 1; }
+	@test -n "$(DUCKDNS_SUBDOMAIN)" || { echo "ERROR: set DUCKDNS_SUBDOMAIN in infra/aws.env and run 'make aws-deploy' first (it creates the secret)."; exit 1; }
+	@aws secretsmanager put-secret-value --secret-id mecoil/duckdns-token \
+	  --secret-string "$(TOKEN)" --region $(AWS_REGION) >/dev/null
+	@echo "DuckDNS token stored in Secrets Manager (mecoil/duckdns-token)."
+
+# Configure the running instance with Ansible (installs Node, app, Caddy, DuckDNS
+# updater, auto-shutdown). Looks up the instance's *current* public IP live.
 aws-provision: aws-config aws-key
-	@IP=$$($(call stack_out,PublicIp)); \
-	test -n "$$IP" || { echo "ERROR: could not read PublicIp output — is the stack deployed?"; exit 1; }; \
+	@ID=$$($(call stack_out,InstanceId)); \
+	IP=$$(aws ec2 describe-instances --instance-ids $$ID --region $(AWS_REGION) \
+	  --query "Reservations[0].Instances[0].PublicIpAddress" --output text); \
+	test -n "$$IP" && test "$$IP" != "None" || { echo "ERROR: instance has no public IP right now — is it running? Try: make aws-start"; exit 1; }; \
 	echo "Provisioning $$IP ..."; \
 	printf '[mecoil]\n%s ansible_user=ec2-user ansible_ssh_private_key_file=%s ansible_ssh_common_args=\047-o StrictHostKeyChecking=accept-new\047\n' "$$IP" "$(KEY_PATH)" > $(ANSIBLE_DIR)/inventory.ini; \
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_DIR)/inventory.ini $(ANSIBLE_DIR)/playbook.yml \
-	  -e "repo_src=$(REPO_ROOT)" -e "mecoil_domain=$(DOMAIN_NAME)"
+	  -e "repo_src=$(REPO_ROOT)" -e "duckdns_subdomain=$(DUCKDNS_SUBDOMAIN)" -e "aws_region=$(AWS_REGION)"
 
 # Full stand-up: deploy infra then provision it.
 aws-up: aws-deploy aws-provision
-	@IP=$$($(call stack_out,PublicIp)); \
-	echo ""; echo "Done. Open: https://$${DOMAIN_NAME:-$$IP}"; \
-	echo "(accept the self-signed warning if no domain is configured)"
+	@echo ""; \
+	if [ -n "$(DUCKDNS_SUBDOMAIN)" ]; then \
+	  echo "Done. Open: https://$(DUCKDNS_SUBDOMAIN).duckdns.org"; \
+	  echo "(if this is the first deploy, run 'make aws-set-duckdns-token TOKEN=...' first)"; \
+	else \
+	  ID=$$($(call stack_out,InstanceId)); \
+	  IP=$$(aws ec2 describe-instances --instance-ids $$ID --region $(AWS_REGION) --query "Reservations[0].Instances[0].PublicIpAddress" --output text); \
+	  echo "Done. Open: https://$$IP (accept the self-signed warning)"; \
+	fi
 
 # Open an SSH session to the server.
 ssh: aws-key
-	@IP=$$($(call stack_out,PublicIp)); \
-	test -n "$$IP" || { echo "ERROR: could not read PublicIp output — is the stack deployed?"; exit 1; }; \
+	@ID=$$($(call stack_out,InstanceId)); \
+	IP=$$(aws ec2 describe-instances --instance-ids $$ID --region $(AWS_REGION) \
+	  --query "Reservations[0].Instances[0].PublicIpAddress" --output text); \
+	test -n "$$IP" && test "$$IP" != "None" || { echo "ERROR: instance has no public IP right now — is it running? Try: make aws-start"; exit 1; }; \
 	echo "Connecting to ec2-user@$$IP ..."; \
 	ssh -i $(KEY_PATH) -o StrictHostKeyChecking=accept-new ec2-user@$$IP
 
 # Start / stop / status of the instance (auto-stops itself after 4h anyway).
+# On start, a fresh public IP is assigned and DuckDNS is updated automatically
+# (duckdns-update.service runs at boot, before Caddy).
 aws-start: aws-config
 	@ID=$$($(call stack_out,InstanceId)); aws ec2 start-instances --instance-ids $$ID --region $(AWS_REGION) --output table
-	@echo "Starting $$ID ... (SSH/HTTPS available in ~30s; Elastic IP is unchanged)"
+	@echo "Starting $$ID ... (SSH/HTTPS available in ~30-60s; DuckDNS updates automatically)"
 
 aws-stop: aws-config
 	@ID=$$($(call stack_out,InstanceId)); aws ec2 stop-instances --instance-ids $$ID --region $(AWS_REGION) --output table

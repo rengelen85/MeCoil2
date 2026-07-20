@@ -1,9 +1,11 @@
 """CloudFormation stack for the MeCoil game server.
 
 A single Graviton EC2 instance in a minimal public-subnet VPC, locked down to the
-required ports only, with the SSH private key managed in Secrets Manager, an
-Elastic IP for a stable address, and (optionally) a Route53 A-record when a
-domain is configured. Provisioning of the OS is done afterwards by Ansible.
+required ports only, with the SSH private key managed in Secrets Manager. The
+instance uses AWS's auto-assigned public IP (billed only while running) rather
+than an Elastic IP (billed 24/7) — a boot-time script on the instance (see
+Ansible) keeps a free DuckDNS hostname pointed at whatever that IP currently is.
+Provisioning of the OS is done afterwards by Ansible.
 """
 import os
 
@@ -18,7 +20,6 @@ from aws_cdk import aws_ec2 as ec2
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
-from aws_cdk import aws_route53 as route53
 from aws_cdk import aws_secretsmanager as secretsmanager
 from aws_cdk import custom_resources as cr
 from constructs import Construct
@@ -37,8 +38,7 @@ class MeCoilServerStack(Stack):
         ssh_ip: str | None,
         instance_type: str,
         key_name: str,
-        domain: str | None,
-        hosted_zone: str | None,
+        duckdns_subdomain: str | None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -119,6 +119,24 @@ class MeCoilServerStack(Stack):
             properties={"KeyName": key_name, "SecretArn": key_secret.secret_arn},
         )
 
+        # ── Optional: DuckDNS token, so the instance can keep a free hostname
+        # pointed at its own (dynamic) public IP. Only created when configured —
+        # the token value itself is set out-of-band via `make aws-set-duckdns-token`
+        # (DuckDNS issues it; CDK never sees or stores the value).
+        duckdns_secret = None
+        if duckdns_subdomain:
+            duckdns_secret = secretsmanager.Secret(
+                self,
+                "DuckDnsTokenSecret",
+                secret_name="mecoil/duckdns-token",
+                description=(
+                    f"DuckDNS API token used to keep {duckdns_subdomain}.duckdns.org "
+                    "pointed at this instance's current public IP. Populate the value "
+                    "with `make aws-set-duckdns-token TOKEN=...`."
+                ),
+                removal_policy=RemovalPolicy.DESTROY,
+            )
+
         # ── EC2 instance (Graviton / Amazon Linux 2023) ──────────────────────────
         role = iam.Role(
             self,
@@ -131,12 +149,17 @@ class MeCoilServerStack(Stack):
                 )
             ],
         )
+        if duckdns_secret:
+            duckdns_secret.grant_read(role)
 
         instance = ec2.Instance(
             self,
             "Server",
             vpc=vpc,
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+            # Auto-assigned public IP: billed only while the instance is running
+            # (unlike an Elastic IP, which is billed 24/7 even when stopped).
+            associate_public_ip_address=True,
             instance_type=ec2.InstanceType(instance_type),
             machine_image=ec2.MachineImage.latest_amazon_linux2023(
                 cpu_type=ec2.AmazonLinuxCpuType.ARM_64
@@ -148,7 +171,8 @@ class MeCoilServerStack(Stack):
             key_pair=ec2.KeyPair.from_key_pair_name(self, "ImportedKeyPair", key_name),
             require_imdsv2=True,
             # An OS-level shutdown (scheduled at +4h by Ansible) STOPS the instance
-            # rather than terminating it — EBS + Elastic IP persist for a fast restart.
+            # rather than terminating it — EBS (and thus Caddy's cert cache) persists
+            # for a fast restart; the public IP is released and reassigned on start.
             instance_initiated_shutdown_behavior=ec2.InstanceInitiatedShutdownBehavior.STOP,
             block_devices=[
                 ec2.BlockDevice(
@@ -162,36 +186,13 @@ class MeCoilServerStack(Stack):
         # The key pair must exist before the instance references it.
         instance.node.add_dependency(keypair)
 
-        # ── Stable public address ────────────────────────────────────────────────
-        eip = ec2.CfnEIP(
-            self,
-            "Eip",
-            domain="vpc",
-            instance_id=instance.instance_id,
-            tags=[{"key": "Name", "value": "mecoil-server"}],
-        )
-
-        # ── Optional DNS: A-record -> Elastic IP (enables Let's Encrypt on Caddy) ─
-        hostname = None
-        if domain and hosted_zone:
-            zone = route53.HostedZone.from_lookup(
-                self, "HostedZone", domain_name=hosted_zone
-            )
-            route53.ARecord(
-                self,
-                "ARecord",
-                zone=zone,
-                record_name=domain,
-                target=route53.RecordTarget.from_ip_addresses(eip.attr_public_ip),
-                ttl=Duration.minutes(5),
-            )
-            hostname = domain
-
         # ── Outputs (consumed by the Make targets) ───────────────────────────────
-        CfnOutput(self, "PublicIp", value=eip.attr_public_ip)
+        # No PublicIp output: the address changes on every start, so a CFN output
+        # would go stale. `make aws-status` / `make ssh` look it up live instead.
         CfnOutput(self, "InstanceId", value=instance.instance_id)
         CfnOutput(self, "SecretName", value=key_secret.secret_name)
         CfnOutput(self, "KeyName", value=key_name)
         CfnOutput(self, "Region", value=self.region)
-        if hostname:
-            CfnOutput(self, "Hostname", value=hostname)
+        if duckdns_secret:
+            CfnOutput(self, "DuckDnsSecretName", value=duckdns_secret.secret_name)
+            CfnOutput(self, "Hostname", value=f"{duckdns_subdomain}.duckdns.org")

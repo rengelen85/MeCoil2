@@ -13,10 +13,20 @@
     node_pkg: nodejs20
     auto_shutdown_minutes: 240
     caddy_version: "2.8.4"
+    aws_cli_version: "2.17.62"
     # Source of the app code (repo root). Overridden by Make with an absolute path.
     repo_src: "{{ playbook_dir }}/../.."
-    # Friendly domain for TLS. Empty => Caddy self-signed (internal CA). Set by Make.
-    mecoil_domain: ""
+    # DuckDNS subdomain (without ".duckdns.org"), set by Make from infra/aws.env.
+    # Empty => no dynamic-DNS updater is installed, Caddy falls back to a
+    # self-signed (internal CA) cert on whatever the current public IP is.
+    duckdns_subdomain: ""
+    duckdns_secret_name: "mecoil/duckdns-token"
+    # AWS region the DuckDNS token secret lives in. Set by Make.
+    aws_region: ""
+    # The instance has no fixed public IP (see infra/cdk — no Elastic IP, to
+    # avoid its 24/7 charge), so the friendly hostname for TLS is the DuckDNS
+    # one, kept in sync by the duckdns-update service/timer below.
+    mecoil_domain: "{{ duckdns_subdomain + '.duckdns.org' if duckdns_subdomain else '' }}"
 
   handlers:
     - name: reload systemd
@@ -82,6 +92,7 @@
           - git
           - rsync
           - tar
+          - unzip
           - dnf-automatic
         state: present
 
@@ -190,6 +201,87 @@
         enabled: true
         state: started
         daemon_reload: true
+
+    # ── DuckDNS: keep a free hostname pointed at this instance's current public
+    # IP (the instance has no Elastic IP, so the IP changes on every start).
+    # Skipped entirely when no subdomain is configured.
+    - name: Check for AWS CLI
+      ansible.builtin.command:
+        cmd: /usr/local/bin/aws --version
+      register: awscli_installed
+      changed_when: false
+      failed_when: false
+      when: duckdns_subdomain
+
+    - name: Download AWS CLI v2 (arm64)
+      ansible.builtin.get_url:
+        url: "https://awscli.amazonaws.com/awscli-exe-linux-aarch64-{{ aws_cli_version }}.zip"
+        dest: /tmp/awscliv2.zip
+        mode: "0644"
+      when: duckdns_subdomain and awscli_installed.rc != 0
+
+    - name: Unzip AWS CLI installer
+      ansible.builtin.unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp
+        remote_src: true
+      when: duckdns_subdomain and awscli_installed.rc != 0
+
+    - name: Install AWS CLI v2
+      ansible.builtin.command:
+        cmd: /tmp/aws/install
+      when: duckdns_subdomain and awscli_installed.rc != 0
+
+    - name: Install DuckDNS update script
+      ansible.builtin.template:
+        src: templates/duckdns-update.sh.j2
+        dest: /usr/local/bin/duckdns-update.sh
+        owner: root
+        group: root
+        mode: "0750"
+      when: duckdns_subdomain
+
+    - name: Install duckdns-update systemd service
+      ansible.builtin.template:
+        src: templates/duckdns-update.service.j2
+        dest: /etc/systemd/system/duckdns-update.service
+        mode: "0644"
+      when: duckdns_subdomain
+      notify: reload systemd
+
+    - name: Install duckdns-update systemd timer
+      ansible.builtin.template:
+        src: templates/duckdns-update.timer.j2
+        dest: /etc/systemd/system/duckdns-update.timer
+        mode: "0644"
+      when: duckdns_subdomain
+      notify: reload systemd
+
+    - name: Run DuckDNS update now (before Caddy's first start needs it)
+      ansible.builtin.systemd:
+        name: duckdns-update
+        enabled: true
+        state: restarted
+        daemon_reload: true
+      when: duckdns_subdomain
+
+    - name: Enable duckdns-update timer (periodic refresh)
+      ansible.builtin.systemd:
+        name: duckdns-update.timer
+        enabled: true
+        state: started
+      when: duckdns_subdomain
+
+    - name: Disable DuckDNS units when no subdomain is configured
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+      loop:
+        - duckdns-update.timer
+        - duckdns-update.service
+      when: not duckdns_subdomain
+      failed_when: false
 
     # ── Caddy reverse proxy (TLS) ────────────────────────────────────────────────
     - name: Create caddy group
@@ -308,5 +400,6 @@
       ansible.builtin.debug:
         msg:
           - "MeCoil server provisioned."
-          - "TLS: {{ 'Let''s Encrypt for ' + mecoil_domain if mecoil_domain else 'Caddy internal CA (self-signed) on the Elastic IP' }}"
+          - "TLS: {{ 'Let''s Encrypt for ' + mecoil_domain if mecoil_domain else 'Caddy internal CA (self-signed) on the current public IP' }}"
+          - "DuckDNS: {{ 'updating ' + mecoil_domain + ' every 5 min' if duckdns_subdomain else 'not configured' }}"
           - "Auto-shutdown scheduled {{ auto_shutdown_minutes }} min after each boot."

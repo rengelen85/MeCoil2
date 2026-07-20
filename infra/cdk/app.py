@@ -31,9 +31,7 @@ MeCoilServerStack(
     ssh_ip=ctx("ssh_ip"),
     instance_type=ctx("instance_type", "t4g.micro"),
     key_name=ctx("key_name", "mecoil-server-key"),
-    domain=ctx("domain"),
-    hosted_zone=ctx("hosted_zone"),
-    # An explicit env is required for Route53 hosted-zone lookups (from_lookup).
+    duckdns_subdomain=ctx("duckdns_subdomain"),
     env=cdk.Environment(account=account, region=region),
     description="MeCoil laser-tag game server: t4g.micro + Caddy TLS, locked-down SG.",
 )

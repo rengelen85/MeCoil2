@@ -9,9 +9,9 @@
     reverse_proxy localhost:3000
 }
 {% else %}
-# No domain configured: serve HTTPS on the Elastic IP using Caddy's internal CA
-# (self-signed). Browsers/phones will show a certificate warning until you set a
-# domain in infra/aws.env and redeploy.
+# No DuckDNS subdomain configured: serve HTTPS on the instance's current public
+# IP using Caddy's internal CA (self-signed). Browsers/phones will show a
+# certificate warning until you set DUCKDNS_SUBDOMAIN in infra/aws.env and redeploy.
 :443 {
     tls internal
     encode zstd gzip
