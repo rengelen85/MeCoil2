@@ -1,10 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  Animated,
+  Easing,
+  useWindowDimensions,
+} from 'react-native';
 import {
   Map as MapView,
   Camera,
   Marker,
-  type CameraRef,
   type PressEvent,
 } from '@maplibre/maplibre-react-native';
 import { NativeSyntheticEvent } from 'react-native';
@@ -49,13 +56,44 @@ const CTF_BASE_RADIUS_M = 7.5;
 const DOM_ZONE_RADIUS_M = 7.5;
 const GAME_AREA_COLOR = '#ff9800';
 
+// Heading cone on the player marker — a wide "field-of-view" wedge that always
+// points screen-forward (web parity, but wider with a fade-out). RN core has no
+// gradient primitive, so the fade is faked by stacking translucent triangles
+// that all share the apex at the player: many overlap near the apex (opaque),
+// fewer toward the tip (transparent). All sizes are in px.
+const CONE_LEN = 36;
+const CONE_HALF_ANGLE = (34 * Math.PI) / 180; // half the cone's spread
+const CONE_TAN = Math.tan(CONE_HALF_ANGLE);
+const CONE_WIDTH = 2 * CONE_LEN * CONE_TAN; // base width at the far edge
+const CONE_LAYERS_N = 10; // more layers = smoother fade
+const CONE_LAYER_ALPHA = 0.07; // per-layer opacity; ~0.5 where all 10 overlap
+const CONE_COLOR = '0,229,255'; // cyan, matches the web client
+// Pre-compute each nested triangle (apex pinned at the cone container's
+// bottom-centre, growing taller/wider toward the base).
+const CONE_LAYERS = Array.from({ length: CONE_LAYERS_N }, (_, idx) => {
+  const h = (CONE_LEN * (idx + 1)) / CONE_LAYERS_N;
+  const halfBase = h * CONE_TAN;
+  return {
+    key: idx,
+    halfBase,
+    h,
+    left: CONE_WIDTH / 2 - halfBase,
+    top: CONE_LEN - h,
+  };
+});
+
 export default function GameMap() {
-  // NOTE: `heading` is intentionally NOT pulled from the store here. Compass
-  // updates fire several times per second; reading heading into render would
-  // re-render the whole marker tree and restart the camera animation on every
-  // tick, which is what made rotation laggy. Instead we drive the camera
-  // bearing imperatively from a store subscription below (mirrors the web
-  // client's cheap CSS-transform approach in Map.svelte).
+  // Heading-up rotation mirrors the web client (Map.svelte) exactly: the
+  // MapLibre camera stays north-up and we spin the ENTIRE map view with a
+  // GPU-composited transform. Rotating the native camera bearing instead
+  // forces MapLibre to re-render every tile/label/marker each frame AND
+  // restarts a fresh animation on every compass tick — that is what made the
+  // old implementation lag and stutter. A view transform is essentially free.
+  //
+  // `heading` is intentionally NOT read into render (it fires many times a
+  // second). We drive an Animated.Value imperatively from a store
+  // subscription, with useNativeDriver so the rotation never touches the JS
+  // thread — the RN equivalent of the web's cheap CSS `transform: rotate()`.
   const {
     myPosition, teammates, firingEnemies, powerups, airstrikes, apaches, graves,
     ctfBases, ctfFlags, domZones,
@@ -66,11 +104,32 @@ export default function GameMap() {
     gameArea,
   } = useGameStore();
 
-  const cameraRef = useRef<CameraRef>(null);
+  // The map view is rotated by -heading so the player's forward direction is
+  // always at screen top. accRotation is in degrees; the interpolation flips
+  // the sign and extends past ±360 to absorb the accumulated value.
+  const rotation = useRef(new Animated.Value(0)).current;
+  const rotateDeg = rotation.interpolate({
+    inputRange: [-360, 360],
+    outputRange: ['360deg', '-360deg'],
+    extrapolate: 'extend',
+  });
+  // The heading cone counter-rotates (+heading) to cancel the rotor's -heading,
+  // so it always points to screen-top regardless of which way the player faces.
+  const coneRotateDeg = rotation.interpolate({
+    inputRange: [-360, 360],
+    outputRange: ['-360deg', '360deg'],
+    extrapolate: 'extend',
+  });
   // Accumulated rotation avoids the wrap-around jump when heading crosses
-  // 0°/360°, so the camera always takes the shortest path (same as web).
+  // 0°/360°, so the view always takes the shortest path (same as web).
   const accRotationRef = useRef(0);
   const prevHeadingRef = useRef<number | null>(null);
+
+  // Square big enough that rotating it 360° around screen centre never exposes
+  // a blank corner. The minimum is the screen diagonal (matches the intent of
+  // the web client's oversized calc(100vw + 100vh) .map-container).
+  const { width: winW, height: winH } = useWindowDimensions();
+  const mapSide = Math.ceil(Math.hypot(winW, winH));
 
   // Map tile style — cycles dark → voyager → light → standard, mirroring the
   // web client's toggle. The choice persists across games via AsyncStorage.
@@ -109,13 +168,15 @@ export default function GameMap() {
         accRotationRef.current += delta;
       }
       prevHeadingRef.current = h;
-      // setStop with only `bearing` rotates in place, preserving the current
-      // center/zoom; a short linear ease blends successive sensor readings.
-      cameraRef.current?.setStop({
-        bearing: accRotationRef.current,
-        duration: 250,
-        easing: 'linear',
-      });
+      // A short linear ease (native-driven) blends successive sensor readings
+      // without the lag of a long animation. Restarting it each tick is cheap
+      // because it only retargets a view transform — no GL re-render.
+      Animated.timing(rotation, {
+        toValue: accRotationRef.current,
+        duration: 120,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }).start();
     };
 
     applyHeading(useMapStore.getState().heading);
@@ -123,7 +184,7 @@ export default function GameMap() {
       if (state.heading !== prev.heading) applyHeading(state.heading);
     });
     return unsub;
-  }, []);
+  }, [rotation]);
 
   function onMapPress(e: NativeSyntheticEvent<PressEvent>) {
     const [longitude, latitude] = e.nativeEvent.lngLat;
@@ -157,10 +218,28 @@ export default function GameMap() {
 
   return (
     <View style={styles.root}>
+    {/* Clipping frame fills the screen; the oversized rotor is centred inside
+        it and spun by -heading. overflow:hidden hides the rotated corners. */}
+    <View style={styles.clip}>
+    <Animated.View
+      style={[
+        styles.rotor,
+        {
+          width: mapSide,
+          height: mapSide,
+          marginLeft: -mapSide / 2,
+          marginTop: -mapSide / 2,
+          transform: [{ rotate: rotateDeg }],
+        },
+      ]}>
     <MapView
       style={styles.map}
       mapStyle={MAP_STYLES[mapStyleId]}
       onPress={onMapPress}
+      // Render into a TextureView (not the default GLSurfaceView) so the parent
+      // rotor's rotation transform actually rotates the rendered map — a
+      // SurfaceView is composited in its own layer and ignores view transforms.
+      androidView="texture"
       // Heading-up, fixed-zoom tactical view: the player drives the camera via
       // GPS + compass, not gestures.
       dragPan={false}
@@ -173,8 +252,9 @@ export default function GameMap() {
       logo={false}
       compass={false}
       scaleBar={false}>
+      {/* Camera stays north-up (no bearing) — heading-up is achieved by
+          rotating the view above, not the GL camera. */}
       <Camera
-        ref={cameraRef}
         center={[myPosition.lng, myPosition.lat]}
         zoom={19}
         pitch={0}
@@ -259,9 +339,34 @@ export default function GameMap() {
         );
       })}
 
-      {/* My position */}
+      {/* My position — dot + a wide heading cone that always points forward.
+          pointerEvents none so the oversized cone never eats map taps. */}
       <Marker id="me" lngLat={[myPosition.lng, myPosition.lat]} anchor="center">
-        <View style={styles.myDot} />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.meWrap, { transform: [{ rotate: coneRotateDeg }] }]}>
+          <View style={styles.cone}>
+            {CONE_LAYERS.map(l => (
+              <View
+                key={l.key}
+                style={{
+                  position: 'absolute',
+                  left: l.left,
+                  top: l.top,
+                  width: 0,
+                  height: 0,
+                  borderLeftWidth: l.halfBase,
+                  borderRightWidth: l.halfBase,
+                  borderTopWidth: l.h,
+                  borderLeftColor: 'transparent',
+                  borderRightColor: 'transparent',
+                  borderTopColor: `rgba(${CONE_COLOR},${CONE_LAYER_ALPHA})`,
+                }}
+              />
+            ))}
+          </View>
+          <View style={styles.myDot} />
+        </Animated.View>
       </Marker>
 
       {/* Teammates (green) */}
@@ -354,6 +459,8 @@ export default function GameMap() {
         </React.Fragment>
       ))}
     </MapView>
+    </Animated.View>
+    </View>
 
       {/* Map tile style toggle — tap to cycle through basemaps (web parity) */}
       <TouchableOpacity
@@ -370,6 +477,18 @@ export default function GameMap() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  // Fills the screen and clips the rotated rotor's overhanging corners.
+  clip: {
+    ...StyleSheet.absoluteFill,
+    overflow: 'hidden',
+  },
+  // Oversized square centred on the screen; rotated by -heading. Its width/
+  // height/margins are set inline from the measured screen diagonal.
+  rotor: {
+    position: 'absolute',
+    left: '50%',
+    top: '50%',
   },
   map: {
     ...StyleSheet.absoluteFill,
@@ -405,13 +524,27 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
   },
+  // Square wrapper centred on the player so anchor="center" keeps the dot on
+  // the exact GPS point; the cone fills the top half, apex at the centre.
+  meWrap: {
+    width: CONE_WIDTH,
+    height: 2 * CONE_LEN,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cone: {
+    position: 'absolute',
+    top: 0,
+    width: CONE_WIDTH,
+    height: CONE_LEN,
+  },
   myDot: {
     width: 16,
     height: 16,
     borderRadius: 8,
     backgroundColor: '#fff',
     borderWidth: 2,
-    borderColor: '#000',
+    borderColor: '#00e5ff',
   },
   teammateDot: {
     width: 14,

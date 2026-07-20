@@ -10,6 +10,7 @@ certs/
 *.bak
 *.tar.gz
 *.zip
+*.apk
 
 # Excluded files
 org-set-up.md

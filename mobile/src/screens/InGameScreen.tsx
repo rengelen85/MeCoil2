@@ -10,6 +10,7 @@ import { isInArea } from '../lib/geo.js';
 import { GAME_MODES } from 'shared/messages.js';
 import GameMap from '../components/GameMap.js';
 import ScoreBoard from '../components/ScoreBoard.js';
+import Compass from '../components/Compass.js';
 
 // Short top-bar label per game mode (mirrors the web client).
 const MODE_LABELS: Record<string, string> = {
@@ -40,9 +41,17 @@ function findMyScore(scores: ScoreEntry[], myId: number | null): ScoreEntry | nu
   return null;
 }
 
+// Format remaining power-up seconds as M:SS (mirrors the web AmmoBar badge).
+function fmtCountdown(secs: number | null): string {
+  if (secs == null) return '';
+  const m = Math.floor(secs / 60);
+  const s = String(secs % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
 export default function InGameScreen(_props: Props) {
   const {
-    ammo, maxAmmo, isReloading, shieldActive, stealthActive,
+    ammo, maxAmmo, isReloading, shieldActive, shieldCountdown, stealthActive, stealthCountdown,
     radarActive, radarCountdown, airstrikeReady, airstrikeArmed, airstrikePreview,
     setAirstrikeArmed, setAirstrikePreview, setAirstrikeReady,
     apacheReady, apacheArmed, apachePreview,
@@ -50,7 +59,7 @@ export default function InGameScreen(_props: Props) {
     timeRemaining, scores, myId, isHost, bleConnected, bleEverConnected, bleReconnecting, gunSlotId,
     killFeed, hp, maxHp, isAlive, respawnCountdown, killedBy, gameConfig, players,
     activeGunMode, roundId, ctfState, infectionState, dominationState,
-    gameArea, lastHitAt, lastShotHitAt, fastReloadActive,
+    gameArea, lastHitAt, lastShotHitAt, fastReloadActive, fastReloadCountdown,
   } = useGameStore();
 
   const [showScores, setShowScores] = useState(false);
@@ -298,38 +307,6 @@ export default function InGameScreen(_props: Props) {
         </>
       )}
 
-      {/* Airstrike: armed hint or pending-confirm prompt */}
-      {airstrikePreview ? (
-        <View style={styles.airstrikeConfirmBar}>
-          <TouchableOpacity style={styles.btnConfirmStrike} onPress={confirmAirstrike}>
-            <Text style={styles.btnConfirmStrikeText}>✓ Confirm Strike</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btnCancelStrike} onPress={cancelAirstrike}>
-            <Text style={styles.btnCancelStrikeText}>✗ Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      ) : airstrikeArmed ? (
-        <View style={styles.airstrikeArmedHint} pointerEvents="none">
-          <Text style={styles.airstrikeArmedHintText}>Tap the map to place the strike zone</Text>
-        </View>
-      ) : null}
-
-      {/* Apache: armed hint or pending-confirm prompt */}
-      {apachePreview ? (
-        <View style={styles.apacheConfirmBar}>
-          <TouchableOpacity style={styles.btnConfirmApache} onPress={confirmApache}>
-            <Text style={styles.btnConfirmApacheText}>✓ Deploy Apache</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btnCancelStrike} onPress={cancelApache}>
-            <Text style={styles.btnCancelStrikeText}>✗ Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      ) : apacheArmed ? (
-        <View style={styles.apacheArmedHint} pointerEvents="none">
-          <Text style={styles.apacheArmedHintText}>Tap the map to place the Apache zone</Text>
-        </View>
-      ) : null}
-
       {/* Top HUD: timer centered (mirrors web) */}
       <View style={styles.timerWrap} pointerEvents="none">
         <Text style={styles.timer}>
@@ -489,8 +466,66 @@ export default function InGameScreen(_props: Props) {
           ))}
       </View>
 
+      {/* Heading compass — bottom-right, above the health bar */}
+      <View style={styles.compassWrap} pointerEvents="none">
+        <Compass />
+      </View>
+
       {/* Bottom HUD */}
       <View style={styles.bottomHud}>
+        {/* Airstrike: armed hint or pending-confirm prompt (sits above the gun status) */}
+        {airstrikePreview ? (
+          <View style={styles.airstrikeConfirmBar}>
+            <TouchableOpacity style={styles.btnConfirmStrike} onPress={confirmAirstrike}>
+              <Text style={styles.btnConfirmStrikeText}>✓ Confirm Strike</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnCancelStrike} onPress={cancelAirstrike}>
+              <Text style={styles.btnCancelStrikeText}>✗ Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : airstrikeArmed ? (
+          <View style={styles.airstrikeArmedHint} pointerEvents="none">
+            <Text style={styles.airstrikeArmedHintText}>Tap the map to place the strike zone</Text>
+          </View>
+        ) : null}
+
+        {/* Apache: armed hint or pending-confirm prompt */}
+        {apachePreview ? (
+          <View style={styles.apacheConfirmBar}>
+            <TouchableOpacity style={styles.btnConfirmApache} onPress={confirmApache}>
+              <Text style={styles.btnConfirmApacheText}>✓ Deploy Apache</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnCancelStrike} onPress={cancelApache}>
+              <Text style={styles.btnCancelStrikeText}>✗ Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : apacheArmed ? (
+          <View style={styles.apacheArmedHint} pointerEvents="none">
+            <Text style={styles.apacheArmedHintText}>Tap the map to place the Apache zone</Text>
+          </View>
+        ) : null}
+
+        {/* Active power-up countdowns — badges right above the gun/magazine status (mirrors web AmmoBar) */}
+        {(shieldActive || stealthActive || fastReloadActive) && (
+          <View style={styles.powerupBadges} pointerEvents="none">
+            {shieldActive && (
+              <Text style={[styles.powerupBadge, styles.powerupShield]}>
+                🛡 SHIELD {fmtCountdown(shieldCountdown)}
+              </Text>
+            )}
+            {stealthActive && (
+              <Text style={[styles.powerupBadge, styles.powerupStealth]}>
+                👻 STEALTH {fmtCountdown(stealthCountdown)}
+              </Text>
+            )}
+            {fastReloadActive && (
+              <Text style={[styles.powerupBadge, styles.powerupFastReload]}>
+                🔋 FAST RELOAD {fmtCountdown(fastReloadCountdown)}
+              </Text>
+            )}
+          </View>
+        )}
+
         {/* Ammo */}
         <View style={styles.ammoBlock}>
           <Text style={styles.ammoIcon}>🔫</Text>
@@ -502,9 +537,6 @@ export default function InGameScreen(_props: Props) {
 
         {/* Status indicators */}
         <View style={styles.statusIcons}>
-          {shieldActive && <Text style={styles.statusIcon}>🛡</Text>}
-          {stealthActive && <Text style={styles.statusIcon}>👻</Text>}
-          {fastReloadActive && <Text style={styles.statusIcon}>🔋</Text>}
           {airstrikeReady > 0 && (
             <TouchableOpacity onPress={toggleAirstrike}>
               <Text style={[styles.airstrikeBtn, airstrikeArmed && styles.airstrikeBtnArmed]}>
@@ -825,6 +857,12 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
   },
+  compassWrap: {
+    position: 'absolute',
+    bottom: 120,
+    right: 16,
+    zIndex: 30,
+  },
   bottomHud: {
     position: 'absolute',
     bottom: 32,
@@ -862,6 +900,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statusIcon: { fontSize: 24 },
+  powerupBadges: {
+    alignItems: 'flex-start',
+    gap: 4,
+  },
+  powerupBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: '#fff',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    overflow: 'hidden',
+  },
+  powerupShield: { color: '#82b1ff' },
+  powerupStealth: { color: '#e040fb' },
+  powerupFastReload: { color: '#69f0ae' },
   airstrikeBtn: {
     color: '#ff5252',
     fontSize: 14,
@@ -922,10 +980,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   airstrikeArmedHint: {
-    position: 'absolute',
-    bottom: 90,
-    alignSelf: 'center',
-    zIndex: 50,
     backgroundColor: 'rgba(0,0,0,0.7)',
     borderRadius: 6,
     paddingHorizontal: 12,
@@ -936,10 +990,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   airstrikeConfirmBar: {
-    position: 'absolute',
-    bottom: 90,
-    alignSelf: 'center',
-    zIndex: 50,
     flexDirection: 'row',
     gap: 8,
   },
@@ -1119,10 +1169,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   apacheArmedHint: {
-    position: 'absolute',
-    bottom: 130,
-    alignSelf: 'center',
-    zIndex: 50,
     backgroundColor: 'rgba(0,0,0,0.7)',
     borderRadius: 6,
     paddingHorizontal: 12,
@@ -1133,10 +1179,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   apacheConfirmBar: {
-    position: 'absolute',
-    bottom: 130,
-    alignSelf: 'center',
-    zIndex: 50,
     flexDirection: 'row',
     gap: 8,
   },

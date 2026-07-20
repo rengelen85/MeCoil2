@@ -1,5 +1,24 @@
 # Release Notes
 
+## [0.4.0] — 2026-07-20
+
+### Added
+
+- **Heading compass in Android**: New `Compass` component shows live device heading in the in-game HUD, bottom-right above the health bar
+- **Power-up countdown badges in Android**: Shield, stealth, and fast-reload status now render as labeled badges with a live `M:SS` countdown (mirrors the web AmmoBar) instead of static icons
+- **APK install make targets**: `apk-debug-install` / `apk-release-install` install an already-built APK via `adb` without rebuilding; `apk-debug` / `apk-release` now run build + install together
+
+### Changed
+
+- **Android map rotation**: Reworked to rotate the whole map view via a GPU-composited, native-driven transform instead of the MapLibre camera bearing, eliminating the lag/stutter from restarting a camera animation on every compass tick. Adds a fading heading cone on the player marker (web parity)
+- **Faster multiplayer sync**: Server game-state and position broadcast interval reduced from 500 ms to 200 ms for smoother movement and state updates
+
+### Fixed
+
+- **Fast reload on Android**: The fast-reload power-up now actually skips the reload delay and instantly refills the clip, instead of running the normal reload timer
+
+---
+
 ## [0.3.0] — 2026-06-22
 
 ### Added
