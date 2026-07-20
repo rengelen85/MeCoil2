@@ -123,15 +123,29 @@ mobile-install:
 
 # Build a debug APK.
 # Output: mobile/android/app/build/outputs/apk/debug/app-debug.apk
-apk-debug: mobile-install
+apk-debug-build: mobile-install
 	cd mobile/android && ./gradlew assembleDebug
 	@echo "APK ready: mobile/android/app/build/outputs/apk/debug/app-debug.apk"
 
+# Install the debug APK on a connected device or running emulator.
+apk-debug-install:
+	adb install -r mobile/android/app/build/outputs/apk/debug/app-debug.apk
+	echo "Debug APK installed on device/emulator."
+
+apk-debug: apk-debug-build apk-debug-install
+
 # Build a release APK (signed with the debug keystore — replace for distribution).
 # Output: mobile/android/app/build/outputs/apk/release/app-release.apk
-apk-release: mobile-install
+apk-release-build: mobile-install
 	cd mobile/android && ./gradlew assembleRelease
 	@echo "APK ready: mobile/android/app/build/outputs/apk/release/app-release.apk"
+
+# Install the release APK on a connected device or running emulator.
+apk-release-install:
+	adb install -r mobile/android/app/build/outputs/apk/release/app-release.apk
+	@echo "Release APK installed on device/emulator."
+
+apk-release: apk-release-build apk-release-install
 
 # Build and run on a connected device or running emulator (also starts Metro).
 android-run: mobile-install android-env-vars
