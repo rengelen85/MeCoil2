@@ -1,0 +1,312 @@
+---
+# Provisions the MeCoil game server on a fresh Amazon Linux 2023 (arm64) instance.
+# Run via `make aws-provision` / `make aws-up`, which generate the inventory and
+# pass the required variables. Idempotent — safe to re-run to redeploy code.
+- name: Provision MeCoil server
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    app_user: mecoil
+    app_dir: /opt/mecoil
+    node_pkg: nodejs20
+    auto_shutdown_minutes: 240
+    caddy_version: "2.8.4"
+    # Source of the app code (repo root). Overridden by Make with an absolute path.
+    repo_src: "{{ playbook_dir }}/../.."
+    # Friendly domain for TLS. Empty => Caddy self-signed (internal CA). Set by Make.
+    mecoil_domain: ""
+
+  handlers:
+    - name: reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: restart mecoil
+      ansible.builtin.systemd:
+        name: mecoil
+        state: restarted
+
+    - name: restart caddy
+      ansible.builtin.systemd:
+        name: caddy
+        state: restarted
+
+  tasks:
+    - name: Wait for SSH to be reachable
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    # ── Swap: lets the Vite client build succeed on a 1 GB instance ──────────────
+    - name: Create swapfile
+      ansible.builtin.command:
+        cmd: "dd if=/dev/zero of=/swapfile bs=1M count=2048"
+        creates: /swapfile
+
+    - name: Secure swapfile permissions
+      ansible.builtin.file:
+        path: /swapfile
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Format swapfile
+      ansible.builtin.command:
+        cmd: mkswap /swapfile
+      register: mkswap_result
+      changed_when: "'Setting up swapspace' in mkswap_result.stdout"
+      failed_when: mkswap_result.rc != 0 and 'already' not in mkswap_result.stderr
+
+    - name: Enable swap in fstab
+      ansible.posix.mount:
+        path: none
+        src: /swapfile
+        fstype: swap
+        opts: sw
+        state: present
+
+    - name: Turn swap on
+      ansible.builtin.command:
+        cmd: swapon /swapfile
+      register: swapon_result
+      changed_when: swapon_result.rc == 0
+      failed_when: swapon_result.rc != 0 and 'already' not in swapon_result.stderr
+
+    # ── Packages ─────────────────────────────────────────────────────────────────
+    - name: Install base packages
+      ansible.builtin.dnf:
+        name:
+          - "{{ node_pkg }}"
+          - "{{ node_pkg }}-npm"
+          - git
+          - rsync
+          - tar
+          - dnf-automatic
+        state: present
+
+    - name: Verify Node.js is available
+      ansible.builtin.command:
+        cmd: node --version
+      register: node_version
+      changed_when: false
+
+    - name: Show Node.js version
+      ansible.builtin.debug:
+        msg: "Node.js {{ node_version.stdout }}"
+
+    # ── Unattended security updates ──────────────────────────────────────────────
+    - name: Apply security updates automatically
+      community.general.ini_file:
+        path: /etc/dnf/automatic.conf
+        section: commands
+        option: apply_updates
+        value: "yes"
+        no_extra_spaces: true
+        mode: "0644"
+
+    - name: Enable dnf-automatic timer
+      ansible.builtin.systemd:
+        name: dnf-automatic.timer
+        enabled: true
+        state: started
+
+    # ── Application user + code ──────────────────────────────────────────────────
+    - name: Create app user
+      ansible.builtin.user:
+        name: "{{ app_user }}"
+        system: true
+        home: "{{ app_dir }}"
+        shell: /sbin/nologin
+        create_home: true
+
+    - name: Ensure app dir exists
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0755"
+
+    - name: Sync application source
+      # Privilege escalation is done on the remote via --rsync-path, so this task
+      # itself must not use become (synchronize + become is unsupported).
+      become: false
+      ansible.posix.synchronize:
+        src: "{{ repo_src }}/"
+        dest: "{{ app_dir }}/"
+        delete: true
+        rsync_opts:
+          - "--rsync-path=sudo rsync"
+          - "--exclude=node_modules"
+          - "--exclude=.git"
+          - "--exclude=mobile"
+          - "--exclude=certs"
+          - "--exclude=infra"
+          - "--exclude=client/dist"
+          - "--exclude=.venv"
+          - "--exclude=*.tar.gz"
+          - "--exclude=*.apk"
+      notify: restart mecoil
+
+    - name: Fix ownership of app dir
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        recurse: true
+
+    - name: Install dependencies and build client
+      ansible.builtin.shell: |
+        set -euo pipefail
+        npm ci --omit=dev
+        npm ci --prefix client
+        npm run build
+      args:
+        chdir: "{{ app_dir }}"
+        executable: /bin/bash
+      become_user: "{{ app_user }}"
+      environment:
+        HOME: "{{ app_dir }}"
+        NPM_CONFIG_CACHE: "{{ app_dir }}/.npm"
+      register: build_result
+      changed_when: true
+      notify: restart mecoil
+
+    # ── systemd: game server ─────────────────────────────────────────────────────
+    - name: Install mecoil systemd unit
+      ansible.builtin.template:
+        src: templates/mecoil.service.j2
+        dest: /etc/systemd/system/mecoil.service
+        mode: "0644"
+      notify:
+        - reload systemd
+        - restart mecoil
+
+    - name: Enable and start mecoil
+      ansible.builtin.systemd:
+        name: mecoil
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # ── Caddy reverse proxy (TLS) ────────────────────────────────────────────────
+    - name: Create caddy group
+      ansible.builtin.group:
+        name: caddy
+        system: true
+
+    - name: Create caddy user
+      ansible.builtin.user:
+        name: caddy
+        group: caddy
+        system: true
+        home: /var/lib/caddy
+        shell: /sbin/nologin
+        create_home: true
+
+    - name: Check installed Caddy version
+      ansible.builtin.command:
+        cmd: /usr/bin/caddy version
+      register: caddy_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Download Caddy (arm64 static binary)
+      ansible.builtin.get_url:
+        url: "https://github.com/caddyserver/caddy/releases/download/v{{ caddy_version }}/caddy_{{ caddy_version }}_linux_arm64.tar.gz"
+        dest: "/tmp/caddy_{{ caddy_version }}.tar.gz"
+        mode: "0644"
+      when: caddy_version not in caddy_installed.stdout
+
+    - name: Install Caddy binary
+      ansible.builtin.command:
+        cmd: "tar -xzf /tmp/caddy_{{ caddy_version }}.tar.gz -C /usr/bin caddy"
+      when: caddy_version not in caddy_installed.stdout
+      changed_when: caddy_version not in caddy_installed.stdout
+      notify: restart caddy
+
+    - name: Ensure Caddy binary is executable
+      ansible.builtin.file:
+        path: /usr/bin/caddy
+        mode: "0755"
+        owner: root
+        group: root
+
+    - name: Create Caddy config dir
+      ansible.builtin.file:
+        path: /etc/caddy
+        state: directory
+        owner: root
+        group: caddy
+        mode: "0750"
+
+    - name: Install Caddyfile
+      ansible.builtin.template:
+        src: templates/Caddyfile.j2
+        dest: /etc/caddy/Caddyfile
+        owner: root
+        group: caddy
+        mode: "0640"
+      notify: restart caddy
+
+    - name: Install caddy systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/caddy.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Caddy web server
+          Documentation=https://caddyserver.com/docs/
+          After=network.target network-online.target
+          Requires=network-online.target
+
+          [Service]
+          Type=notify
+          User=caddy
+          Group=caddy
+          ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+          ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+          TimeoutStopSec=5s
+          LimitNOFILE=1048576
+          PrivateTmp=true
+          ProtectSystem=full
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+      notify:
+        - reload systemd
+        - restart caddy
+
+    - name: Enable and start caddy
+      ansible.builtin.systemd:
+        name: caddy
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # ── Auto-shutdown after N minutes (cost control) ─────────────────────────────
+    - name: Install auto-shutdown unit
+      ansible.builtin.template:
+        src: templates/autoshutdown.service.j2
+        dest: /etc/systemd/system/mecoil-autoshutdown.service
+        mode: "0644"
+      notify: reload systemd
+
+    - name: Enable and start auto-shutdown timer
+      ansible.builtin.systemd:
+        name: mecoil-autoshutdown
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "MeCoil server provisioned."
+          - "TLS: {{ 'Let''s Encrypt for ' + mecoil_domain if mecoil_domain else 'Caddy internal CA (self-signed) on the Elastic IP' }}"
+          - "Auto-shutdown scheduled {{ auto_shutdown_minutes }} min after each boot."

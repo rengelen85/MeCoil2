@@ -176,6 +176,39 @@ mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mec
 
 ---
 
+## Cloud Deployment (AWS)
+
+Run a public game server on a small, secured, cost-optimized AWS instance using the
+Infrastructure-as-Code in [`infra/`](infra/) — AWS CDK (Python) + Ansible + Make targets.
+
+- A single **EC2 `t4g.micro`** (Graviton, Amazon Linux 2023) with **Caddy** terminating
+  TLS and reverse-proxying to the Node server (`localhost:3000`).
+- **Locked down:** only ports 80/443 are public; SSH (22) is restricted to one source IP.
+  The SSH key is generated into **AWS Secrets Manager** — never stored in the repo.
+- **Stable Elastic IP**, optional **Route53 A-record + Let's Encrypt** certificate.
+- **Auto-stops after 4 hours** to keep costs near zero (the game server itself runs
+  endlessly while the instance is up). Rough cost **≈ $5–11/month**.
+
+```sh
+cp infra/aws.env.example infra/aws.env   # set AWS_REGION + SSH_ALLOWED_IP
+export AWS_ACCESS_KEY_ID=...             # AWS creds come from your shell, not the repo
+export AWS_SECRET_ACCESS_KEY=...
+
+make aws-prereqs        # one-time: CDK Python env + Ansible
+make aws-bootstrap      # one-time per account/region
+make aws-up             # deploy infra + configure the server
+
+make ssh                # shell in (key pulled from Secrets Manager)
+make aws-start          # restart after the 4h auto-stop
+make aws-stop           # stop now
+make aws-destroy        # tear it all down
+```
+
+See [`infra/README.md`](infra/README.md) for full details, cost breakdown, and how to
+enable the friendly domain + Let's Encrypt certificate.
+
+---
+
 ## How to Play
 
 ### Screens

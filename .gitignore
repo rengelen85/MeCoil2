@@ -16,6 +16,15 @@ certs/
 org-set-up.md
 CLAUDE.md
 
+# AWS infra — local config, secrets, and generated artifacts (never commit these)
+infra/aws.env
+infra/.ssh/
+infra/**/*.pem
+infra/cdk/.venv/
+infra/cdk/cdk.out/
+infra/ansible/inventory.ini
+infra/**/__pycache__/
+
 # Mobile build artifacts
 mobile/android/build/
 mobile/android/app/build/

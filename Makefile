@@ -163,3 +163,4 @@ android-run-adb: apk-debug
 
 include Makefile-mac.mk
 include Makefile-android.mk
+include Makefile-aws.mk

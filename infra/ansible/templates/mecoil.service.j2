@@ -1,0 +1,21 @@
+[Unit]
+Description=MeCoil game server (Node.js)
+After=network-online.target
+Wants=network-online.target
+# Keep the game server running endlessly while the instance is up (no restart cap).
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User={{ app_user }}
+Group={{ app_user }}
+WorkingDirectory={{ app_dir }}
+# Caddy terminates TLS and reverse-proxies to us on plain HTTP over localhost.
+Environment=NO_HTTPS=1
+Environment=PORT=3000
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

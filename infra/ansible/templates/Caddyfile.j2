@@ -1,0 +1,24 @@
+# Managed by Ansible — do not edit by hand.
+#
+# Caddy terminates TLS and reverse-proxies to the Node server on localhost:3000.
+# reverse_proxy transparently handles WebSocket upgrades (the /ws path).
+{% if mecoil_domain %}
+# A real domain is configured: Caddy obtains and renews a Let's Encrypt cert.
+{{ mecoil_domain }} {
+    encode zstd gzip
+    reverse_proxy localhost:3000
+}
+{% else %}
+# No domain configured: serve HTTPS on the Elastic IP using Caddy's internal CA
+# (self-signed). Browsers/phones will show a certificate warning until you set a
+# domain in infra/aws.env and redeploy.
+:443 {
+    tls internal
+    encode zstd gzip
+    reverse_proxy localhost:3000
+}
+
+:80 {
+    redir https://{host}{uri} permanent
+}
+{% endif %}
