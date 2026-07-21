@@ -191,9 +191,10 @@ passes the right `-f` for you. To run compose by hand instead:
 Caddyfile, and compose file are linted by `make lint` and auto-formatted by
 `make fmt` (install the tools once with `make config-tools`).
 
-For AWS App Runner, build/push the image and let App Runner terminate TLS. See
-[infra/docker/README.md](infra/docker/README.md) for App Runner, plain-Docker,
-and multi-arch build details.
+For the cloud, run the same compose stack on an ARM (Graviton) EC2 host — see
+[infra/docker/BOOTSTRAP.md](infra/docker/BOOTSTRAP.md). See
+[infra/docker/README.md](infra/docker/README.md) for EC2 Graviton, plain-Docker,
+and multi-arch build details (and why not App Runner / ECS Express Mode).
 
 ---
 

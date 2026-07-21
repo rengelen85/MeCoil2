@@ -14,10 +14,11 @@ URL is needed.
 TLS is always terminated **in front of** the app, because phones require HTTPS
 for Web Bluetooth and Geolocation:
 
-- **Synology NAS / ARM EC2** — `docker-compose.yml` runs the app behind Caddy,
-  which handles automatic HTTPS.
-- **AWS App Runner** — App Runner terminates TLS at its edge; run the app image
-  alone, no Caddy.
+- **Synology NAS / ARM EC2 (Graviton)** — `docker-compose.yml` runs the app
+  behind Caddy, which handles automatic HTTPS. This is the recommended cloud
+  deployment; see [EC2 Graviton](#aws-ec2-graviton) below.
+- **Managed container PaaS** — put a WebSocket-capable load balancer (an ALB) in
+  front; see the [note on App Runner / ECS Express Mode](#a-note-on-app-runner--ecs-express-mode).
 
 ## Self-hosted (Synology NAS, ARM EC2) — docker compose
 
@@ -55,20 +56,43 @@ On Synology, point **Container Manager → Project** at this `infra/docker/` fol
 instead of Caddy (in that case run only the `app` service and publish port
 `3000`).
 
-## AWS App Runner
+## AWS EC2 Graviton
 
-App Runner provides HTTPS automatically, so the app runs plain HTTP on `3000`.
+The recommended cloud deployment: a single ARM (Graviton) EC2 instance running
+the `docker compose` stack above. Caddy terminates TLS and upgrades the `/ws`
+WebSocket, so it needs no ALB — which also makes it the cheapest option
+(≈ **$10–18/mo**: `t4g.micro`/`t4g.small` on-demand + EBS + the ~$3.60/mo AWS now
+charges for a public IPv4 address, Elastic or not).
 
-1. Build for arm64 (App Runner runs on Graviton) and push to ECR:
-   ```sh
-   docker buildx build --platform linux/arm64 -f infra/docker/Dockerfile \
-     -t <acct>.dkr.ecr.<region>.amazonaws.com/mecoil:latest --push .
-   ```
-2. Create an App Runner service from that ECR image, port `3000`.
-3. Health check: HTTP path `/` (the server returns the client `index.html`).
+**Provision (once):**
 
-WebSockets work over App Runner's HTTPS endpoint (`wss://…`) with no extra
-config.
+1. Launch **Amazon Linux 2023, arm64** — `t4g.small` (2 GB, comfortable) or
+   `t4g.micro` (1 GB, light use); 8–10 GB gp3 storage.
+2. Security group: inbound `80` + `443` from anywhere, `22` from your IP only.
+3. Use the **auto-assigned (dynamic) public IP** — no Elastic IP. The public IP
+   changes on stop/start; a DuckDNS updater keeps the name in sync (next step).
+4. A real DNS name is required for a *trusted* (Let's Encrypt) cert — phones
+   reject Caddy's self-signed CA for BLE/GPS. Create the free DuckDNS name
+   **`mecoil.duckdns.org`** and grab your token; the bootstrap installs a
+   systemd timer that re-points it at the current public IP at boot + every
+   5 min.
+
+**Deploy:** the fastest path is to paste [`ec2-user-data.sh`](ec2-user-data.sh)
+into the instance's **User data** field at launch (set `DUCKDNS_TOKEN` at the
+top first) — it installs Docker, wires up the DuckDNS updater, clones the repo,
+and starts the stack on first boot. To do it by hand instead, or for the
+update/rollback flow, see [BOOTSTRAP.md](BOOTSTRAP.md).
+
+### A note on App Runner / ECS Express Mode
+
+> **Not App Runner.** It never supported WebSockets (this app is a WebSocket
+> game server), and AWS moved App Runner to maintenance on 2026-04-30 — no new
+> services. Its successor, **ECS Express Mode**, *does* work (it fronts Fargate
+> with a WebSocket-capable ALB), but a single service still pays for a full ALB,
+> so it lands around **$27/mo** and never scales to zero — roughly double the
+> Graviton box for no functional gain here. If you ever run several services and
+> want a managed PaaS, Express Mode's shared ALB makes sense; otherwise prefer
+> the EC2 Graviton route above.
 
 ## Plain Docker (bring your own TLS)
 
