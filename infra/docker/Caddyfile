@@ -1,11 +1,14 @@
-{
-	# Contact address for Let's Encrypt (ACME). Empty is fine for the
-	# localhost/internal-CA case; required for a public domain cert.
-	email {$MECOIL_TLS_EMAIL}
-}
-
 # Caddy provisions and renews the TLS cert automatically for this name.
 # reverse_proxy transparently upgrades WebSocket connections (/ws).
+#
+# For a public domain Caddy uses Let's Encrypt; with MECOIL_DOMAIN=localhost it
+# falls back to its own internal CA (handy for a first smoke test).
+#
+# To receive Let's Encrypt expiry/renewal notices, add a global block above the
+# site with your address, e.g.:
+#     {
+#         email you@example.com
+#     }
 {$MECOIL_DOMAIN} {
 	reverse_proxy app:3000
 }

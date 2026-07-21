@@ -6,7 +6,7 @@
 # (Caddy in docker-compose, or the AWS App Runner / reverse-proxy edge).
 
 # ---- Stage 1: build the Svelte client (needs devDependencies + shared/) ----
-FROM node:22-alpine AS client-build
+FROM docker.io/library/node:22-alpine AS client-build
 WORKDIR /app
 COPY client/package.json client/package-lock.json ./client/
 RUN npm ci --prefix client
@@ -15,13 +15,13 @@ COPY client ./client
 RUN npm run build --prefix client
 
 # ---- Stage 2: install production server dependencies only ----
-FROM node:22-alpine AS server-deps
+FROM docker.io/library/node:22-alpine AS server-deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # ---- Stage 3: minimal runtime ----
-FROM node:22-alpine AS runtime
+FROM docker.io/library/node:22-alpine AS runtime
 ENV NODE_ENV=production
 ENV PORT=3000
 WORKDIR /app

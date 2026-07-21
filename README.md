@@ -181,9 +181,13 @@ container. For a NAS (Synology) or an ARM EC2 host, `docker compose` runs it
 behind Caddy for automatic HTTPS:
 
 ```sh
-cp infra/docker/.env.example .env   # set MECOIL_DOMAIN + MECOIL_TLS_EMAIL
+cp infra/docker/.env.example .env   # set MECOIL_DOMAIN
 docker compose up -d --build
 ```
+
+Or via the Makefile: `make docker-up` / `make docker-test`. The Dockerfile,
+Caddyfile, and compose file are linted by `make lint` and auto-formatted by
+`make fmt` (install the tools once with `make config-tools`).
 
 For AWS App Runner, build/push the image and let App Runner terminate TLS. See
 [infra/docker/README.md](infra/docker/README.md) for App Runner, plain-Docker,

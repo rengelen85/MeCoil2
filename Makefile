@@ -68,12 +68,13 @@ gen-certs:
         -subj "/CN=localhost" \
         -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,DNS:mecoil.local"
 
-# Lint all JS/TS/Svelte sources (Biome)
+# Lint all JS/TS/Svelte sources (Biome) + Docker/Caddy configs (see Makefile-docker.mk)
 lint:
 	uv run --with rumdl \
 	rumdl check --disable MD013
 	npx biome format .
 	npx biome check .
+	$(MAKE) lint-configs
 
 # Auto-format all JS/TS/Svelte sources (Biome primary).
 # Svelte fallback: npx prettier --write "client/src/**/*.svelte"
@@ -82,6 +83,7 @@ fmt:
 	rumdl check --fix --disable MD013
 	npx biome format --write .
 	npx biome check --write .
+	$(MAKE) fmt-configs
 
 # Build + start HTTPS server for real-phone testing (Web Bluetooth requires HTTPS).
 # After running, open the Network URL shown in the terminal on your phone.
@@ -163,3 +165,4 @@ android-run-adb: apk-debug
 
 include Makefile-mac.mk
 include Makefile-android.mk
+include Makefile-docker.mk

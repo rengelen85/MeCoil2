@@ -16,9 +16,17 @@ for Web Bluetooth and Geolocation:
 ## Self-hosted (Synology NAS, ARM EC2) — docker compose
 
 ```sh
-cp infra/docker/.env.example .env      # set MECOIL_DOMAIN + MECOIL_TLS_EMAIL
-docker compose up -d --build
+cp infra/docker/.env.example .env      # set MECOIL_DOMAIN
+docker compose up -d --build           # or: make docker-up
 ```
+
+Makefile targets: `make docker-build`, `make docker-test`, `make docker-up`,
+`make docker-down`.
+
+The Dockerfile, Caddyfile, and `docker-compose.yml` are linted as part of the
+central `make lint` and auto-formatted by `make fmt` (host tools — no container).
+Install those tools once with `make config-tools` (hadolint + caddy); without them
+`make lint` prints a skip notice rather than failing.
 
 - Point your domain's DNS at the host and open ports `80` + `443`. Caddy fetches
   a Let's Encrypt certificate for `MECOIL_DOMAIN` on first start.
@@ -71,4 +79,6 @@ phones won't get BLE/GPS without HTTPS.
 | `PORT`             | `3000`      | Port the Node server listens on.                     |
 | `NO_HTTPS`         | (unset)     | `1` forces plain HTTP even if certs are present.     |
 | `MECOIL_DOMAIN`    | `localhost` | (compose/Caddy) hostname to serve + request a cert.  |
-| `MECOIL_TLS_EMAIL` | (empty)     | (compose/Caddy) ACME contact for Let's Encrypt.      |
+
+To receive Let's Encrypt expiry/renewal notices, add an `email` line to a global
+block in [Caddyfile](Caddyfile) (see the comment there).
