@@ -15,6 +15,14 @@ COMPOSE ?= $(ENGINE) compose
 IMAGE ?= mecoil:latest
 TEST_PORT ?= 3999
 
+# Docker assets live under infra/docker/. The build context stays the repo root
+# (the Dockerfile COPYs client/, server/, shared/). Compose auto-loads a sibling
+# .env; pass it explicitly when present so it works regardless of the cwd.
+DOCKERFILE ?= infra/docker/Dockerfile
+COMPOSE_FILE ?= infra/docker/docker-compose.yml
+ENV_FILE := $(wildcard infra/docker/.env)
+COMPOSE_ENV := $(if $(ENV_FILE),--env-file $(ENV_FILE),)
+
 # Prettier ships with the client dev deps (installed by `make install`).
 PRETTIER ?= client/node_modules/.bin/prettier
 
@@ -59,7 +67,7 @@ config-tools:
 # `make lint` still works before `make config-tools` has been run.
 lint-configs:
 	@if command -v hadolint >/dev/null 2>&1; then \
-		hadolint Dockerfile && echo "Dockerfile: clean"; \
+		hadolint $(DOCKERFILE) && echo "Dockerfile: clean"; \
 	else \
 		echo "⚠  hadolint not installed — skipping Dockerfile lint (run: make config-tools)"; \
 	fi
@@ -70,7 +78,7 @@ lint-configs:
 	else \
 		echo "⚠  caddy not installed — skipping Caddyfile validate (run: make config-tools)"; \
 	fi
-	$(PRETTIER) --check docker-compose.yml
+	$(PRETTIER) --check $(COMPOSE_FILE)
 
 # Auto-format the Caddyfile (caddy fmt) and the compose file (prettier --write).
 # The Dockerfile has no standard formatter; hadolint (via lint-configs) enforces
@@ -81,13 +89,13 @@ fmt-configs:
 	else \
 		echo "⚠  caddy not installed — skipping Caddyfile fmt (run: make config-tools)"; \
 	fi
-	$(PRETTIER) --write docker-compose.yml
+	$(PRETTIER) --write $(COMPOSE_FILE)
 
 # ── Build / run ───────────────────────────────────────────────────────────────
 
-# Build the game-server image.
+# Build the game-server image (Dockerfile in infra/docker/, context = repo root).
 docker-build:
-	$(ENGINE) build -t $(IMAGE) .
+	$(ENGINE) build -f $(DOCKERFILE) -t $(IMAGE) .
 
 # Build, then smoke-test: run the container on plain HTTP and check that the
 # health endpoint (/) returns 200, then tear the container down.
@@ -109,7 +117,7 @@ docker-test: docker-build
 # Bring the full stack (app + Caddy) up / down via compose. Caddy binds 80/443,
 # which Docker handles via its daemon (no sudo needed).
 docker-up:
-	$(COMPOSE) up -d --build
+	$(COMPOSE) -f $(COMPOSE_FILE) $(COMPOSE_ENV) up -d --build
 
 docker-down:
-	$(COMPOSE) down
+	$(COMPOSE) -f $(COMPOSE_FILE) $(COMPOSE_ENV) down

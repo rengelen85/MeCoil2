@@ -4,18 +4,22 @@
 #   caddy  — automatic-HTTPS reverse proxy in front of app
 #
 # Phones need HTTPS for Web Bluetooth + Geolocation, so Caddy terminates TLS.
-# Set MECOIL_DOMAIN in a .env file; see infra/docker/.env.example. With the
-# default MECOIL_DOMAIN=localhost, Caddy serves HTTPS using its own internal CA
-# — handy for a first smoke test.
+# Set MECOIL_DOMAIN in infra/docker/.env; see .env.example alongside this file.
+# With the default MECOIL_DOMAIN=localhost, Caddy serves HTTPS using its own
+# internal CA — handy for a first smoke test.
+#
+# The build context is the repo root (../..) so the Dockerfile's COPY lines
+# reach client/, server/, shared/. Run this file from infra/docker/ (or via
+# `make docker-up`, which passes -f for you).
 #
 # On AWS App Runner you do NOT use this file: build the Dockerfile, push the
-# image, and let App Runner terminate TLS at its edge (see infra/docker/README.md).
+# image, and let App Runner terminate TLS at its edge (see README.md alongside).
 
 services:
   app:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
     image: mecoil:latest
     restart: unless-stopped
     environment:
@@ -35,7 +39,7 @@ services:
     environment:
       - MECOIL_DOMAIN=${MECOIL_DOMAIN:-localhost}
     volumes:
-      - ./infra/docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
 

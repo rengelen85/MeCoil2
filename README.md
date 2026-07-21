@@ -181,11 +181,13 @@ container. For a NAS (Synology) or an ARM EC2 host, `docker compose` runs it
 behind Caddy for automatic HTTPS:
 
 ```sh
-cp infra/docker/.env.example .env   # set MECOIL_DOMAIN
-docker compose up -d --build
+cp infra/docker/.env.example infra/docker/.env   # set MECOIL_DOMAIN
+make docker-up                                    # build + start behind Caddy
 ```
 
-Or via the Makefile: `make docker-up` / `make docker-test`. The Dockerfile,
+The Docker assets live in [infra/docker/](infra/docker/); `make docker-up`
+passes the right `-f` for you. To run compose by hand instead:
+`cd infra/docker && docker compose up -d --build`. The Dockerfile,
 Caddyfile, and compose file are linted by `make lint` and auto-formatted by
 `make fmt` (install the tools once with `make config-tools`).
 

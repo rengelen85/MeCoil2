@@ -1,6 +1,5 @@
 # Excluded folders
 .claude/
-.env/
 .idea/
 node_modules/
 client/dist/
@@ -26,7 +25,8 @@ mobile/ios/Pods/
 mobile/ios/Podfile.lock
 mobile/.expo/
 
-# AWS infra — local config, secrets, and generated artifacts (never commit these)
+# Local env files — real secrets/domain config (commit only the .env.example)
+.env
 infra/aws.env
 infra/.ssh/
 infra/**/*.pem
