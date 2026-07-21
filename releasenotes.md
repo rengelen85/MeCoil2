@@ -1,5 +1,22 @@
 # Release Notes
 
+## [0.4.1] — 2026-07-21
+
+### Added
+
+- **Docker deployment**: Multi-stage, multi-arch (amd64 / arm64) image that builds the Svelte client and serves it together with the WebSocket game server from a single Node process on port 3000. Assets live in [infra/docker/](infra/docker/) (`Dockerfile`, `docker-compose.yml`, `Caddyfile`, `.env.example`)
+- **Automatic HTTPS via Caddy**: `docker compose` runs the app behind Caddy, which provisions and renews TLS certificates automatically (Let's Encrypt for a real domain, internal CA for `localhost` smoke tests) — required for Web Bluetooth and Geolocation on phones. WebSocket (`/ws`) upgrades pass through transparently
+- **Docker make targets** (`Makefile-docker.mk`): `make docker-build`, `make docker-test` (build + health-check smoke test), `make docker-up`, `make docker-down`, plus `make docker-prereqs` and `make config-tools` to install Docker and the config lint/format tools
+- **Config lint & format**: The Dockerfile (hadolint), Caddyfile (`caddy validate` / `caddy fmt`), and compose file (Prettier) are now wired into `make lint` and `make fmt`; missing tools degrade to a warning so a plain lint still works
+- **Cloud deployment guides**: [infra/docker/README.md](infra/docker/README.md) covers self-hosting on a Synology NAS or ARM EC2 (Graviton), multi-arch build details, and why App Runner / ECS Express Mode were avoided; [infra/docker/BOOTSTRAP.md](infra/docker/BOOTSTRAP.md) is a step-by-step EC2 Graviton bring-up (including a DuckDNS dynamic-DNS updater) with an [ec2-user-data.sh](infra/docker/ec2-user-data.sh) unattended-boot script
+- **Docker section in README**: Quick-start instructions for building and running the containerized stack
+
+### Changed
+
+- **`.gitignore`**: Ignore local env and infra secrets (`.env`, `infra/aws.env`, `infra/.ssh/`, `*.pem`, CDK/Ansible artifacts); only the `.env.example` is committed
+
+---
+
 ## [0.4.0] — 2026-07-20
 
 ### Added
