@@ -1,0 +1,48 @@
+# MeCoil — self-hosted stack for a NAS (Synology) or an ARM EC2 host.
+#
+#   app    — Node game server (plain HTTP, internal only)
+#   caddy  — automatic-HTTPS reverse proxy in front of app
+#
+# Phones need HTTPS for Web Bluetooth + Geolocation, so Caddy terminates TLS.
+# Set MECOIL_DOMAIN in infra/docker/.env; see .env.example alongside this file.
+# With the default MECOIL_DOMAIN=localhost, Caddy serves HTTPS using its own
+# internal CA — handy for a first smoke test.
+#
+# The build context is the repo root (../..) so the Dockerfile's COPY lines
+# reach client/, server/, shared/. Run this file from infra/docker/ (or via
+# `make docker-up`, which passes -f for you).
+#
+# On AWS App Runner you do NOT use this file: build the Dockerfile, push the
+# image, and let App Runner terminate TLS at its edge (see README.md alongside).
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    image: mecoil:latest
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - NO_HTTPS=1 # TLS is Caddy's job; keep the app on plain HTTP
+    expose:
+      - "3000"
+
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - MECOIL_DOMAIN=${MECOIL_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

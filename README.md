@@ -174,6 +174,28 @@ For mDNS hostname (`mecoil.local`), install `avahi-daemon` on Raspberry Pi OS â€
 mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mecoil.local $(hostname -I | awk '{print $1}')
 ```
 
+### Docker
+
+A multi-arch (amd64 / arm64) image builds both client and server into one
+container. For a NAS (Synology) or an ARM EC2 host, `docker compose` runs it
+behind Caddy for automatic HTTPS:
+
+```sh
+cp infra/docker/.env.example infra/docker/.env   # set MECOIL_DOMAIN
+make docker-up                                    # build + start behind Caddy
+```
+
+The Docker assets live in [infra/docker/](infra/docker/); `make docker-up`
+passes the right `-f` for you. To run compose by hand instead:
+`cd infra/docker && docker compose up -d --build`. The Dockerfile,
+Caddyfile, and compose file are linted by `make lint` and auto-formatted by
+`make fmt` (install the tools once with `make config-tools`).
+
+For the cloud, run the same compose stack on an ARM (Graviton) EC2 host â€” see
+[infra/docker/BOOTSTRAP.md](infra/docker/BOOTSTRAP.md). See
+[infra/docker/README.md](infra/docker/README.md) for EC2 Graviton, plain-Docker,
+and multi-arch build details (and why not App Runner / ECS Express Mode).
+
 ---
 
 ## How to Play

@@ -1,0 +1,31 @@
+# Version control / editor
+.git
+.github
+.idea
+.rumdl_cache
+.claude
+
+# Dependencies & build output (rebuilt inside the image)
+node_modules
+client/node_modules
+client/dist
+
+# TLS handled upstream (Caddy / App Runner edge) — never bake certs in
+certs
+
+# Everything unrelated to the server/client build
+mobile
+infra
+docs
+releases
+*.tar.gz
+*.zip
+*.apk
+*.bak
+
+# Docs & meta
+README.md
+CLAUDE.md
+releasenotes.md
+Makefile*
+biome.json

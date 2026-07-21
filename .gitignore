@@ -1,6 +1,5 @@
 # Excluded folders
 .claude/
-.env/
 .idea/
 node_modules/
 client/dist/
@@ -25,3 +24,13 @@ mobile/ios/build/
 mobile/ios/Pods/
 mobile/ios/Podfile.lock
 mobile/.expo/
+
+# Local env files — real secrets/domain config (commit only the .env.example)
+.env
+infra/aws.env
+infra/.ssh/
+infra/**/*.pem
+infra/cdk/.venv/
+infra/cdk/cdk.out/
+infra/ansible/inventory.ini
+infra/**/__pycache__/
