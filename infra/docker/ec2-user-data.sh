@@ -5,7 +5,8 @@
 # currently has, so the address survives stop/start within a few minutes.
 #
 # Paste this into the instance's "User data" field at launch (or run it by hand
-# as root on a fresh box). It installs Docker + the compose plugin, wires up the
+# as root on a fresh box). It installs Docker + the compose & buildx plugins,
+# wires up the
 # DuckDNS updater, clones the repo, and brings up the app + Caddy stack. Caddy
 # fetches a Let's Encrypt cert for $MECOIL_DOMAIN once DNS resolves here. See
 # BOOTSTRAP.md for the manual walk-through.
@@ -31,6 +32,16 @@ curl -fsSL \
   https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64 \
   -o /usr/libexec/docker/cli-plugins/docker-compose
 chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+# --- docker buildx plugin (arm64) ----------------------------------------
+# AL2023's docker package ships no (or an old) buildx, but `docker compose
+# --build` needs buildx >= 0.17.0. Install the latest release binary.
+BUILDX_TAG=$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest \
+  | grep -oP '"tag_name":\s*"\K[^"]+')
+curl -fsSL \
+  "https://github.com/docker/buildx/releases/download/${BUILDX_TAG}/buildx-${BUILDX_TAG}.linux-arm64" \
+  -o /usr/libexec/docker/cli-plugins/docker-buildx
+chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
 
 # --- DuckDNS dynamic-DNS updater (systemd oneshot + 5-min timer) ----------
 # `ip=` left empty means DuckDNS uses the request's source address — i.e. this

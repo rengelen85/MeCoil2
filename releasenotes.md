@@ -1,5 +1,13 @@
 # Release Notes
 
+## [0.4.2] — 2026-07-22
+
+### Fixed
+
+- **EC2 Docker bootstrap**: The Graviton (arm64) bring-up now installs the Docker **buildx** plugin. Amazon Linux 2023's `docker` package ships no (or too old a) buildx, but `docker compose --build` requires buildx >= 0.17.0, so a fresh box failed to build the image. Both the manual [BOOTSTRAP.md](infra/docker/BOOTSTRAP.md) walk-through and the unattended [ec2-user-data.sh](infra/docker/ec2-user-data.sh) script now fetch the latest buildx release binary into the CLI plugins directory
+
+---
+
 ## [0.4.1] — 2026-07-21
 
 ### Added
