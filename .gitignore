@@ -25,3 +25,12 @@ mobile/ios/build/
 mobile/ios/Pods/
 mobile/ios/Podfile.lock
 mobile/.expo/
+
+# AWS infra — local config, secrets, and generated artifacts (never commit these)
+infra/aws.env
+infra/.ssh/
+infra/**/*.pem
+infra/cdk/.venv/
+infra/cdk/cdk.out/
+infra/ansible/inventory.ini
+infra/**/__pycache__/

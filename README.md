@@ -174,6 +174,21 @@ For mDNS hostname (`mecoil.local`), install `avahi-daemon` on Raspberry Pi OS â€
 mkcert -cert-file certs/cert.pem -key-file certs/key.pem localhost 127.0.0.1 mecoil.local $(hostname -I | awk '{print $1}')
 ```
 
+### Docker
+
+A multi-arch (amd64 / arm64) image builds both client and server into one
+container. For a NAS (Synology) or an ARM EC2 host, `docker compose` runs it
+behind Caddy for automatic HTTPS:
+
+```sh
+cp infra/docker/.env.example .env   # set MECOIL_DOMAIN + MECOIL_TLS_EMAIL
+docker compose up -d --build
+```
+
+For AWS App Runner, build/push the image and let App Runner terminate TLS. See
+[infra/docker/README.md](infra/docker/README.md) for App Runner, plain-Docker,
+and multi-arch build details.
+
 ---
 
 ## How to Play

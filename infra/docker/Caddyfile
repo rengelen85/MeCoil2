@@ -1,0 +1,11 @@
+{
+	# Contact address for Let's Encrypt (ACME). Empty is fine for the
+	# localhost/internal-CA case; required for a public domain cert.
+	email {$MECOIL_TLS_EMAIL}
+}
+
+# Caddy provisions and renews the TLS cert automatically for this name.
+# reverse_proxy transparently upgrades WebSocket connections (/ws).
+{$MECOIL_DOMAIN} {
+	reverse_proxy app:3000
+}
