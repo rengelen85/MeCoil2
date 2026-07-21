@@ -89,6 +89,17 @@ sudo curl -fsSL \
   https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64 \
   -o /usr/libexec/docker/cli-plugins/docker-compose
 sudo chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+# docker buildx plugin (arm64): AL2023's docker package ships no (or an old)
+# buildx, but `docker compose --build` needs buildx >= 0.17.0. Install the
+# latest release binary:
+BUILDX_TAG=$(curl -fsSL https://api.github.com/repos/docker/buildx/releases/latest \
+  | grep -oP '"tag_name":\s*"\K[^"]+')
+sudo curl -fsSL \
+  "https://github.com/docker/buildx/releases/download/${BUILDX_TAG}/buildx-${BUILDX_TAG}.linux-arm64" \
+  -o /usr/libexec/docker/cli-plugins/docker-buildx
+sudo chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
+docker buildx version   # must be >= 0.17.0
 ```
 
 ## 4. Clone, configure, start
