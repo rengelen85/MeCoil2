@@ -110,22 +110,23 @@ function onKey(e) {
       {/if}
     </div>
 
+    <button class="btn-primary" on:click={join} disabled={connecting}>
+      {connecting ? status : 'Continue'}
+    </button>
+  </div>
+
+  <div class="footer">
+    <p class="hint">
+      Bluetooth requires Chrome or Edge on Android over HTTPS.<br/>
+      iOS is not supported due to browser restrictions.
+    </p>
     <div class="download-section">
       <p>Want to play on mobile?</p>
       <a href="https://github.com/rengelen85/MeCoil2/releases/latest" target="_blank" rel="noopener noreferrer" class="download-link">
         Download Android App
       </a>
     </div>
-
-    <button class="btn-primary" on:click={join} disabled={connecting}>
-      {connecting ? status : 'Continue'}
-    </button>
   </div>
-
-  <p class="hint">
-    Bluetooth requires Chrome or Edge on Android over HTTPS.<br/>
-    iOS is not supported due to browser restrictions.
-  </p>
 </div>
 
 <style>
@@ -257,23 +258,34 @@ function onKey(e) {
     font-size: 14px;
   }
 
+  .footer {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding-top: 16px;
+  }
+
   .hint {
     color: var(--text-muted);
     font-size: 11px;
     text-align: center;
     line-height: 1.6;
+    margin: 0;
   }
 
   .download-section {
     text-align: center;
-    padding: 8px 0;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
   }
   .download-section p {
     font-size: 12px;
     color: var(--text-muted);
-    margin: 0 0 8px 0;
+    margin: 0;
   }
 
   .download-link {
