@@ -3,6 +3,7 @@ import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
 
 export const screen = writable('setup'); // 'setup' | 'lobby' | 'ingame' | 'end'
 export const isReconnecting = writable(false); // true while auto-reconnect is in progress
+export const reconnectFailed = writable(false); // true once auto-reconnect gave up; drives the manual "Rejoin" button
 
 export const myId = writable(null);
 export const isHost = writable(false);

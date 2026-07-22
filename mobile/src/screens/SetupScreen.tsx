@@ -15,10 +15,16 @@ import { RootStackParamList } from '../navigation/index.js';
 import {
   useGameStore,
   loadSession,
+  loadStoredPlayerId,
   loadServerUrl,
   saveServerUrl,
 } from '../stores/game.js';
-import { connect, sendRegister, normalizeServerUrl } from '../lib/network.js';
+import {
+  connect,
+  sendRegister,
+  sendRejoin,
+  normalizeServerUrl,
+} from '../lib/network.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Setup'>;
 
@@ -26,7 +32,7 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
   const [name, setName] = useState('');
   const [serverUrl, setServerUrl] = useState('');
   const [connecting, setConnecting] = useState(false);
-  const { setUsername } = useGameStore();
+  const { setUsername, setMyId } = useGameStore();
 
   useEffect(() => {
     loadSession().then(saved => {
@@ -35,7 +41,12 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
     loadServerUrl().then(saved => {
       if (saved) setServerUrl(saved);
     });
-  }, []);
+    // Restore the previous player id so, if the app was killed mid-game, we can
+    // REJOIN the still-held session instead of registering as a new player.
+    loadStoredPlayerId().then(id => {
+      if (id != null) setMyId(id);
+    });
+  }, [setMyId]);
 
   async function handleConnect() {
     if (!name.trim()) {
@@ -52,7 +63,15 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
       await connect(url);
       setUsername(name.trim());
       saveServerUrl(serverUrl.trim());
-      sendRegister(name.trim());
+      // If we have a stored player id (app killed mid-game), try to resume that
+      // session; the server replies REJOIN_FAILED if it has expired, and the
+      // network handler then falls back to a fresh REGISTER automatically.
+      const storedId = useGameStore.getState().myId;
+      if (storedId != null) {
+        sendRejoin(storedId, name.trim());
+      } else {
+        sendRegister(name.trim());
+      }
     } catch (e: unknown) {
       Alert.alert('Connection failed', (e as Error).message);
     } finally {

@@ -17,6 +17,7 @@ import {
   sendJoinRoom,
   sendCreateRoom,
 } from '../lib/network.js';
+import ReconnectOverlay from '../components/ReconnectOverlay.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomSelect'>;
 
@@ -105,6 +106,8 @@ export default function RoomSelectScreen(_props: Props) {
           </View>
         </View>
       </Modal>
+
+      <ReconnectOverlay />
     </View>
   );
 }

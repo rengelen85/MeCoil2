@@ -304,9 +304,11 @@ The current mode is displayed as a colored badge in the bottom-left HUD (`SEMI`,
 
 ### WiFi Drop Management
 
-When a player's WiFi drops, the client automatically reconnects with exponential backoff (1s → 2s → 4s … 15s max). While reconnecting, a spinner overlay appears but gameplay continues in the background — the server holds the player's session for **90 seconds**, preserving their **team assignment, health, ammo, held power-ups (airstrikes/apaches), active buffs (shield/stealth/radar), and all stats (kills/deaths)**.
+Both the web client and the Android app survive a WiFi drop — including a phone hopping between access points, which normally leaves the WebSocket half-open without ever firing a close event. A **heartbeat** pings the server every few seconds and, if no traffic comes back within ~12 seconds, the client declares the socket dead and reconnects with exponential backoff (1s → 2s → 4s … 15s max). While reconnecting, a **Reconnecting…** overlay appears but gameplay continues in the background.
 
-On reconnect success, the player is restored to the game instantly, maintaining the same team and game state as if the disconnect never happened. If reconnection fails after exhausting retries, they fall back to re-registering as a new player. BLE state is unaffected by the disconnect.
+The server holds a dropped player's session for the **rest of the round** (and ~90 seconds while in the lobby), preserving their **team assignment, health, ammo, held power-ups (airstrikes/apaches), active buffs (shield/stealth/radar), and all stats (kills/deaths)**. On reconnect the player is restored instantly, as if the disconnect never happened.
+
+If auto-reconnect exhausts its retries, the overlay switches to **Connection lost** with a **🔄 Rejoin game** button — because the session is held for the whole round, tapping it any time before the game ends restores everything. The Android app also persists the player id, so even after the app is killed and reopened, connecting again resumes the same in-progress session (falling back to a fresh registration only once the session has expired). BLE state is unaffected by the disconnect.
 
 ---
 

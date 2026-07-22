@@ -3,6 +3,7 @@
 export const C2S = {
   REGISTER: 'register',
   REJOIN: 'rejoin', // { playerId, username } — resume session after WiFi drop
+  PING: 'ping', // client heartbeat; server answers with PONG. Lets the client detect a dead socket (e.g. a WiFi AP switch) that never fires onclose.
   LIST_ROOMS: 'listRooms',
   CREATE_ROOM: 'createRoom',
   JOIN_ROOM: 'joinRoom',
@@ -26,6 +27,7 @@ export const C2S = {
 export const S2C = {
   REGISTERED: 'registered',
   REJOIN_FAILED: 'rejoinFailed', // session not found or expired — client should re-register
+  PONG: 'pong', // heartbeat reply to a client PING; presence of traffic keeps the client's watchdog satisfied
   ROOMS_LIST: 'roomsList',
   JOINED: 'joined',
   LOBBY_UPDATE: 'lobbyUpdate',

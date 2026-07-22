@@ -139,6 +139,9 @@ interface GameStore {
   gameId: string | null;
   roundId: string | null;
   isReconnecting: boolean;
+  // True once auto-reconnect has exhausted its attempts; drives the manual
+  // "Rejoin" affordance while the server still holds the session for the round.
+  reconnectFailed: boolean;
   ammo: number;
   maxAmmo: number;
   isReloading: boolean;
@@ -204,6 +207,7 @@ interface GameStore {
   setGameId: (id: string | null) => void;
   setRoundId: (id: string | null) => void;
   setIsReconnecting: (v: boolean) => void;
+  setReconnectFailed: (v: boolean) => void;
   setAmmo: (n: number) => void;
   setMaxAmmo: (n: number) => void;
   setIsReloading: (v: boolean) => void;
@@ -278,6 +282,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   gameId: null,
   roundId: null,
   isReconnecting: false,
+  reconnectFailed: false,
   ammo: 30,
   maxAmmo: 30,
   isReloading: false,
@@ -334,6 +339,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   setGameId: id => set({ gameId: id }),
   setRoundId: id => set({ roundId: id }),
   setIsReconnecting: v => set({ isReconnecting: v }),
+  setReconnectFailed: v => set({ reconnectFailed: v }),
   setAmmo: n => set({ ammo: n }),
   setMaxAmmo: n => set({ maxAmmo: n }),
   setIsReloading: v => set({ isReloading: v }),
@@ -423,6 +429,11 @@ export const saveSession = (name: string, playerId?: number | null) => {
 
 export const loadSession = (): Promise<string | null> =>
   AsyncStorage.getItem('mecoil_username');
+
+export const loadStoredPlayerId = (): Promise<number | null> =>
+  AsyncStorage.getItem('mecoil_player_id').then(v =>
+    v == null ? null : Number(v),
+  );
 
 export const clearStoredPlayerId = () =>
   AsyncStorage.removeItem('mecoil_player_id');

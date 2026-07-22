@@ -6,7 +6,7 @@ import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
-import { C2S } from '../shared/messages.js';
+import { C2S, S2C } from '../shared/messages.js';
 import { Player } from './Player.js';
 import { RoomManager } from './RoomManager.js';
 
@@ -51,6 +51,13 @@ wss.on('connection', (ws) => {
     try {
       msg = JSON.parse(raw);
     } catch {
+      return;
+    }
+
+    // Heartbeat: answer pings in any state (even before REGISTER) so the client's
+    // watchdog sees traffic and can tell a live socket from a dead one.
+    if (msg.type === C2S.PING) {
+      ws.send(JSON.stringify({ type: S2C.PONG }));
       return;
     }
 

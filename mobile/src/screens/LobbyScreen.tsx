@@ -34,6 +34,7 @@ import {
 import { connectBle } from '../lib/ble.js';
 import { GAME_MODES, GAME_STATES, TEAMS } from 'shared/messages.js';
 import SetupPreviewMap, { PreviewMarker } from '../components/SetupPreviewMap.js';
+import ReconnectOverlay from '../components/ReconnectOverlay.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Lobby'>;
 
@@ -785,6 +786,8 @@ export default function LobbyScreen(_props: Props) {
           </TouchableOpacity>
         )}
       </View>
+
+      <ReconnectOverlay />
     </View>
   );
 }

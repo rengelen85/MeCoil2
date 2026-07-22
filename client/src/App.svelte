@@ -1,7 +1,12 @@
 <script>
 import { onMount } from 'svelte';
 import { tryAutoReconnectBle } from './lib/ble.js';
-import { connect, sendRegister, sendRejoin } from './lib/network.js';
+import {
+  connect,
+  manualReconnect,
+  sendRegister,
+  sendRejoin,
+} from './lib/network.js';
 import EndScreen from './screens/EndScreen.svelte';
 import InGame from './screens/InGame.svelte';
 import Lobby from './screens/Lobby.svelte';
@@ -10,6 +15,7 @@ import Setup from './screens/Setup.svelte';
 import {
   isReconnecting,
   loadSession,
+  reconnectFailed,
   screen,
   username,
 } from './stores/game.js';
@@ -49,11 +55,21 @@ onMount(async () => {
   <EndScreen />
 {/if}
 
-{#if $isReconnecting}
+{#if $isReconnecting || $reconnectFailed}
   <div class="reconnect-overlay">
     <div class="reconnect-box">
-      <div class="spinner"></div>
-      <p>Reconnecting…</p>
+      {#if $isReconnecting}
+        <div class="spinner"></div>
+        <p>Reconnecting…</p>
+      {:else}
+        <p class="reconnect-title">Connection lost</p>
+        <p class="reconnect-sub">
+          Rejoin to get back in with your stats and power-ups.
+        </p>
+        <button class="rejoin-btn" on:click={manualReconnect}>
+          🔄 Rejoin game
+        </button>
+      {/if}
     </div>
   </div>
 {/if}
@@ -84,6 +100,34 @@ onMount(async () => {
 
   .reconnect-box p {
     margin: 0;
+  }
+
+  .reconnect-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+  }
+
+  .reconnect-sub {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: center;
+    max-width: 22rem;
+  }
+
+  .rejoin-btn {
+    margin-top: 0.5rem;
+    background: #00e5ff;
+    color: #00232b;
+    border: none;
+    border-radius: 8px;
+    padding: 0.7rem 1.6rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .rejoin-btn:hover {
+    background: #33ebff;
   }
 
   .spinner {
