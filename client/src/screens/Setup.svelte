@@ -110,6 +110,13 @@ function onKey(e) {
       {/if}
     </div>
 
+    <div class="download-section">
+      <p>Want to play on mobile?</p>
+      <a href="https://github.com/rengelen85/MeCoil2/releases/latest" target="_blank" rel="noopener noreferrer" class="download-link">
+        Download Android App
+      </a>
+    </div>
+
     <button class="btn-primary" on:click={join} disabled={connecting}>
       {connecting ? status : 'Continue'}
     </button>
@@ -255,5 +262,33 @@ function onKey(e) {
     font-size: 11px;
     text-align: center;
     line-height: 1.6;
+  }
+
+  .download-section {
+    text-align: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .download-section p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0 0 8px 0;
+  }
+
+  .download-link {
+    display: inline-block;
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    transition: all 0.2s;
+  }
+  .download-link:hover {
+    background: var(--accent);
+    color: #000;
   }
 </style>
