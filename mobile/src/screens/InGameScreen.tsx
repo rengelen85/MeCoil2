@@ -11,6 +11,7 @@ import { GAME_MODES } from 'shared/messages.js';
 import GameMap from '../components/GameMap.js';
 import ScoreBoard from '../components/ScoreBoard.js';
 import Compass from '../components/Compass.js';
+import ReconnectOverlay from '../components/ReconnectOverlay.js';
 
 // Short top-bar label per game mode (mirrors the web client).
 const MODE_LABELS: Record<string, string> = {
@@ -564,6 +565,8 @@ export default function InGameScreen(_props: Props) {
           )}
         </View>
       </View>
+
+      <ReconnectOverlay />
     </View>
   );
 }

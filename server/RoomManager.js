@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { C2S, S2C } from '../shared/messages.js';
+import { C2S, GAME_STATES, S2C } from '../shared/messages.js';
 import { GameManager } from './GameManager.js';
 
 // Grace window during which a dropped player's session (team, health, held
-// power-ups, stats) is kept alive for a transparent REJOIN. Sized to comfortably
-// cover the client's auto-reconnect retry budget (~75s) so a typical WiFi blip
-// restores the session instead of falling through to a fresh register.
+// power-ups, stats) is kept alive for a transparent REJOIN. Comfortably covers the
+// client's auto-reconnect retry budget (~75s) so a typical WiFi blip in the lobby
+// restores the session instead of falling through to a fresh register. During an
+// active round the window is re-armed every tick (see _scheduleRemoval) so the
+// slot survives for the whole game and the player can always rejoin.
 const RECONNECT_GRACE_MS = 90_000;
 
 let nextRoomId = 1;
@@ -54,7 +56,7 @@ export class RoomManager {
     if (room) room.manager.handleMessage(player, msg);
   }
 
-  // Called on WebSocket close — starts a 30s grace period before removing the player.
+  // Called on WebSocket close — starts a grace period before removing the player.
   // If they reconnect in time and send REJOIN, their session is restored transparently.
   handleDisconnect(player) {
     const roomId = this._playerRoom.get(player.id);
@@ -66,17 +68,31 @@ export class RoomManager {
     }
 
     player.disconnected = true;
-    const timer = setTimeout(() => {
-      this._pendingReconnect.delete(player.id);
-      this._immediateRemove(player, roomId);
-      this._broadcastRoomList();
-    }, RECONNECT_GRACE_MS);
-    this._pendingReconnect.set(player.id, { player, roomId, timer });
+    this._scheduleRemoval(player, roomId);
 
     // Show the disconnected indicator to the other players in the room
     const room = this._rooms.get(roomId);
     if (room) room.manager._broadcastLobby();
     this._broadcastRoomList();
+  }
+
+  // Arm (or re-arm) the grace timer that removes a disconnected player. While a
+  // round is live we keep re-arming instead of removing, so a dropped player's
+  // slot — team, health, held power-ups, buffs and stats — survives for the whole
+  // game and they can always REJOIN. Once the round ends (state back to WAITING)
+  // the next tick removes them, so the lobby grace stays a bounded RECONNECT_GRACE_MS.
+  _scheduleRemoval(player, roomId) {
+    const timer = setTimeout(() => {
+      const room = this._rooms.get(roomId);
+      if (room && room.manager.state === GAME_STATES.PLAYING) {
+        this._scheduleRemoval(player, roomId);
+        return;
+      }
+      this._pendingReconnect.delete(player.id);
+      this._immediateRemove(player, roomId);
+      this._broadcastRoomList();
+    }, RECONNECT_GRACE_MS);
+    this._pendingReconnect.set(player.id, { player, roomId, timer });
   }
 
   // Called when a new WebSocket sends C2S.REJOIN.

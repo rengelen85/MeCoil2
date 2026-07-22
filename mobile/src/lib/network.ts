@@ -17,6 +17,58 @@ let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const RECONNECT_MAX_ATTEMPTS = 8;
 const RECONNECT_BASE_DELAY_MS = 1_000;
 
+// ── Heartbeat / dead-socket watchdog ──────────────────────────────────────────
+// React Native's WebSocket often does NOT fire onclose when the network interface
+// changes (e.g. the phone hops WiFi access points) — the socket lingers OPEN for
+// minutes. So we can't rely on onclose alone to notice a drop. Instead we send a
+// PING every few seconds and treat the socket as dead if no traffic (PONG, or any
+// game broadcast) arrives within STALE_TIMEOUT_MS, then force-close it to kick off
+// the normal reconnect path.
+const HEARTBEAT_INTERVAL_MS = 5_000;
+const WATCHDOG_INTERVAL_MS = 3_000;
+const STALE_TIMEOUT_MS = 12_000;
+let _lastMessageAt = 0;
+let _heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let _watchdogTimer: ReturnType<typeof setInterval> | null = null;
+
+// Attach the message handler used by every socket we open: stamp the arrival time
+// (so the watchdog can tell a live socket from a dead one) then dispatch.
+function _attachMessageHandler(sock: WebSocket) {
+  sock.onmessage = e => {
+    _lastMessageAt = Date.now();
+    _handle(JSON.parse(e.data));
+  };
+}
+
+function _startHeartbeat() {
+  _stopHeartbeat();
+  _lastMessageAt = Date.now();
+  _heartbeatTimer = setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: C2S.PING }));
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+  _watchdogTimer = setInterval(() => {
+    if (ws && Date.now() - _lastMessageAt > STALE_TIMEOUT_MS) {
+      // No traffic for too long — the socket is dead even if RN still calls it
+      // OPEN. Close it so onclose → _handleClose → reconnect fires promptly.
+      _stopHeartbeat();
+      ws.close();
+    }
+  }, WATCHDOG_INTERVAL_MS);
+}
+
+function _stopHeartbeat() {
+  if (_heartbeatTimer) {
+    clearInterval(_heartbeatTimer);
+    _heartbeatTimer = null;
+  }
+  if (_watchdogTimer) {
+    clearInterval(_watchdogTimer);
+    _watchdogTimer = null;
+  }
+}
+
 let _getPosition: () => { lat: number | null; lng: number | null } = () => ({
   lat: null,
   lng: null,
@@ -56,6 +108,7 @@ export function connect(serverUrl: string): Promise<void> {
       // Once open, a close is a mid-session drop — route it through the
       // auto-reconnect handler instead of the connect-failure path below.
       ws.onclose = () => _handleClose();
+      _startHeartbeat();
       resolve();
     };
     newWs.onerror = (e: { message?: string } = {}) => {
@@ -63,7 +116,7 @@ export function connect(serverUrl: string): Promise<void> {
       settled = true;
       reject(new Error(e.message || `Could not reach ${serverUrl}`));
     };
-    newWs.onmessage = e => _handle(JSON.parse(e.data));
+    _attachMessageHandler(newWs);
     newWs.onclose = (e: { code?: number; reason?: string } = {}) => {
       // A close before the socket ever opened means the connect failed; surface
       // the close code (e.g. 1006 = abnormal, often TLS/handshake/network).
@@ -84,6 +137,7 @@ export function connect(serverUrl: string): Promise<void> {
 // A socket drop while we're past the setup screen kicks off backoff reconnect;
 // otherwise (e.g. on the setup screen) we just fall back to WAITING.
 function _handleClose() {
+  _stopHeartbeat();
   const screen = useGameStore.getState().screen;
   if (screen === 'ingame' || screen === 'lobby' || screen === 'roomselect') {
     useGameStore.getState().setIsReconnecting(true);
@@ -96,9 +150,11 @@ function _handleClose() {
 function _scheduleReconnect() {
   if (_reconnectTimer) clearTimeout(_reconnectTimer);
   if (_reconnectAttempts >= RECONNECT_MAX_ATTEMPTS) {
+    // Auto-reconnect gave up. Keep the player's identity and current screen so
+    // they can rejoin themselves — the server holds their session for the whole
+    // round — and surface a "Rejoin" button via reconnectFailed.
     useGameStore.getState().setIsReconnecting(false);
-    useGameStore.getState().setGameState(GAME_STATES.WAITING);
-    useGameStore.getState().setScreen('setup');
+    useGameStore.getState().setReconnectFailed(true);
     return;
   }
   const delay = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** _reconnectAttempts, 15_000);
@@ -113,6 +169,7 @@ function _doReconnect() {
     ws = newWs;
     ws.onclose = () => _handleClose();
     _reconnectAttempts = 0;
+    _startHeartbeat();
     // Try to restore the previous session; fall back to a fresh register.
     const g = useGameStore.getState();
     if (g.myId && g.username) {
@@ -122,12 +179,23 @@ function _doReconnect() {
     }
   };
   newWs.onerror = () => {};
-  newWs.onmessage = e => _handle(JSON.parse(e.data));
+  _attachMessageHandler(newWs);
   newWs.onclose = () => _scheduleReconnect();
+}
+
+// Triggered by the "Rejoin" button once auto-reconnect has given up.
+export function manualReconnect() {
+  if (_reconnectTimer) clearTimeout(_reconnectTimer);
+  _reconnectAttempts = 0;
+  const g = useGameStore.getState();
+  g.setReconnectFailed(false);
+  g.setIsReconnecting(true);
+  _doReconnect();
 }
 
 export function disconnect() {
   if (_reconnectTimer) clearTimeout(_reconnectTimer);
+  _stopHeartbeat();
   _reconnectAttempts = 0;
   // Drop the close handler so an intentional disconnect doesn't trigger
   // reconnect backoff.
@@ -188,6 +256,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
   switch (msg.type) {
     case S2C.REGISTERED:
       game.setIsReconnecting(false);
+      game.setReconnectFailed(false);
       game.setMyId(msg.playerId as number);
       saveSession(game.username, msg.playerId as number);
       game.setScreen('roomselect');
@@ -208,6 +277,7 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       const ls = msg.lobbyState as Record<string, unknown>;
       const config = ls.config as Record<string, unknown>;
       game.setIsReconnecting(false);
+      game.setReconnectFailed(false);
       game.setMyId(msg.playerId as number);
       game.setIsHost(msg.isHost as boolean);
       game.setPlayers((ls.players as []) ?? []);

@@ -1,5 +1,24 @@
 # Release Notes
 
+## [0.4.3] — 2026-07-22
+
+### Added
+
+- **Heartbeat / dead-socket watchdog**: Both web and Android clients now detect a WiFi drop immediately (even when the OS doesn't fire a WebSocket `close` event), via a 5-second PING heartbeat and a 12-second stale timeout — no more lingering half-open sockets
+- **Manual rejoin button**: Once auto-reconnect exhausts its retries, players see "Connection lost" with a **🔄 Rejoin game** button instead of being dumped to setup — because the session is held for the whole round, tapping it restores all stats and power-ups
+- **Whole-round session hold**: The server now keeps a dropped player's session alive for the entire game (not just 90 seconds), so any reconnect during play — automatic or manual — instantly restores team, health, ammo, held airstrikes/apaches, active buffs, and K/D stats
+- **App-kill recovery (Android)**: The Android app now persists the player ID across restarts; reconnecting after a full app kill resumes the in-progress session instead of joining as a new player (falls back to fresh registration only once the session truly expires)
+
+### Changed
+
+- **WiFi Drop Management (README)**: Clarified the new heartbeat-based detection and whole-round session hold, explaining the manual rejoin flow
+
+### Fixed
+
+- **WiFi AP switch on Android**: Phone switching access points mid-game no longer creates a new player; auto-reconnect now detects the dead socket within seconds and restores the session transparently
+
+---
+
 ## [0.4.2] — 2026-07-22
 
 ### Fixed

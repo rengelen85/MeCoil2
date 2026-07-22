@@ -34,6 +34,7 @@ import {
   players,
   radarActive,
   radarCountdown,
+  reconnectFailed,
   reloadDelaySecs,
   resetGame,
   respawnCountdown,
@@ -76,6 +77,52 @@ let _reconnectTimer = null;
 const RECONNECT_MAX_ATTEMPTS = 8;
 const RECONNECT_BASE_DELAY_MS = 1_000;
 
+// ── Heartbeat / dead-socket watchdog ──────────────────────────────────────────
+// A WebSocket doesn't always fire onclose when the network drops (half-open
+// sockets, laptop sleep, a phone switching WiFi). So we ping periodically and
+// treat the socket as dead if no traffic (PONG or any game broadcast) arrives
+// within STALE_TIMEOUT_MS, then force-close it to kick off the reconnect path.
+const HEARTBEAT_INTERVAL_MS = 5_000;
+const WATCHDOG_INTERVAL_MS = 3_000;
+const STALE_TIMEOUT_MS = 12_000;
+let _lastMessageAt = 0;
+let _heartbeatTimer = null;
+let _watchdogTimer = null;
+
+function _startHeartbeat() {
+  _stopHeartbeat();
+  _lastMessageAt = Date.now();
+  _heartbeatTimer = setInterval(() => {
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: C2S.PING }));
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+  _watchdogTimer = setInterval(() => {
+    if (ws && Date.now() - _lastMessageAt > STALE_TIMEOUT_MS) {
+      _stopHeartbeat();
+      ws.close();
+    }
+  }, WATCHDOG_INTERVAL_MS);
+}
+
+function _stopHeartbeat() {
+  if (_heartbeatTimer) {
+    clearInterval(_heartbeatTimer);
+    _heartbeatTimer = null;
+  }
+  if (_watchdogTimer) {
+    clearInterval(_watchdogTimer);
+    _watchdogTimer = null;
+  }
+}
+
+// Stamp the arrival time (so the watchdog can tell a live socket from a dead one)
+// then dispatch. Used as the onmessage handler for every socket we open.
+function _onMessage(e) {
+  _lastMessageAt = Date.now();
+  _handle(JSON.parse(e.data));
+}
+
 let _getPosition = () => ({ lat: null, lng: null });
 
 export function setPositionGetter(fn) {
@@ -89,16 +136,18 @@ export function connect(serverUrl) {
     newWs.onopen = () => {
       ws = newWs;
       ws.onclose = () => _handleClose();
+      _startHeartbeat();
       resolve();
     };
     newWs.onerror = () => {};
-    newWs.onmessage = (e) => _handle(JSON.parse(e.data));
+    newWs.onmessage = _onMessage;
     // Before onopen fires, a close means the initial connection failed
     newWs.onclose = () => reject(new Error('WebSocket connection failed'));
   });
 }
 
 function _handleClose() {
+  _stopHeartbeat();
   const s = get(screen);
   if (s === 'ingame' || s === 'lobby' || s === 'roomselect') {
     isReconnecting.set(true);
@@ -111,9 +160,11 @@ function _handleClose() {
 function _scheduleReconnect() {
   clearTimeout(_reconnectTimer);
   if (_reconnectAttempts >= RECONNECT_MAX_ATTEMPTS) {
+    // Auto-reconnect gave up. Keep the player's identity and current screen so
+    // they can rejoin themselves — the server holds their session for the whole
+    // round — and surface a "Rejoin" button via reconnectFailed.
     isReconnecting.set(false);
-    gameState.set(GAME_STATES.WAITING);
-    screen.set('setup');
+    reconnectFailed.set(true);
     return;
   }
   const delay = Math.min(
@@ -130,6 +181,7 @@ function _doReconnect() {
     ws = newWs;
     ws.onclose = () => _handleClose();
     _reconnectAttempts = 0;
+    _startHeartbeat();
     // Try to restore the previous session; fall back to fresh register
     const pid = get(myId);
     const uname = get(username);
@@ -142,8 +194,17 @@ function _doReconnect() {
     }
   };
   newWs.onerror = () => {};
-  newWs.onmessage = (e) => _handle(JSON.parse(e.data));
+  newWs.onmessage = _onMessage;
   newWs.onclose = () => _scheduleReconnect();
+}
+
+// Triggered by the "Rejoin" button once auto-reconnect has given up.
+export function manualReconnect() {
+  clearTimeout(_reconnectTimer);
+  _reconnectAttempts = 0;
+  reconnectFailed.set(false);
+  isReconnecting.set(true);
+  _doReconnect();
 }
 
 export function send(obj) {
@@ -237,6 +298,7 @@ function _handle(msg) {
   switch (msg.type) {
     case S2C.REGISTERED:
       isReconnecting.set(false);
+      reconnectFailed.set(false);
       myId.set(msg.playerId);
       saveSession(get(username), msg.playerId);
       screen.set('roomselect');
@@ -255,6 +317,7 @@ function _handle(msg) {
 
     case S2C.JOINED:
       isReconnecting.set(false);
+      reconnectFailed.set(false);
       myId.set(msg.playerId);
       isHost.set(msg.isHost);
       players.set(msg.lobbyState.players);
