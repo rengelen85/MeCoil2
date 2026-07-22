@@ -97,24 +97,50 @@ export class RoomManager {
 
   // Called when a new WebSocket sends C2S.REJOIN.
   // Returns the restored Player on success, or null on failure (sends REJOIN_FAILED).
+  //
+  // A dropped player is kept in their room for the whole grace period (they're only
+  // removed once the timer fires), so we look the session up by room membership
+  // rather than by the pending-reconnect map. This covers two cases with one path:
+  //   1. Graceful drop — the server already saw the old socket close, so there's a
+  //      pending removal timer to cancel.
+  //   2. Silent switch — the phone hopped WiFi↔cellular and the old TCP connection
+  //      lingers OPEN on the server (no FIN ever arrives), so `handleDisconnect`
+  //      never ran and there's no pending timer. The player still looks "connected"
+  //      on their stale socket; we take the session over live with the new socket.
+  // Without case 2, a REJOIN racing ahead of the server noticing the dead socket
+  // would find nothing pending → REJOIN_FAILED → fresh register → duplicate player.
   rejoin(ws, playerId, username) {
-    const pending = this._pendingReconnect.get(playerId);
-    if (!pending || pending.player.username !== username) {
+    const roomId = this._playerRoom.get(playerId);
+    const room = roomId !== undefined ? this._rooms.get(roomId) : null;
+    const player = room?.manager.players.get(playerId);
+
+    if (!player || player.username !== username) {
       ws.send(JSON.stringify({ type: S2C.REJOIN_FAILED }));
       return null;
     }
 
-    clearTimeout(pending.timer);
-    this._pendingReconnect.delete(playerId);
+    // Cancel a graceful-drop removal timer if one is armed (case 1).
+    const pending = this._pendingReconnect.get(playerId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this._pendingReconnect.delete(playerId);
+    }
 
-    const { player, roomId } = pending;
+    // Swap in the new socket. If the old one is still lingering (case 2), close it —
+    // its `close` handler is a no-op now that `player.ws` points elsewhere (see the
+    // `player.ws === ws` guard in server/index.js), so this only reaps the ghost.
+    const oldWs = player.ws;
     player.ws = ws;
     player.disconnected = false;
-
-    const room = this._rooms.get(roomId);
-    if (room) {
-      room.manager.onPlayerRejoined(player);
+    if (oldWs && oldWs !== ws && oldWs.readyState === 1) {
+      try {
+        oldWs.close();
+      } catch {
+        /* already gone */
+      }
     }
+
+    room.manager.onPlayerRejoined(player);
     this._broadcastRoomList();
     return player;
   }
