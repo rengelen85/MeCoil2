@@ -43,10 +43,38 @@ const server = USE_HTTPS
 const wss = new WebSocketServer({ server });
 const roomManager = new RoomManager();
 
+// Server-side liveness sweep. A silent network switch (e.g. phone hopping
+// WiFi↔cellular) can leave the old TCP connection lingering OPEN here with no
+// FIN ever arriving, so `ws.on('close')` would otherwise never fire and the
+// ghost session would never be cleaned up. We ping every client each interval
+// and terminate any that missed the previous ping (and thus produced no pong or
+// other traffic). A live client's app messages also mark it alive, so an active
+// player is never falsely reaped. Reconnecting players are handled faster by the
+// client watchdog + REJOIN takeover; this sweep is the backstop for those who
+// never return.
+const HEARTBEAT_INTERVAL_MS = 30_000;
+const heartbeat = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) {
+      ws.terminate();
+      continue;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, HEARTBEAT_INTERVAL_MS);
+wss.on('close', () => clearInterval(heartbeat));
+
 wss.on('connection', (ws) => {
   let player = null;
+  ws.isAlive = true;
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
 
   ws.on('message', (raw) => {
+    // Any inbound traffic proves the socket is still live for the next sweep.
+    ws.isAlive = true;
     let msg;
     try {
       msg = JSON.parse(raw);

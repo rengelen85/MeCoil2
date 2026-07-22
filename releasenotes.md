@@ -8,6 +8,8 @@
 - **Manual rejoin button**: Once auto-reconnect exhausts its retries, players see "Connection lost" with a **🔄 Rejoin game** button instead of being dumped to setup — because the session is held for the whole round, tapping it restores all stats and power-ups
 - **Whole-round session hold**: The server now keeps a dropped player's session alive for the entire game (not just 90 seconds), so any reconnect during play — automatic or manual — instantly restores team, health, ammo, held airstrikes/apaches, active buffs, and K/D stats
 - **App-kill recovery (Android)**: The Android app now persists the player ID across restarts; reconnecting after a full app kill resumes the in-progress session instead of joining as a new player (falls back to fresh registration only once the session truly expires)
+- **Live session takeover on REJOIN (server)**: A rejoin now restores the session by room membership rather than requiring the server to have already seen the old socket close, so a reconnect that races ahead of the server noticing the drop takes the session over live (and closes the lingering ghost socket) instead of being rejected
+- **Server-side heartbeat sweep**: The server now pings every client every 30 seconds and terminates any that stopped responding, reaping ghost connections left behind by a silent network switch when the player never returns
 
 ### Changed
 
@@ -16,6 +18,7 @@
 ### Fixed
 
 - **WiFi AP switch on Android**: Phone switching access points mid-game no longer creates a new player; auto-reconnect now detects the dead socket within seconds and restores the session transparently
+- **WiFi↔cellular switch creating a duplicate player**: Switching between WiFi and 5G mid-game left the old TCP connection lingering open on the server (no FIN arrives), so `REJOIN` found no pending session and fell back to a fresh registration — spawning a new/extra player with the same name and losing team, health, held power-ups, buffs and K/D. The rejoin path now takes over the still-active session live, keeping everything intact (server-only fix — no app rebuild needed)
 
 ---
 
