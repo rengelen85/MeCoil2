@@ -316,10 +316,11 @@ export class RecoilGun {
     pkt[7] = profile.muzzleLedPower;
     pkt[8] = 0xff;
     pkt[9] = profile.motorPower;
-    // byte 10: FlashLED1 (high nibble) | FlashLED2 (low nibble, unused = 0)
-    pkt[10] = ((profile.muzzleFlashMode & 0x0f) << 4) | 0x00;
-    // byte 11: FlashParam1 (high nibble) | FlashParam2 (low nibble)
-    pkt[11] = ((profile.flashParam1 & 0x0f) << 4) | (profile.flashParam2 & 0x0f);
+    // U4 fields are packed low nibble first (see the BLE protocol doc).
+    // byte 10: FlashLED1 (low nibble) | FlashLED2 (high nibble, unused = 0)
+    pkt[10] = profile.muzzleFlashMode & 0x0f;
+    // byte 11: FlashParam1 (low nibble) | FlashParam2 (high nibble)
+    pkt[11] = (profile.flashParam1 & 0x0f) | ((profile.flashParam2 & 0x0f) << 4);
     await this._device.writeCharacteristicWithResponseForService(
       SERVICE_UUID,
       CONFIG_UUID,
