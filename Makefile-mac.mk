@@ -20,11 +20,8 @@ CMDLINE_TOOLS_URL_MAC := https://dl.google.com/android/repository/$(CMDLINE_TOOL
 # Mac equivalent of init: install prereqs, npm deps, and certs
 init-mac: install-prereqs-mac install gen-certs
 
-# Install Node.js and openssl via Homebrew
-install-prereqs-mac:
-	brew update
-	brew install node
-	brew install openssl
+# Install Node.js, openssl, mkcert and uv via Homebrew (same script as install-prereqs)
+install-prereqs-mac: install-prereqs
 
 # Install JDK 17 via Homebrew (required by Android toolchain)
 mobile-prereqs-mac:

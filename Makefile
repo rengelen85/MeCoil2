@@ -8,14 +8,9 @@ SHELL_RC := $(HOME)/.bashrc
 init: install-prereqs install gen-certs
 	sudo chown -R $$USER:$$USER .
 
-# Install Node.js (Ubuntu/Debian) & openssl
+# Install Node.js, openssl, mkcert and uv (Ubuntu/Debian or macOS). Logic lives in scripts/setup.sh.
 install-prereqs:
-	sudo apt update
-	sudo apt install nodejs -y
-	sudo apt install npm -y
-	sudo apt install openssl libssl-dev -y
-	curl -LsSf https://astral.sh/uv/install.sh | sh
-	@echo "Please restart the terminal for all changes to take effect"
+	scripts/setup.sh --prereqs --lint
 
 # Check installed Node.js version
 check-prereqs:

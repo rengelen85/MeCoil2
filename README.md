@@ -41,6 +41,7 @@ Players connect from the browser on their phones. No app to install. A full nati
 scripts/setup.sh             # Node 22, mkcert, npm dependencies, HTTPS certs
 scripts/setup.sh --android   # also JDK 17, Android SDK + NDK 27.1.12297006, mobile/ dependencies
 scripts/setup.sh --lint      # also uv, needed by make lint / make fmt for Markdown
+scripts/setup.sh --prereqs   # only system tools (Node, openssl, mkcert); same as make install-prereqs
 ```
 
 - Certs are created in `certs/` for `localhost`, `127.0.0.1`, `mecoil.local` and this machine's LAN IP. If your IP changes, delete `certs/` and re-run the script.

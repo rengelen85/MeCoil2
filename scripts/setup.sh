@@ -5,6 +5,8 @@
 #   scripts/setup.sh             server + web client + HTTPS certs
 #   scripts/setup.sh --android   also JDK 17, Android SDK/NDK and mobile/ deps
 #   scripts/setup.sh --lint      also install uv (used by `make lint` for Markdown)
+#   scripts/setup.sh --prereqs   only install system tools (what `make install-prereqs` runs);
+#                                skips npm install and cert generation
 #
 # Supports Ubuntu/Debian (apt) and macOS (Homebrew). Safe to re-run.
 set -euo pipefail
@@ -17,11 +19,13 @@ NDK_VERSION=27.1.12297006        # must match mobile/android/build.gradle
 
 WITH_ANDROID=0
 WITH_LINT=0
+PREREQS_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --android) WITH_ANDROID=1 ;;
     --lint) WITH_LINT=1 ;;
-    -h | --help) sed -n '2,8p' "$0"; exit 0 ;;
+    --prereqs) PREREQS_ONLY=1 ;;
+    -h | --help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -54,7 +58,7 @@ ensure_apt_index() {
     log "Refreshing apt package index and installing base tools"
     sudo apt-get update
     # make is needed for the Makefile targets (make dev, make lint, ...)
-    sudo apt-get install -y make curl ca-certificates
+    sudo apt-get install -y make curl ca-certificates openssl libssl-dev
   fi
 }
 
@@ -174,19 +178,25 @@ EOF
     log "Android SDK variables already set in $SHELL_RC, skipping"
   fi
 
-  log "Installing mobile/ dependencies"
-  npm install --prefix mobile
+  if [ "$PREREQS_ONLY" = 0 ]; then
+    log "Installing mobile/ dependencies"
+    npm install --prefix mobile
+  fi
 }
 
 ensure_apt_index
 ensure_node
 
-log "Installing server and web client dependencies"
-npm install
-npm install --prefix client
+if [ "$PREREQS_ONLY" = 0 ]; then
+  log "Installing server and web client dependencies"
+  npm install
+  npm install --prefix client
+fi
 
 ensure_mkcert
-setup_certs
+if [ "$PREREQS_ONLY" = 0 ]; then
+  setup_certs
+fi
 
 if [ "$WITH_LINT" = 1 ]; then
   ensure_uv
@@ -194,6 +204,11 @@ fi
 
 if [ "$WITH_ANDROID" = 1 ]; then
   setup_android
+fi
+
+if [ "$PREREQS_ONLY" = 1 ]; then
+  log "Prerequisites installed. Restart the terminal for all changes to take effect"
+  exit 0
 fi
 
 log "Setup complete"
