@@ -1,5 +1,11 @@
 # Release Notes
 
+## [0.6.3] — 2026-10-25
+
+### Added
+
+- **Connect your gun for AR practice & zombies**: The Android app had no way to connect a gun outside a multiplayer lobby, so the gun couldn't be used in the AR modes. The Setup screen now has a **Connect gun** button (as on web), and the AR intro screen has one in both the web and Android clients
+
 ## [0.6.2] — 2026-10-25
 
 ### Fixed
