@@ -21,10 +21,13 @@ import { Camera, useCameraPermission } from 'react-native-vision-camera';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   AR_COUNTDOWN_SECS,
+  AR_DEFAULT_DIFFICULTY,
+  AR_DIFFICULTIES,
   AR_MAGAZINE_SIZE,
   AR_ROUND_OPTIONS_SECS,
   AR_ROUND_SECS,
   aimAzimuthDeg,
+  arBestKey,
   arResults,
   arSecondsLeft,
   cameraBasis,
@@ -88,11 +91,6 @@ interface Frame {
 }
 
 const BEST_KEY = 'mecoil_ar_best';
-
-// Best scores are kept per round length; 60 s keeps the original key.
-function bestKey(secs: number) {
-  return secs === AR_ROUND_SECS ? BEST_KEY : `${BEST_KEY}_${secs}`;
-}
 const KIND_COLORS: Record<string, string> = {
   standard: '#ff1744',
   mover: '#ff9100',
@@ -170,6 +168,8 @@ export default function ArPracticeScreen(_props: Props) {
   const bestRef = useRef(0);
   const roundSecsRef = useRef(AR_ROUND_SECS);
   const [roundSecs, setRoundSecs] = useState(AR_ROUND_SECS);
+  const difficultyRef = useRef(AR_DEFAULT_DIFFICULTY);
+  const [difficulty, setDifficulty] = useState(AR_DEFAULT_DIFFICULTY);
   const hitMarkerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setPhaseBoth = (p: Phase) => {
@@ -196,11 +196,14 @@ export default function ArPracticeScreen(_props: Props) {
     }),
   ).current;
 
-  const selectRound = useCallback((secs: number) => {
+  // Best scores are kept per round length and difficulty.
+  const loadBest = useCallback((secs: number, diff: string) => {
     roundSecsRef.current = secs;
+    difficultyRef.current = diff;
     setRoundSecs(secs);
-    AsyncStorage.getItem(bestKey(secs)).then(v => {
-      if (roundSecsRef.current !== secs) return;
+    setDifficulty(diff);
+    AsyncStorage.getItem(arBestKey(BEST_KEY, secs, diff)).then(v => {
+      if (roundSecsRef.current !== secs || difficultyRef.current !== diff) return;
       bestRef.current = Number(v) || 0;
       setBest(bestRef.current);
     });
@@ -233,7 +236,7 @@ export default function ArPracticeScreen(_props: Props) {
       exit();
       return true;
     });
-    selectRound(AR_ROUND_SECS);
+    loadBest(AR_ROUND_SECS, AR_DEFAULT_DIFFICULTY);
     return () => {
       unsubscribe?.();
       setLocalShotHandler(null);
@@ -243,7 +246,7 @@ export default function ArPracticeScreen(_props: Props) {
       game.setGunSlotId(null);
       game.resetGame();
     };
-  }, [onShot, exit, selectRound]);
+  }, [onShot, exit, loadBest]);
 
   const finish = useCallback(() => {
     const game = gameRef.current;
@@ -253,7 +256,10 @@ export default function ArPracticeScreen(_props: Props) {
     if (isNewBest) {
       bestRef.current = r.score;
       setBest(r.score);
-      AsyncStorage.setItem(bestKey(roundSecsRef.current), String(r.score));
+      AsyncStorage.setItem(
+        arBestKey(BEST_KEY, roundSecsRef.current, difficultyRef.current),
+        String(r.score),
+      );
     }
     setNewBest(isNewBest);
     setResults(r);
@@ -276,7 +282,11 @@ export default function ArPracticeScreen(_props: Props) {
       if (phaseRef.current === 'countdown') {
         const left = Math.ceil((countdownEndsAtRef.current - t) / 1_000);
         if (left <= 0) {
-          gameRef.current = createArGame({ nowMs: t, durationSecs: roundSecsRef.current });
+          gameRef.current = createArGame({
+            nowMs: t,
+            durationSecs: roundSecsRef.current,
+            difficulty: difficultyRef.current,
+          });
           setPhaseBoth('playing');
         } else {
           setFrame(f => (f.countdownLeft === left ? f : { ...f, countdownLeft: left }));
@@ -506,17 +516,30 @@ export default function ArPracticeScreen(_props: Props) {
             <Text style={styles.sub}>SINGLE PLAYER · NO SERVER NEEDED</Text>
             <Text style={styles.body}>
               Look around through your camera. Targets appear in the space around you. Put
-              the crosshair on them and pull the trigger. Pick how long the round lasts.
+              the crosshair on them and pull the trigger. Pick the round length and difficulty.
             </Text>
             <View style={styles.roundPicker}>
               {AR_ROUND_OPTIONS_SECS.map(secs => (
                 <TouchableOpacity
                   key={secs}
                   style={[styles.roundOpt, roundSecs === secs && styles.roundOptSelected]}
-                  onPress={() => selectRound(secs)}>
+                  onPress={() => loadBest(secs, difficulty)}>
                   <Text
                     style={[styles.roundOptText, roundSecs === secs && styles.roundOptTextSelected]}>
                     {secs}s
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.roundPicker}>
+              {Object.entries(AR_DIFFICULTIES).map(([key, cfg]) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.roundOpt, difficulty === key && styles.roundOptSelected]}
+                  onPress={() => loadBest(roundSecs, key)}>
+                  <Text
+                    style={[styles.roundOptText, difficulty === key && styles.roundOptTextSelected]}>
+                    {cfg.label}
                   </Text>
                 </TouchableOpacity>
               ))}

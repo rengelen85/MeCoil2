@@ -4,6 +4,7 @@
 
 ### Added
 
+- **AR target practice difficulty**: Choose **Easy**, **Normal** or **Hard** on the intro screen (web and Android). Easy has bigger, longer-lived, slower targets and fewer at once; Hard has smaller, faster-fading, faster-moving targets and more at once. Point values are unchanged. Best scores are kept per round length and difficulty
 - **AR target practice round length**: The intro screen of AR target practice (web and Android) now lets you pick the round length: 30, 60, 90, 120 or 180 seconds. Best scores are kept separately per round length
 
 ### Changed

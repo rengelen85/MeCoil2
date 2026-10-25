@@ -270,7 +270,7 @@ A solo mode that runs entirely on the phone, with no server or network connectio
 
 - The rear camera is the backdrop. Targets are placed in the space around you and held in place by the phone's motion sensors, so you turn to find them. Arrows at the screen edge point to targets outside the view
 - Aim with the crosshair in the centre of the screen (where a gun-mounted phone points) and pull the trigger. Each round the gun fires counts as a shot. Without a gun, use the on-screen **FIRE** / **RELOAD** buttons (or `T` / `R` on a keyboard). Without motion sensors (desktop browsers), drag to look around
-- Choose the round length (30, 60, 90, 120 or 180 seconds) on the intro screen; the default is 60. The gun starts in SEMI. The magazine holds 20 rounds. Fast reload is always on, so reloading (gun or on-screen button) refills the magazine instantly. Targets get faster and more numerous as the round goes on
+- Choose the round length (30, 60, 90, 120 or 180 seconds; default 60) and the difficulty (Easy, Normal or Hard, which scale target size, lifetime, speed and count) on the intro screen. The gun starts in SEMI. The magazine holds 20 rounds. Fast reload is always on, so reloading (gun or on-screen button) refills the magazine instantly. Targets get faster and more numerous as the round goes on
 
 | Target | Points | Notes |
 |--------|--------|-------|
@@ -278,7 +278,7 @@ A solo mode that runs entirely on the phone, with no server or network connectio
 | Orange | 150 | Moves sideways around you |
 | Gold | 300 | Far away and disappears quickly |
 
-Consecutive hits add a streak bonus (+10% per hit, up to double points). A missed shot or an escaped target resets it. A charged **PLASMA** shot widens the hit cone and takes down every target inside it. Your best score per round length is stored on the device.
+Consecutive hits add a streak bonus (+10% per hit, up to double points). A missed shot or an escaped target resets it. A charged **PLASMA** shot widens the hit cone and takes down every target inside it. Your best score per round length and difficulty is stored on the device.
 
 Requirements: the web client needs HTTPS for the camera (the same as for Bluetooth). It is served by the MeCoil server, so the page must be loaded once, but the game itself sends nothing over the network. The Android app needs camera permission and works with no server configured at all.
 

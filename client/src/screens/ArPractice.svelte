@@ -6,10 +6,13 @@ import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 import {
   AR_COUNTDOWN_SECS,
+  AR_DEFAULT_DIFFICULTY,
+  AR_DIFFICULTIES,
   AR_MAGAZINE_SIZE,
   AR_ROUND_OPTIONS_SECS,
   AR_ROUND_SECS,
   aimAzimuthDeg,
+  arBestKey,
   arResults,
   arSecondsLeft,
   cameraBasis,
@@ -78,23 +81,25 @@ let raf = null;
 let wakeLock = null;
 
 let roundSecs = AR_ROUND_SECS;
+let difficulty = AR_DEFAULT_DIFFICULTY;
 let results = null;
-let best = loadBest(roundSecs);
+let best = loadBest(roundSecs, difficulty);
 let newBest = false;
 
-// Best scores are kept per round length; 60 s keeps the original key.
-function bestKey(secs) {
-  return secs === AR_ROUND_SECS ? BEST_KEY : `${BEST_KEY}_${secs}`;
-}
-
+// Best scores are kept per round length and difficulty.
 function selectRound(secs) {
   roundSecs = secs;
-  best = loadBest(secs);
+  best = loadBest(secs, difficulty);
 }
 
-function loadBest(secs) {
+function selectDifficulty(key) {
+  difficulty = key;
+  best = loadBest(roundSecs, key);
+}
+
+function loadBest(secs, diff) {
   try {
-    return Number(localStorage.getItem(bestKey(secs))) || 0;
+    return Number(localStorage.getItem(arBestKey(BEST_KEY, secs, diff))) || 0;
   } catch {
     return 0;
   }
@@ -102,7 +107,10 @@ function loadBest(secs) {
 
 function saveBest(value) {
   try {
-    localStorage.setItem(bestKey(roundSecs), String(value));
+    localStorage.setItem(
+      arBestKey(BEST_KEY, roundSecs, difficulty),
+      String(value),
+    );
   } catch {}
 }
 
@@ -271,7 +279,7 @@ function frame() {
   if (phase === 'countdown') {
     countdownLeft = Math.ceil((countdownEndsAt - now) / 1_000);
     if (countdownLeft <= 0) {
-      game = createArGame({ nowMs: now, durationSecs: roundSecs });
+      game = createArGame({ nowMs: now, durationSecs: roundSecs, difficulty });
       phase = 'playing';
     }
   }
@@ -428,8 +436,8 @@ onDestroy(() => {
         <p class="sub">Single player · no server needed</p>
         <p>
           Look around through your camera. Targets appear in the space around
-          you. Put the crosshair on them and pull the trigger. Pick how long
-          the round lasts.
+          you. Put the crosshair on them and pull the trigger. Pick the round
+          length and difficulty.
         </p>
         <div class="round-picker" role="group" aria-label="Round length">
           {#each AR_ROUND_OPTIONS_SECS as secs}
@@ -439,6 +447,17 @@ onDestroy(() => {
               on:click|stopPropagation={() => selectRound(secs)}
             >
               {secs}s
+            </button>
+          {/each}
+        </div>
+        <div class="round-picker" role="group" aria-label="Difficulty">
+          {#each Object.entries(AR_DIFFICULTIES) as [key, cfg]}
+            <button
+              class="round-opt"
+              class:selected={difficulty === key}
+              on:click|stopPropagation={() => selectDifficulty(key)}
+            >
+              {cfg.label}
             </button>
           {/each}
         </div>

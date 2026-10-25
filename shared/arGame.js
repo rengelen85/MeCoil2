@@ -17,6 +17,46 @@ export const AR_ROUND_SECS = 60;
 // Round lengths offered on the intro screen.
 export const AR_ROUND_OPTIONS_SECS = [30, 60, 90, 120, 180];
 export const AR_MAGAZINE_SIZE = 20;
+// Difficulty presets. Scales apply to target size (hit tolerance), lifetime,
+// the gap between spawns and mover speed; `extraTargets` shifts how many
+// targets can be up at once. Point values stay the same.
+export const AR_DIFFICULTIES = {
+  easy: {
+    label: 'Easy',
+    radiusScale: 1.4,
+    lifetimeScale: 1.4,
+    spawnGapScale: 1.3,
+    moverSpeedScale: 0.7,
+    extraTargets: -1,
+  },
+  normal: {
+    label: 'Normal',
+    radiusScale: 1,
+    lifetimeScale: 1,
+    spawnGapScale: 1,
+    moverSpeedScale: 1,
+    extraTargets: 0,
+  },
+  hard: {
+    label: 'Hard',
+    radiusScale: 0.7,
+    lifetimeScale: 0.7,
+    spawnGapScale: 0.75,
+    moverSpeedScale: 1.4,
+    extraTargets: 1,
+  },
+};
+export const AR_DEFAULT_DIFFICULTY = 'normal';
+
+// Storage key for the best score of a round length + difficulty. The original
+// 60 s / normal setting keeps the bare key so older scores carry over.
+export function arBestKey(baseKey, secs, difficulty) {
+  if (secs === AR_ROUND_SECS && difficulty === AR_DEFAULT_DIFFICULTY) {
+    return baseKey;
+  }
+  const suffix = difficulty === AR_DEFAULT_DIFFICULTY ? '' : `_${difficulty}`;
+  return `${baseKey}_${secs}${suffix}`;
+}
 export const AR_COUNTDOWN_SECS = 3;
 // Horizontal field of view assumed for the rear camera across the screen's
 // long side. Only affects how big/where targets are drawn, not hit detection.
@@ -182,10 +222,12 @@ function aimErrorRad(basis, p) {
 export function createArGame({
   nowMs,
   durationSecs = AR_ROUND_SECS,
+  difficulty = AR_DEFAULT_DIFFICULTY,
   rng = Math.random,
 }) {
   return {
     rng,
+    difficulty: AR_DIFFICULTIES[difficulty] ?? AR_DIFFICULTIES.normal,
     startedAt: nowMs,
     endsAt: nowMs + durationSecs * 1_000,
     lastTickAt: nowMs,
@@ -231,6 +273,7 @@ function spawnTarget(state, nowMs, aimAzDeg) {
   const p = progress(state, nowMs);
   const kind = pickKind(rng, p);
   const cfg = AR_TARGET_KINDS[kind];
+  const diff = state.difficulty;
 
   // Spawn around where the player is looking, sometimes just outside the view
   // so they have to turn. Retry a few times to avoid stacking targets.
@@ -248,21 +291,25 @@ function spawnTarget(state, nowMs, aimAzDeg) {
   }
 
   const lifetimeMs =
-    kind === 'bonus' ? 2_800 - 600 * p : between(rng, 5_500, 7_000) - 2_500 * p;
+    (kind === 'bonus'
+      ? 2_800 - 600 * p
+      : between(rng, 5_500, 7_000) - 2_500 * p) * diff.lifetimeScale;
   const target = {
     id: state.nextId++,
     kind,
     azimuthDeg,
     elevationDeg,
     distanceM: between(rng, cfg.minDistM, cfg.maxDistM),
-    radiusM: cfg.radiusM,
+    radiusM: cfg.radiusM * diff.radiusScale,
     points: cfg.points,
     bornAt: nowMs,
     expiresAt: nowMs + lifetimeMs,
     // Movers orbit the player sideways, switching direction at random.
     angularSpeedDegPerSec:
       kind === 'mover'
-        ? (rng() < 0.5 ? -1 : 1) * between(rng, 8, 14 + 12 * p)
+        ? (rng() < 0.5 ? -1 : 1) *
+          between(rng, 8, 14 + 12 * p) *
+          diff.moverSpeedScale
         : 0,
   };
   state.targets.push(target);
@@ -299,10 +346,16 @@ export function tickArGame(state, nowMs, aimAzDeg = 0) {
   state.popups = state.popups.filter((pp) => nowMs - pp.at < POPUP_MS);
 
   const p = progress(state, nowMs);
-  const maxTargets = 2 + Math.round(3 * p);
+  const maxTargets = Math.max(
+    1,
+    2 + Math.round(3 * p) + state.difficulty.extraTargets,
+  );
   if (nowMs >= state.nextSpawnAt && state.targets.length < maxTargets) {
     spawnTarget(state, nowMs, aimAzDeg);
-    state.nextSpawnAt = nowMs + between(state.rng, 900, 1_600) - 500 * p;
+    state.nextSpawnAt =
+      nowMs +
+      (between(state.rng, 900, 1_600) - 500 * p) *
+        state.difficulty.spawnGapScale;
   }
   return expired;
 }
