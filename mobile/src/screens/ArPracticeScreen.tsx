@@ -493,7 +493,11 @@ export default function ArPracticeScreen(_props: Props) {
         const { bites } = tickZombieGame(zg, t, aimAzimuthDeg(basis));
         if (bites) {
           playZombieBite();
-          Vibration.vibrate(200);
+          try {
+            Vibration.vibrate(200);
+          } catch {
+            // haptics are optional; never let them take the game down
+          }
         }
         if (zg.over) {
           playKilled();

@@ -1,4 +1,9 @@
 # Release Notes
+## [0.6.4] — 2026-10-25
+
+### Fixed
+
+- **Android app closing on a zombie bite**: AR zombie survival crashed the Android app the first time a zombie bit, because the app was missing the `VIBRATE` permission. The permission is now declared and the bite vibration can no longer crash the game. Web client unaffected (it doesn't need the permission)
 
 ## [0.6.3] — 2026-10-25
 
