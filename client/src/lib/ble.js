@@ -133,6 +133,7 @@ function _setupGunHandlers() {
     const before = get(ammo);
     ammo.set(count);
     maxAmmo.set(magazineSize());
+    _flashMuzzleOnShot(count < before);
     if (_localShotHandler && count < before && !get(isReloading)) {
       _localShotHandler(_activeMode, before - count);
     }
@@ -141,6 +142,15 @@ function _setupGunHandlers() {
     bleConnected.set(false);
     _scheduleReconnect();
   });
+}
+
+// The firmware's automatic flash-on-firing (ShotConfig) doesn't reliably light
+// the muzzle LED in the square-wave modes, so trigger it ourselves with the
+// muzzle-flash control action whenever rounds were fired. Plasma's glow is
+// driven by the trigger itself, and a flash there would cut it short.
+function _flashMuzzleOnShot(roundsFired) {
+  if (!roundsFired || get(isReloading) || _activeMode === 'plasma') return;
+  gun.flash();
 }
 
 function _scheduleReconnect() {
