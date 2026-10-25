@@ -7,7 +7,6 @@ import { get } from 'svelte/store';
 import {
   AR_COUNTDOWN_SECS,
   AR_MAGAZINE_SIZE,
-  AR_RELOAD_SECS,
   aimAzimuthDeg,
   arResults,
   arSecondsLeft,
@@ -33,10 +32,10 @@ import {
   arReturnScreen,
   bleConnected,
   bulletsPerMag,
+  fastReloadActive,
   gunSlotId,
   isReloading,
   maxAmmo,
-  reloadDelaySecs,
   resetGame,
   screen,
 } from '../stores/game.js';
@@ -72,7 +71,6 @@ let indicators = [];
 let popups = [];
 let hitMarker = false;
 let hitMarkerTimer = null;
-let reloadTimer = null;
 let raf = null;
 let wakeLock = null;
 
@@ -165,11 +163,11 @@ async function keepAwake() {
 }
 
 // Fill the magazine and, with a gun connected, program it for practice. The
-// gun keeps its own ammo count; shots reach onShot via ble.js.
+// gun keeps its own ammo count; shots reach onShot via ble.js. Practice always
+// has fast reload: ble.js then refills the clip without the reload delay.
 function prepareGun() {
-  clearTimeout(reloadTimer);
   bulletsPerMag.set(AR_MAGAZINE_SIZE);
-  reloadDelaySecs.set(AR_RELOAD_SECS);
+  fastReloadActive.set(true);
   maxAmmo.set(AR_MAGAZINE_SIZE);
   ammo.set(AR_MAGAZINE_SIZE);
   isReloading.set(false);
@@ -233,14 +231,11 @@ function fireLocal() {
   onShot('semi', 1);
 }
 
+// Instant, like the gun's reload with fast reload always on.
 function reloadLocal() {
-  if (get(bleConnected) || get(isReloading)) return;
-  isReloading.set(true);
+  if (get(bleConnected)) return;
   playReload();
-  reloadTimer = setTimeout(() => {
-    ammo.set(AR_MAGAZINE_SIZE);
-    isReloading.set(false);
-  }, AR_RELOAD_SECS * 1_000);
+  ammo.set(AR_MAGAZINE_SIZE);
 }
 
 function onKey(e) {
@@ -318,7 +313,6 @@ onMount(() => {
 
 onDestroy(() => {
   cancelAnimationFrame(raf);
-  clearTimeout(reloadTimer);
   clearTimeout(hitMarkerTimer);
   setLocalShotHandler(null);
   window.removeEventListener('deviceorientation', onOrientation);
@@ -428,7 +422,7 @@ onDestroy(() => {
         <p class="small">
           Hits in a row raise your streak bonus (up to double points). A missed
           shot or an escaped target resets it. A charged plasma shot hits every
-          target in a wider cone.
+          target in a wider cone. Reloads are instant.
         </p>
         <p class="gun-status" class:ok={$bleConnected}>
           {$bleConnected

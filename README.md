@@ -270,7 +270,7 @@ A solo mode that runs entirely on the phone, with no server or network connectio
 
 - The rear camera is the backdrop. Targets are placed in the space around you and held in place by the phone's motion sensors, so you turn to find them. Arrows at the screen edge point to targets outside the view
 - Aim with the crosshair in the centre of the screen (where a gun-mounted phone points) and pull the trigger. Each round the gun fires counts as a shot. Without a gun, use the on-screen **FIRE** / **RELOAD** buttons (or `T` / `R` on a keyboard). Without motion sensors (desktop browsers), drag to look around
-- A round lasts 60 seconds with a 20-round magazine and 2-second reloads. Targets get faster and more numerous as the round goes on
+- A round lasts 60 seconds with a 20-round magazine. Fast reload is always on, so reloading (gun or on-screen button) refills the magazine instantly. Targets get faster and more numerous as the round goes on
 
 | Target | Points | Notes |
 |--------|--------|-------|

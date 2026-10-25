@@ -22,7 +22,6 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   AR_COUNTDOWN_SECS,
   AR_MAGAZINE_SIZE,
-  AR_RELOAD_SECS,
   aimAzimuthDeg,
   arResults,
   arSecondsLeft,
@@ -134,6 +133,7 @@ export default function ArPracticeScreen(_props: Props) {
   const ammo = useGameStore(s => s.ammo);
   const maxAmmo = useGameStore(s => s.maxAmmo);
   const isReloading = useGameStore(s => s.isReloading);
+  const fastReloadActive = useGameStore(s => s.fastReloadActive);
   const bleConnected = useGameStore(s => s.bleConnected);
   const activeGunMode = useGameStore(s => s.activeGunMode);
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -155,7 +155,6 @@ export default function ArPracticeScreen(_props: Props) {
   const sizeRef = useRef({ width: 0, height: 0 });
   const countdownEndsAtRef = useRef(0);
   const bestRef = useRef(0);
-  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hitMarkerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setPhaseBoth = (p: Phase) => {
@@ -217,7 +216,6 @@ export default function ArPracticeScreen(_props: Props) {
       unsubscribe?.();
       setLocalShotHandler(null);
       back.remove();
-      if (reloadTimer.current) clearTimeout(reloadTimer.current);
       if (hitMarkerTimer.current) clearTimeout(hitMarkerTimer.current);
       const game = useGameStore.getState();
       game.setGunSlotId(null);
@@ -313,12 +311,12 @@ export default function ArPracticeScreen(_props: Props) {
   }, [finish]);
 
   // Fill the magazine and, with a gun connected, program it for practice. The
-  // gun keeps its own ammo count; shots reach onShot via ble.ts.
+  // gun keeps its own ammo count; shots reach onShot via ble.ts. Practice always
+  // has fast reload: ble.ts then refills the clip without the reload delay.
   function prepareGun() {
-    if (reloadTimer.current) clearTimeout(reloadTimer.current);
     const game = useGameStore.getState();
     game.setBulletsPerMag(AR_MAGAZINE_SIZE);
-    game.setReloadDelaySecs(AR_RELOAD_SECS);
+    game.setFastReloadActive(true);
     game.setMaxAmmo(AR_MAGAZINE_SIZE);
     game.setAmmo(AR_MAGAZINE_SIZE);
     game.setIsReloading(false);
@@ -353,16 +351,12 @@ export default function ArPracticeScreen(_props: Props) {
     onShot('semi', 1);
   }
 
+  // Instant, like the gun's reload with fast reload always on.
   function reloadLocal() {
     const game = useGameStore.getState();
-    if (game.bleConnected || game.isReloading) return;
-    game.setIsReloading(true);
+    if (game.bleConnected) return;
     playReload();
-    reloadTimer.current = setTimeout(() => {
-      const g = useGameStore.getState();
-      g.setAmmo(AR_MAGAZINE_SIZE);
-      g.setIsReloading(false);
-    }, AR_RELOAD_SECS * 1_000);
+    game.setAmmo(AR_MAGAZINE_SIZE);
   }
 
   function onLayout(e: LayoutChangeEvent) {
@@ -455,6 +449,7 @@ export default function ArPracticeScreen(_props: Props) {
                 <Text style={styles.ammoCount}>{isReloading ? 'RELOADING' : ammo}</Text>
                 <Text style={styles.ammoMax}>/ {maxAmmo}</Text>
               </View>
+              {fastReloadActive && <Text style={styles.fastReload}>🔋 FAST RELOAD</Text>}
               {bleConnected && (
                 <Text style={styles.modeBadge}>{GUN_MODES[activeGunMode]?.label ?? ''}</Text>
               )}
@@ -496,6 +491,7 @@ export default function ArPracticeScreen(_props: Props) {
             <Text style={styles.small}>
               Hits in a row raise your streak bonus (up to double points). A missed shot or an
               escaped target resets it. A charged plasma shot hits every target in a wider cone.
+              Reloads are instant.
             </Text>
             <Text style={[styles.small, bleConnected && styles.gunOk]}>
               {bleConnected
@@ -672,6 +668,7 @@ const styles = StyleSheet.create({
   ammoIcon: { fontSize: 18, marginRight: 6 },
   ammoCount: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
   ammoMax: { color: '#888', fontSize: 14, marginLeft: 4 },
+  fastReload: { color: '#69f0ae', fontSize: 11, fontWeight: '700', marginTop: 6 },
   modeBadge: {
     alignSelf: 'flex-start',
     marginTop: 6,

@@ -15,7 +15,6 @@
 
 export const AR_ROUND_SECS = 60;
 export const AR_MAGAZINE_SIZE = 20;
-export const AR_RELOAD_SECS = 2;
 export const AR_COUNTDOWN_SECS = 3;
 // Horizontal field of view assumed for the rear camera across the screen's
 // long side. Only affects how big/where targets are drawn, not hit detection.
