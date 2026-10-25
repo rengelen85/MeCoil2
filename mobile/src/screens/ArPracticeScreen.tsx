@@ -9,6 +9,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
+  Image,
+  ImageSourcePropType,
   LayoutChangeEvent,
   Vibration,
   PanResponder,
@@ -100,7 +102,8 @@ interface Indicator {
 }
 interface ZombieSprite {
   id: number;
-  emoji: string;
+  src: ImageSourcePropType;
+  flip: boolean;
   x: number;
   y: number;
   size: number;
@@ -152,7 +155,20 @@ const KIND_COLORS: Record<string, string> = {
   bomb: '#ffab40',
   freeze: '#40c4ff',
 };
-const ZOMBIE_EMOJI: Record<string, string> = { walker: '🧟', runner: '🧟‍♀️', brute: '🧟‍♂️' };
+// Painted sprites (scripts/gen-zombies.mjs): two shamble frames per kind. Metro
+// needs static require paths, so they are listed out.
+const ZOMBIE_FRAMES: Record<string, ImageSourcePropType> = {
+  'walker-1': require('../assets/zombies/walker-1.png'),
+  'walker-2': require('../assets/zombies/walker-2.png'),
+  'runner-1': require('../assets/zombies/runner-1.png'),
+  'runner-2': require('../assets/zombies/runner-2.png'),
+  'brute-1': require('../assets/zombies/brute-1.png'),
+  'brute-2': require('../assets/zombies/brute-2.png'),
+};
+const ZOMBIE_FRAME_MS = 380;
+// The sprite is 2:3 and its figure fills about 90% of the height.
+const ZOMBIE_ASPECT = 2 / 3;
+const ZOMBIE_HEIGHT_SCALE = 1.1;
 const POWERUP_EMOJI: Record<string, string> = { medkit: '❤️', bomb: '💣', freeze: '❄️' };
 const BITE_FLASH_MS = 450;
 const EMPTY_FRAME: Frame = {
@@ -212,22 +228,21 @@ function Target({ s }: { s: Sprite }) {
   );
 }
 
-// Zombie figure: emoji sized to the body's apparent height, with an HP bar for
+// Zombie figure: sprite sized to the body's apparent height, with an HP bar for
 // zombies that take more than one hit.
 function Zombie({ z, frozen }: { z: ZombieSprite; frozen: boolean }) {
+  const height = z.size * ZOMBIE_HEIGHT_SCALE;
+  const width = height * ZOMBIE_ASPECT;
   return (
     <View
       pointerEvents="none"
-      style={[styles.zombie, { left: z.x - z.size / 2, top: z.y - z.size / 2, width: z.size, height: z.size }]}>
-      <Text
-        style={[
-          styles.zombieEmoji,
-          { fontSize: z.size * 0.85, lineHeight: z.size },
-          z.near && styles.zombieNear,
-          frozen && styles.zombieFrozen,
-        ]}>
-        {z.emoji}
-      </Text>
+      style={[styles.zombie, { left: z.x - width / 2, top: z.y - height / 2, width, height }]}>
+      <View style={[styles.zombieGlow, frozen ? styles.zombieGlowFrozen : z.near && styles.zombieGlowNear]} />
+      <Image
+        source={z.src}
+        resizeMode="contain"
+        style={[styles.zombieImage, z.flip && { transform: [{ scaleX: -1 }] }, frozen && styles.zombieFrozen]}
+      />
       {z.hp != null && (
         <View style={styles.hp}>
           <View style={[styles.hpFill, { width: `${z.hp * 100}%` }]} />
@@ -484,7 +499,9 @@ export default function ArPracticeScreen(_props: Props) {
           if (s.visible) {
             zombies.push({
               id: z.id,
-              emoji: ZOMBIE_EMOJI[z.kind],
+              // Frozen zombies hold their pose; the rest alternate frames, out of step.
+              src: ZOMBIE_FRAMES[`${z.kind}-${isFrozen(zg, t) ? 1 : ((Math.floor(t / ZOMBIE_FRAME_MS) + z.id) % 2) + 1}`],
+              flip: z.id % 2 === 1,
               x: s.x,
               y: s.y,
               size: Math.max(16, s.sizePx),
@@ -851,9 +868,9 @@ export default function ArPracticeScreen(_props: Props) {
             {mode === 'zombies' ? (
               <>
                 <View style={styles.legend}>
-                  <IconRow icon="🧟" label="Walker: 100 pts" />
-                  <IconRow icon="🧟‍♀️" label="Runner: 150 pts, fast (from wave 2)" />
-                  <IconRow icon="🧟‍♂️" label="Brute: 400 pts, takes 4 hits (from wave 3)" />
+                  <IconRow icon={ZOMBIE_FRAMES['walker-1']} label="Walker: 100 pts" />
+                  <IconRow icon={ZOMBIE_FRAMES['runner-1']} label="Runner: 150 pts, fast (from wave 2)" />
+                  <IconRow icon={ZOMBIE_FRAMES['brute-1']} label="Brute: 400 pts, takes 4 hits (from wave 3)" />
                   <IconRow icon="❤️" label="Medkit: +1 life" />
                   <IconRow icon="💣" label="Bomb: wipes out every zombie" />
                   <IconRow icon="❄️" label="Freeze: zombies stop for 5 s" />
@@ -956,10 +973,14 @@ function LegendRow({ color, label }: { color: string; label: string }) {
   );
 }
 
-function IconRow({ icon, label }: { icon: string; label: string }) {
+function IconRow({ icon, label }: { icon: string | ImageSourcePropType; label: string }) {
   return (
     <View style={styles.legendRow}>
-      <Text style={styles.legendIcon}>{icon}</Text>
+      {typeof icon === 'string' ? (
+        <Text style={styles.legendIcon}>{icon}</Text>
+      ) : (
+        <Image source={icon} resizeMode="contain" style={styles.legendImage} />
+      )}
       <Text style={styles.body}>{label}</Text>
     </View>
   );
@@ -987,13 +1008,20 @@ const styles = StyleSheet.create({
   },
   targetDim: { opacity: 0.35 },
   zombie: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  zombieEmoji: {
-    textAlign: 'center',
-    textShadowColor: 'rgba(118,255,3,0.7)',
-    textShadowRadius: 8,
+  zombieImage: { width: '100%', height: '100%' },
+  // Near zombies get a red glow behind them, frozen ones a blue one.
+  zombieGlow: {
+    position: 'absolute',
+    left: '5%',
+    right: '5%',
+    top: '5%',
+    bottom: '2%',
+    borderRadius: 999,
+    backgroundColor: 'rgba(118,255,3,0.10)',
   },
-  zombieNear: { textShadowColor: '#ff1744', textShadowRadius: 12 },
-  zombieFrozen: { textShadowColor: '#40c4ff', textShadowRadius: 10, opacity: 0.8 },
+  zombieGlowNear: { backgroundColor: 'rgba(255,23,68,0.28)' },
+  zombieGlowFrozen: { backgroundColor: 'rgba(64,196,255,0.30)' },
+  zombieFrozen: { opacity: 0.8 },
   hp: {
     position: 'absolute',
     left: '15%',
@@ -1208,6 +1236,7 @@ const styles = StyleSheet.create({
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 14, height: 14, borderRadius: 7 },
   legendIcon: { width: 18, fontSize: 14, textAlign: 'center' },
+  legendImage: { width: 20, height: 30 },
   roundPicker: { flexDirection: 'row', gap: 6 },
   roundOpt: {
     flex: 1,

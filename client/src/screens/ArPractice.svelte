@@ -65,7 +65,18 @@ import {
 
 const BEST_KEY = 'mecoil_ar_best';
 const ZOMBIE_BEST_KEY = 'mecoil_ar_zombie_best';
-const ZOMBIE_EMOJI = { walker: '🧟', runner: '🧟‍♀️', brute: '🧟‍♂️' };
+const ZOMBIE_FRAMES = Object.fromEntries(
+  Object.entries(
+    import.meta.glob('../assets/zombies/*.png', {
+      eager: true,
+      import: 'default',
+    }),
+  ).map(([path, url]) => [path.slice(path.lastIndexOf('/') + 1, -4), url]),
+);
+// Two-frame shamble; the sprite is 2:3 and its figure fills about 90% of the height.
+const ZOMBIE_FRAME_MS = 380;
+const ZOMBIE_ASPECT = 2 / 3;
+const ZOMBIE_HEIGHT_SCALE = 1.1;
 const POWERUP_EMOJI = { medkit: '❤️', bomb: '💣', freeze: '❄️' };
 const BITE_FLASH_MS = 450;
 
@@ -417,7 +428,11 @@ function zombieFrame(now) {
     if (s.visible) {
       zombieSprites.push({
         id: z.id,
-        emoji: ZOMBIE_EMOJI[z.kind],
+        // Frozen zombies hold their pose; the rest alternate frames, out of step.
+        src: ZOMBIE_FRAMES[
+          `${z.kind}-${frozen ? 1 : ((Math.floor(now / ZOMBIE_FRAME_MS) + z.id) % 2) + 1}`
+        ],
+        flip: z.id % 2 === 1,
         x: s.x,
         y: s.y,
         size: Math.max(16, s.sizePx),
@@ -509,9 +524,9 @@ onDestroy(() => {
       class="zombie"
       class:near={z.near}
       class:frozen
-      style="left:{z.x}px; top:{z.y}px; font-size:{z.size}px"
+      style="left:{z.x}px; top:{z.y}px; width:{z.size * ZOMBIE_HEIGHT_SCALE * ZOMBIE_ASPECT}px; height:{z.size * ZOMBIE_HEIGHT_SCALE}px"
     >
-      {z.emoji}
+      <img src={z.src} alt="" class:flip={z.flip} draggable="false" />
       {#if z.hp != null}
         <span class="hp"><span style="width:{z.hp * 100}%"></span></span>
       {/if}
@@ -664,9 +679,9 @@ onDestroy(() => {
         </div>
         {#if mode === 'zombies'}
           <ul class="legend">
-            <li><span class="icon">🧟</span> Walker: 100 pts</li>
-            <li><span class="icon">🧟‍♀️</span> Runner: 150 pts, fast (from wave 2)</li>
-            <li><span class="icon">🧟‍♂️</span> Brute: 400 pts, takes 4 hits (from wave 3)</li>
+            <li><img class="icon" src={ZOMBIE_FRAMES['walker-1']} alt="" /> Walker: 100 pts</li>
+            <li><img class="icon" src={ZOMBIE_FRAMES['runner-1']} alt="" /> Runner: 150 pts, fast (from wave 2)</li>
+            <li><img class="icon" src={ZOMBIE_FRAMES['brute-1']} alt="" /> Brute: 400 pts, takes 4 hits (from wave 3)</li>
             <li><span class="icon">❤️</span> Medkit: +1 life</li>
             <li><span class="icon">💣</span> Bomb: wipes out every zombie</li>
             <li><span class="icon">❄️</span> Freeze: zombies stop for 5 s</li>
@@ -819,14 +834,15 @@ onDestroy(() => {
   .indicator.bomb { color: #ffab40; }
   .indicator.freeze { color: #40c4ff; }
 
-  /* Zombies: an emoji figure, its font size set to the body's apparent height. */
+  /* Zombies: a painted sprite, its height set to the body's apparent height. */
   .zombie {
     position: absolute;
     transform: translate(-50%, -50%);
-    line-height: 1;
     pointer-events: none;
     filter: drop-shadow(0 0 6px rgba(118, 255, 3, 0.6));
   }
+  .zombie img { width: 100%; height: 100%; display: block; }
+  .zombie img.flip { transform: scaleX(-1); }
   .zombie.near { filter: drop-shadow(0 0 10px #ff1744); }
   .zombie.frozen { filter: drop-shadow(0 0 8px #40c4ff) saturate(0.4) brightness(1.2); }
   .hp {
@@ -1033,6 +1049,7 @@ onDestroy(() => {
   .dot.mover { background: #ff9100; }
   .dot.bonus { background: #ffd600; }
   .icon { width: 14px; text-align: center; display: inline-block; }
+  img.icon { width: 20px; height: 30px; object-fit: contain; vertical-align: middle; }
   .gun-status { font-size: 12px; color: var(--text-muted); }
   .gun-status.ok { color: #00c853; font-weight: 600; }
   .best { font-size: 13px; color: #ffd600; font-weight: 700; }

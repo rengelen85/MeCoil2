@@ -1,5 +1,11 @@
 # Release Notes
 
+## [0.6.1] — 2026-10-25
+
+### Changed
+
+- **Painted zombies in AR zombie survival**: Walkers, runners and brutes are now shaded, generated zombie figures (torn clothes, glowing eyes, wounds) instead of emoji, in both the web and Android clients. They shamble with a two-frame walk cycle, lean the other way at random so a wave doesn't move in lockstep, and the legend on the intro screen shows them too. Near zombies get a red glow and frozen ones a blue glow and hold their pose. The sprites are drawn by `scripts/gen-zombies.mjs`
+
 ## [0.6.0] — 2026-10-25
 
 ### Added
