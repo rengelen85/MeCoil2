@@ -1,5 +1,7 @@
 # RecoilGun Firmware Configuration Guide
 
+Version 1.1, Matteo Scordino, 24 May 2017.
+
 Markdown based RecoilGun Firmware Configuration Guide, extracted from <https://github.com/SkyRocketToys/Recoil_Documentation/blob/master/Recoil_Gun_Firmware_Config_Guide.docx>
 
 ## Introduction
@@ -191,6 +193,8 @@ Mask to enable or disable each individual IR sensor. Default 0xF (all sensors en
 3. 0x03 = enable sensor 2 (Gun)
 4. 0x04 = enable sensor 3 (Clip-on)
 
+> **Note:** this list is reproduced as written in the source document, but 0x03 is not a single bit. The BLE Telemetry sensor bit map uses 1, 2, 4, 8, so the sensors are presumably bits 0–3 (0x01, 0x02, 0x04, 0x08), consistent with the default of 0xF.
+
 #### *Clip-On Sensor Check Interval*
 
 Period between tests of the presence the Clip-on sensor, in 500ms units.  
@@ -202,7 +206,7 @@ Beware that:
 
 ## Configuration via the Test App
 
-The Test App as committed on <https://hg-server-win-1.hotgen.ukltd:8443/svn/SkyRocketToys/Recoil> allows the configuration of the firmware via BLE since revision 11932.
+The Test App as committed on <https://hg-server-win-1.hotgen.uk-ltd:8443/svn/SkyRocketToys/Recoil> allows the configuration of the firmware via BLE since revision 11932.
 
 The button **SEND CONFIG** will transmit a configuration table according to this doc.  
 The values in the configuration table are hardcoded in the TestApp and can be edited in the file **RecoilGunConfig.cs**, method **RecoilGunConfig::RecoilGunConfig()**.  
