@@ -33,6 +33,20 @@ Players connect from the browser on their phones. No app to install. A full nati
 
 ## Quick Start
 
+### Automated setup (Linux / macOS)
+
+`scripts/setup.sh` installs everything the server, web client and certs need, then prints the next steps. It supports Ubuntu/Debian (apt) and macOS (Homebrew), and it is safe to re-run.
+
+```sh
+scripts/setup.sh             # Node 22, mkcert, npm dependencies, HTTPS certs
+scripts/setup.sh --android   # also JDK 17, Android SDK + NDK 27.1.12297006, mobile/ dependencies
+scripts/setup.sh --lint      # also uv, needed by make lint / make fmt for Markdown
+```
+
+- Certs are created in `certs/` for `localhost`, `127.0.0.1`, `mecoil.local` and this machine's LAN IP. If your IP changes, delete `certs/` and re-run the script.
+- `--android` adds the `ANDROID_HOME` variables to your shell rc file. Open a new shell afterwards, then run `make create-avd` for an emulator or connect a device and run `make android-run`.
+- The script does not install Android Studio. Install it separately (see [Android Mobile App](#android-mobile-app-react-native)).
+
 ### Linux / macOS (Makefile)
 
 ```sh
@@ -405,9 +419,20 @@ All messages are JSON with a `type` field. Constants live in `shared/messages.js
 4. Add a `<option>` for it in `client/src/screens/Lobby.svelte`.
 5. If a native mobile app exists, also add the mode to `mobile/src/screens/LobbyScreen.tsx` (add the `<option>`). The mobile app is a pure client and shares the root `shared/messages.js`, so no separate copy needs to be kept in sync.
 
-### Adding a weapon profile
+### Tuning the weapon profile and fire modes
 
-Create a new JSON file in `config/weapons/` matching the structure of `rk-45.json`. Reference it by filename (without `.json`) in `config/game.json` → `defaultWeapon`.
+Weapon profiles are defined in code, and each client has its own copy. Change both to keep the web client and the Android app the same:
+
+- `client/src/lib/ble.js`
+- `mobile/src/lib/ble.ts`
+
+In each file:
+
+1. `DEFAULT_PROFILE` is the base profile written to the gun when a game starts (an RK-45 equivalent). It covers IR power, muzzle LED and recoil motor power, and the muzzle flash.
+2. `GUN_MODES` holds the selectable fire modes. Each mode overrides `triggerMode`, `rateOfFire` and the muzzle-flash fields of the active profile. `GUN_MODE_CYCLE` sets the order the power button and the HUD badge cycle through.
+3. Damage per hit is set in `shared/messages.js` and applied by the server in `BaseMode._damageFor()`: `GUN_MODE_DAMAGE` for each mode, and `PLASMA_DAMAGE_PER_AMMO` for plasma, which scales with the rounds charged.
+
+For a new fire mode, add an entry to `GUN_MODES` and `GUN_MODE_CYCLE` in both clients, and a damage value in `GUN_MODE_DAMAGE`. See [docs/recoil_gun_firmware_config_guide.md](docs/recoil_gun_firmware_config_guide.md) for what each profile byte means.
 
 ---
 
