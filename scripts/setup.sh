@@ -7,6 +7,8 @@
 #   scripts/setup.sh --lint      also install uv (used by `make lint` for Markdown)
 #   scripts/setup.sh --prereqs   only install system tools (what `make install-prereqs` runs);
 #                                skips npm install and cert generation
+#   scripts/setup.sh --avd       only create the Pixel_6_API_36 emulator (run --android first)
+#   scripts/setup.sh --android-env  only add ANDROID_HOME to your shell rc file
 #
 # Supports Ubuntu/Debian (apt) and macOS (Homebrew). Safe to re-run.
 set -euo pipefail
@@ -16,16 +18,21 @@ cd "$(dirname "$0")/.."
 MIN_NODE_MAJOR=22                # mobile/ needs Node >= 22.11; the server alone needs 20
 ANDROID_CMDLINE_BUILD=13114758   # from https://developer.android.com/studio#command-line-tools-only
 NDK_VERSION=27.1.12297006        # must match mobile/android/build.gradle
+AVD_NAME=Pixel_6_API_36
 
 WITH_ANDROID=0
 WITH_LINT=0
 PREREQS_ONLY=0
+ONLY_AVD=0
+ONLY_ANDROID_ENV=0
 for arg in "$@"; do
   case "$arg" in
     --android) WITH_ANDROID=1 ;;
     --lint) WITH_LINT=1 ;;
     --prereqs) PREREQS_ONLY=1 ;;
-    -h | --help) sed -n '2,10p' "$0"; exit 0 ;;
+    --avd) ONLY_AVD=1 ;;
+    --android-env) ONLY_ANDROID_ENV=1 ;;
+    -h | --help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -130,6 +137,40 @@ ensure_uv() {
   curl -LsSf https://astral.sh/uv/install.sh | sh
 }
 
+# Homebrew's JDK is keg-only, so it is not on PATH; sdkmanager and avdmanager need it.
+export_java_home() {
+  if [ "$PKG" = brew ]; then
+    JAVA_HOME="$(brew --prefix openjdk@17)/libexec/openjdk.jdk/Contents/Home"
+    export JAVA_HOME
+  fi
+}
+
+accept_android_licenses() {
+  yes | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
+}
+
+write_android_env() {
+  if grep -q "# ANDROID SDK START" "$SHELL_RC" 2>/dev/null; then
+    log "Android SDK variables already set in $SHELL_RC, skipping"
+    return
+  fi
+
+  log "Adding Android SDK variables to $SHELL_RC"
+  local java_line=""
+  if [ "$PKG" = brew ]; then
+    export_java_home
+    java_line="export JAVA_HOME=\"$JAVA_HOME\""
+  fi
+  cat >>"$SHELL_RC" <<EOF
+
+# ANDROID SDK START
+export ANDROID_HOME="$SDK_DIR"
+export PATH="\$PATH:\$ANDROID_HOME/emulator:\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/cmdline-tools/latest/bin"
+$java_line
+# ANDROID SDK END
+EOF
+}
+
 setup_android() {
   log "Installing JDK 17 and Android build dependencies"
   if [ "$PKG" = brew ]; then
@@ -137,13 +178,7 @@ setup_android() {
   else
     sudo apt-get install -y openjdk-17-jdk libpulse0 unzip
   fi
-
-  local java_line=""
-  if [ "$PKG" = brew ]; then
-    JAVA_HOME="$(brew --prefix openjdk@17)/libexec/openjdk.jdk/Contents/Home"
-    export JAVA_HOME
-    java_line="export JAVA_HOME=\"$JAVA_HOME\""
-  fi
+  export_java_home
 
   local sdkmanager="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
   if [ ! -x "$sdkmanager" ]; then
@@ -159,30 +194,55 @@ setup_android() {
   fi
 
   log "Accepting SDK licenses and installing platform tools, API 36, NDK and CMake"
-  yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
+  accept_android_licenses
   "$sdkmanager" --install \
     "platform-tools" "emulator" "platforms;android-36" \
     "ndk;$NDK_VERSION" "cmake;3.22.1"
 
-  if ! grep -q "# ANDROID SDK START" "$SHELL_RC" 2>/dev/null; then
-    log "Adding Android SDK variables to $SHELL_RC"
-    cat >>"$SHELL_RC" <<EOF
-
-# ANDROID SDK START
-export ANDROID_HOME="$SDK_DIR"
-export PATH="\$PATH:\$ANDROID_HOME/emulator:\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/cmdline-tools/latest/bin"
-$java_line
-# ANDROID SDK END
-EOF
-  else
-    log "Android SDK variables already set in $SHELL_RC, skipping"
-  fi
+  write_android_env
 
   if [ "$PREREQS_ONLY" = 0 ]; then
     log "Installing mobile/ dependencies"
     npm install --prefix mobile
   fi
 }
+
+setup_avd() {
+  local bin="$SDK_DIR/cmdline-tools/latest/bin"
+  if [ ! -x "$bin/avdmanager" ]; then
+    echo "avdmanager not found in $bin. Run scripts/setup.sh --android first." >&2
+    exit 1
+  fi
+  export_java_home
+
+  if [ -d "$HOME/.android/avd/$AVD_NAME.avd" ]; then
+    log "AVD $AVD_NAME already exists, skipping"
+  else
+    local abi=x86_64
+    case "$(uname -m)" in arm64 | aarch64) abi=arm64-v8a ;; esac
+    local image="system-images;android-36;google_apis;$abi"
+    log "Creating AVD $AVD_NAME ($image)"
+    accept_android_licenses
+    "$bin/sdkmanager" --install "$image"
+    echo no | "$bin/avdmanager" create avd --name "$AVD_NAME" --package "$image" --device pixel_6
+  fi
+
+  if [ "$PKG" = apt ]; then
+    log "Granting /dev/kvm access to $USER (requires sudo)"
+    sudo adduser "$USER" kvm 2>/dev/null || true
+    sudo chmod 666 /dev/kvm 2>/dev/null || echo "WARNING: could not chmod /dev/kvm (may not exist yet)"
+    echo "You may need to log out and back in for the kvm group change to take effect."
+  fi
+}
+
+if [ "$ONLY_AVD" = 1 ]; then
+  setup_avd
+  exit 0
+fi
+if [ "$ONLY_ANDROID_ENV" = 1 ]; then
+  write_android_env
+  exit 0
+fi
 
 ensure_apt_index
 ensure_node

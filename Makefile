@@ -5,7 +5,7 @@ SHELL := /bin/bash
 SHELL_RC := $(HOME)/.bashrc
 
 # Install all dependencies and generate certs
-init: install-prereqs install gen-certs
+init: install-prereqs install gen-certs mobile-prereqs
 	sudo chown -R $$USER:$$USER .
 
 # Install Node.js, openssl, mkcert and uv (Ubuntu/Debian or macOS). Logic lives in scripts/setup.sh.
@@ -88,30 +88,17 @@ phone-test: gen-certs build
 
 # ── Android / Mobile ──────────────────────────────────────────────────────────
 
-# Install Android build prerequisites on Ubuntu/Debian (JDK only).
-# After this, install Android Studio via make install-android-studio, complete the wizard, and create an AVD.
+# Install JDK 17, Android SDK, NDK and CMake without Android Studio (see scripts/setup.sh --android).
+# Optionally install the IDE via make install-android-studio, and create an emulator with make create-avd.
 mobile-prereqs:
-	sudo apt update
-	sudo apt install -y openjdk-17-jdk
-	sudo apt install -y libpulse0
-	sudo apt install -y unzip
+	scripts/setup.sh --prereqs --android
 	@echo ""
-	@echo "Next: install Android Studio, complete the wizard. Make sure to include (Tools > SDK Manager > SDK Tools) Android SDK Command-line Tools, Android SDK Build-Tools, NDK (Side by Side) and CMake."
-	@echo "Then: Create an AVD or connect a physical android device in Android Studio Device Manager and run `make android-run`."
+	@echo "Next: create an AVD with make create-avd, or connect a physical device, then run make android-run."
 
 android-env-vars:
-	@if ! grep -q "# ANDROID SDK START" $(SHELL_RC); then \
-		echo "" >> $(SHELL_RC); \
-		echo "# ANDROID SDK START" >> $(SHELL_RC); \
-		echo "export ANDROID_HOME=\$$HOME/Android/Sdk" >> $(SHELL_RC); \
-		echo "export PATH=\$$PATH:\$$ANDROID_HOME/emulator:\$$ANDROID_HOME/platform-tools:\$$ANDROID_HOME/cmdline-tools/latest/bin" >> $(SHELL_RC); \
-		echo "# ANDROID SDK END" >> $(SHELL_RC); \
-	else \
-		echo "Android SDK environment variables already set in $(SHELL_RC), skipping."; \
-	fi
-	@echo "Android env ensured in $(SHELL_RC)"
+	scripts/setup.sh --android-env
 	@echo "Run this to apply changes now:"
-	@echo "source ~/.bashrc"
+	@echo "source $(SHELL_RC)"
 
 
 # Install mobile app dependencies

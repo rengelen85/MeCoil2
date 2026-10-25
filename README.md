@@ -42,10 +42,11 @@ scripts/setup.sh             # Node 22, mkcert, npm dependencies, HTTPS certs
 scripts/setup.sh --android   # also JDK 17, Android SDK + NDK 27.1.12297006, mobile/ dependencies
 scripts/setup.sh --lint      # also uv, needed by make lint / make fmt for Markdown
 scripts/setup.sh --prereqs   # only system tools (Node, openssl, mkcert); same as make install-prereqs
+scripts/setup.sh --avd       # create the Pixel_6_API_36 emulator (same as make create-avd; run --android first)
 ```
 
 - Certs are created in `certs/` for `localhost`, `127.0.0.1`, `mecoil.local` and this machine's LAN IP. If your IP changes, delete `certs/` and re-run the script.
-- `--android` adds the `ANDROID_HOME` variables to your shell rc file. Open a new shell afterwards, then run `make create-avd` for an emulator or connect a device and run `make android-run`.
+- `--android` adds the `ANDROID_HOME` variables to your shell rc file. Open a new shell afterwards, then run `make create-avd` (or `scripts/setup.sh --avd`) for an emulator or connect a device and run `make android-run`.
 - The script does not install Android Studio. Install it separately (see [Android Mobile App](#android-mobile-app-react-native)).
 
 ### Linux / macOS (Makefile)
