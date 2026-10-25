@@ -222,7 +222,7 @@ and multi-arch build details (and why not App Runner / ECS Express Mode).
 | **Lobby** | Wait for players, configure the game (host only), ready up |
 | **In Game** | Live GPS map, ammo bar, kill feed, timer, synthesized sound effects (reload / killed / respawn / airstrike alert) |
 | **End Screen** | Final scores, back to lobby for another round |
-| **AR Target Practice** | Single-player camera mode, no server needed (see below) |
+| **AR Target Practice** | Single-player camera modes (targets or zombie survival), no server needed (see below) |
 
 ### Game Modes
 
@@ -266,7 +266,7 @@ and multi-arch build details (and why not App Runner / ECS Express Mode).
 
 ### AR Target Practice (single player)
 
-A solo mode that runs entirely on the phone, with no server or network connection. Open it with **🎯 AR target practice** on the Setup screen (or under *Single Player* on the room list).
+A solo mode that runs entirely on the phone, with no server or network connection. Open it with **🎯 AR practice & 🧟 zombies** on the Setup screen (or under *Single Player* on the room list).
 
 - The rear camera is the backdrop. Targets are placed in the space around you and held in place by the phone's motion sensors, so you turn to find them. Arrows at the screen edge point to targets outside the view
 - Aim with the crosshair in the centre of the screen (where a gun-mounted phone points) and pull the trigger. Each round the gun fires counts as a shot. Without a gun, use the on-screen **FIRE** / **RELOAD** buttons (or `T` / `R` on a keyboard). Without motion sensors (desktop browsers), drag to look around
@@ -279,6 +279,30 @@ A solo mode that runs entirely on the phone, with no server or network connectio
 | Gold | 300 | Far away and disappears quickly |
 
 Consecutive hits add a streak bonus (+10% per hit, up to double points). A missed shot or an escaped target resets it. A charged **PLASMA** shot widens the hit cone and takes down every target inside it. Your best score per round length and difficulty is stored on the device.
+
+#### Zombie survival
+
+Pick **🧟 Zombies** at the top of the intro screen. Waves of zombies walk in from 14–18 m away and close in on you; shoot them before they get within biting range (about 1 m). Every bite costs a life (Easy 5, Normal 3, Hard 2) and the game ends when you run out. There is no time limit: survive as many waves as you can.
+
+- Each wave has more zombies (4 in wave 1, +2 per wave), and they get faster. The first waves come from in front of you; later ones come from all around, so watch the edge arrows (they turn red and grow when a zombie is within 4 m)
+- Shoot a zombie's head (top of the figure) for double damage and +50% points. A burst does one point of damage per round; a charged **PLASMA** shot hits every zombie in a wider cone and does more damage the longer it was charged
+- Clearing a wave earns 100 × the wave number, followed by a short break before the next one. Streak bonuses work as in target practice; a bite also resets the streak
+
+| Zombie | Points | Notes |
+|--------|--------|-------|
+| 🧟 Walker | 100 | Slow, sways from side to side |
+| 🧟‍♀️ Runner | 150 | Twice as fast and zig-zags, from wave 2 |
+| 🧟‍♂️ Brute | 400 | Slow and big, takes 4 hits, from wave 3 |
+
+Power-ups float in the air for 7 seconds during a wave. Shoot one to collect it:
+
+| Power-up | Effect |
+|----------|--------|
+| ❤️ Medkit | +1 life (up to 6) |
+| 💣 Bomb | Kills every zombie that is up (points included) |
+| ❄️ Freeze | All zombies stop moving for 5 seconds |
+
+Difficulty scales zombie speed, wave size, starting lives and hit-box size. The best score per difficulty is stored on the device.
 
 Requirements: the web client needs HTTPS for the camera (the same as for Bluetooth). It is served by the MeCoil server, so the page must be loaded once, but the game itself sends nothing over the network. The Android app needs camera permission and works with no server configured at all.
 
@@ -354,7 +378,7 @@ MeCoil/
 ├── mobile/           # React Native Android app (client only)
 │   ├── src/          # React Native screens and components
 │   └── android/      # Android-specific build config (Gradle)
-├── shared/           # Shared protocol constants and AR practice game logic
+├── shared/           # Shared protocol constants and AR practice / zombie game logic
 ├── docs/             # Hardware protocol documentation
 ├── certs/            # HTTPS certificates (gitignored)
 ├── Makefile          # Linux/macOS task runner

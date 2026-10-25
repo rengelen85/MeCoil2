@@ -144,7 +144,7 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
           onPress={startArPractice}
           disabled={connecting}>
           <Text style={[styles.btnText, styles.btnArText]}>
-            🎯 AR target practice
+            🎯 AR practice & 🧟 zombies
           </Text>
         </TouchableOpacity>
         <Text style={styles.arHint}>

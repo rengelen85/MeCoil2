@@ -127,7 +127,7 @@ function startArPractice() {
     <div class="divider"><span>or</span></div>
 
     <button class="btn-ar" on:click={startArPractice} disabled={connecting}>
-      🎯 AR target practice
+      🎯 AR practice &amp; 🧟 zombies
     </button>
     <p class="ar-hint">Single player with your camera. No server needed.</p>
   </div>

@@ -1,7 +1,8 @@
 /**
- * Single-player AR target practice — mirrors client/src/screens/ArPractice.svelte.
- * Runs fully on the device: the rear camera is the backdrop, the rotation
- * sensor aims the crosshair, and targets/scoring come from shared/arGame.js.
+ * Single-player AR practice (target practice or zombie survival) — mirrors
+ * client/src/screens/ArPractice.svelte. Runs fully on the device: the rear
+ * camera is the backdrop, the rotation sensor aims the crosshair, and
+ * targets/zombies/scoring come from shared/arGame.js and shared/arZombies.js.
  * Nothing is sent to the server.
  */
 
@@ -9,6 +10,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   LayoutChangeEvent,
+  Vibration,
   PanResponder,
   ScrollView,
   StyleSheet,
@@ -39,6 +41,16 @@ import {
   targetPosition,
   tickArGame,
 } from 'shared/arGame.js';
+import {
+  AR_ZOMBIE_DIFFICULTIES,
+  createZombieGame,
+  fireZombieShot,
+  isFrozen,
+  tickZombieGame,
+  zombieBestKey,
+  zombiePosition,
+  zombieResults,
+} from 'shared/arZombies.js';
 import { RootStackParamList } from '../navigation/index.js';
 import { useGameStore } from '../stores/game.js';
 import {
@@ -48,15 +60,28 @@ import {
   setGunMode,
   setLocalShotHandler,
 } from '../lib/ble.js';
-import { playReload, playTargetHit } from '../lib/audio.js';
+import {
+  playKilled,
+  playPowerUp,
+  playReload,
+  playTargetHit,
+  playZombieBite,
+} from '../lib/audio.js';
 import { subscribeArOrientation } from '../lib/arOrientation.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ArPractice'>;
 type Phase = 'intro' | 'countdown' | 'playing' | 'results';
+type Mode = 'targets' | 'zombies';
 type Quat = { x: number; y: number; z: number; w: number };
 type Basis = ReturnType<typeof cameraBasis>;
-type Game = ReturnType<typeof createArGame>;
-type Results = ReturnType<typeof arResults>;
+type TargetGame = ReturnType<typeof createArGame>;
+type ZombieGame = ReturnType<typeof createZombieGame>;
+type Game =
+  | { mode: 'targets'; state: TargetGame }
+  | { mode: 'zombies'; state: ZombieGame };
+type Results =
+  | { mode: 'targets'; r: ReturnType<typeof arResults> }
+  | { mode: 'zombies'; r: ReturnType<typeof zombieResults> };
 
 interface Sprite {
   id: number;
@@ -73,6 +98,24 @@ interface Indicator {
   y: number;
   deg: number;
 }
+interface ZombieSprite {
+  id: number;
+  emoji: string;
+  x: number;
+  y: number;
+  size: number;
+  hp: number | null;
+  near: boolean;
+}
+interface PowerUpSprite {
+  id: number;
+  kind: string;
+  emoji: string;
+  x: number;
+  y: number;
+  size: number;
+  expiring: boolean;
+}
 interface Popup {
   id: number;
   text: string;
@@ -84,27 +127,56 @@ interface Frame {
   sprites: Sprite[];
   indicators: Indicator[];
   popups: Popup[];
+  zombies: ZombieSprite[];
+  powerUps: PowerUpSprite[];
   timeLeft: number;
   score: number;
   streak: number;
+  wave: number;
+  lives: number;
+  banner: string;
+  frozen: boolean;
+  biteFlash: number;
   countdownLeft: number;
 }
 
 const BEST_KEY = 'mecoil_ar_best';
+const ZOMBIE_BEST_KEY = 'mecoil_ar_zombie_best';
 const KIND_COLORS: Record<string, string> = {
   standard: '#ff1744',
   mover: '#ff9100',
   bonus: '#ffd600',
+  zombie: '#76ff03',
+  near: '#ff1744',
+  medkit: '#ff4081',
+  bomb: '#ffab40',
+  freeze: '#40c4ff',
 };
+const ZOMBIE_EMOJI: Record<string, string> = { walker: '🧟', runner: '🧟‍♀️', brute: '🧟‍♂️' };
+const POWERUP_EMOJI: Record<string, string> = { medkit: '❤️', bomb: '💣', freeze: '❄️' };
+const BITE_FLASH_MS = 450;
 const EMPTY_FRAME: Frame = {
   sprites: [],
   indicators: [],
   popups: [],
+  zombies: [],
+  powerUps: [],
   timeLeft: 0,
   score: 0,
   streak: 0,
+  wave: 0,
+  lives: 0,
+  banner: '',
+  frozen: false,
+  biteFlash: 0,
   countdownLeft: AR_COUNTDOWN_SECS,
 };
+
+function bestKey(mode: Mode, secs: number, diff: string) {
+  return mode === 'zombies'
+    ? zombieBestKey(ZOMBIE_BEST_KEY, diff)
+    : arBestKey(BEST_KEY, secs, diff);
+}
 
 const now = () => Date.now();
 
@@ -140,6 +212,56 @@ function Target({ s }: { s: Sprite }) {
   );
 }
 
+// Zombie figure: emoji sized to the body's apparent height, with an HP bar for
+// zombies that take more than one hit.
+function Zombie({ z, frozen }: { z: ZombieSprite; frozen: boolean }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.zombie, { left: z.x - z.size / 2, top: z.y - z.size / 2, width: z.size, height: z.size }]}>
+      <Text
+        style={[
+          styles.zombieEmoji,
+          { fontSize: z.size * 0.85, lineHeight: z.size },
+          z.near && styles.zombieNear,
+          frozen && styles.zombieFrozen,
+        ]}>
+        {z.emoji}
+      </Text>
+      {z.hp != null && (
+        <View style={styles.hp}>
+          <View style={[styles.hpFill, { width: `${z.hp * 100}%` }]} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function PowerUp({ p }: { p: PowerUpSprite }) {
+  const color = KIND_COLORS[p.kind] ?? '#fff';
+  // Bob up and down; blink while about to vanish.
+  const bob = Math.sin(now() / 160) * 3;
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.powerUp,
+        {
+          left: p.x - p.size / 2,
+          top: p.y - p.size / 2 + bob,
+          width: p.size,
+          height: p.size,
+          borderRadius: p.size / 2,
+          borderColor: color,
+          shadowColor: color,
+        },
+        p.expiring && Math.floor(now() / 125) % 2 === 1 && styles.targetDim,
+      ]}>
+      <Text style={{ fontSize: p.size * 0.55 }}>{p.emoji}</Text>
+    </View>
+  );
+}
+
 export default function ArPracticeScreen(_props: Props) {
   const ammo = useGameStore(s => s.ammo);
   const maxAmmo = useGameStore(s => s.maxAmmo);
@@ -170,6 +292,8 @@ export default function ArPracticeScreen(_props: Props) {
   const [roundSecs, setRoundSecs] = useState(AR_ROUND_SECS);
   const difficultyRef = useRef(AR_DEFAULT_DIFFICULTY);
   const [difficulty, setDifficulty] = useState(AR_DEFAULT_DIFFICULTY);
+  const modeRef = useRef<Mode>('targets');
+  const [mode, setMode] = useState<Mode>('targets');
   const hitMarkerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setPhaseBoth = (p: Phase) => {
@@ -196,14 +320,23 @@ export default function ArPracticeScreen(_props: Props) {
     }),
   ).current;
 
-  // Best scores are kept per round length and difficulty.
-  const loadBest = useCallback((secs: number, diff: string) => {
+  // Best scores are kept per mode and difficulty, and per round length for
+  // target practice.
+  const loadBest = useCallback((m: Mode, secs: number, diff: string) => {
+    modeRef.current = m;
     roundSecsRef.current = secs;
     difficultyRef.current = diff;
+    setMode(m);
     setRoundSecs(secs);
     setDifficulty(diff);
-    AsyncStorage.getItem(arBestKey(BEST_KEY, secs, diff)).then(v => {
-      if (roundSecsRef.current !== secs || difficultyRef.current !== diff) return;
+    AsyncStorage.getItem(bestKey(m, secs, diff)).then(v => {
+      if (
+        modeRef.current !== m ||
+        roundSecsRef.current !== secs ||
+        difficultyRef.current !== diff
+      ) {
+        return;
+      }
       bestRef.current = Number(v) || 0;
       setBest(bestRef.current);
     });
@@ -214,12 +347,21 @@ export default function ArPracticeScreen(_props: Props) {
     game.setScreen(game.arReturnScreen);
   }, []);
 
-  const onShot = useCallback((mode: GunMode, rounds: number) => {
+  const onShot = useCallback((gunMode: GunMode, rounds: number) => {
     const game = gameRef.current;
     if (phaseRef.current !== 'playing' || !game) return;
-    const { hits } = fireArShot(game, basisRef.current, now(), { mode, rounds });
-    if (hits.length) {
-      playTargetHit();
+    const opts = { mode: gunMode, rounds };
+    let hit: boolean;
+    if (game.mode === 'zombies') {
+      const shot = fireZombieShot(game.state, basisRef.current, now(), opts);
+      hit = shot.hit;
+      if (shot.powerUp) playPowerUp();
+      else if (shot.kills.length) playTargetHit();
+    } else {
+      hit = fireArShot(game.state, basisRef.current, now(), opts).hits.length > 0;
+      if (hit) playTargetHit();
+    }
+    if (hit) {
       setHitMarker(true);
       if (hitMarkerTimer.current) clearTimeout(hitMarkerTimer.current);
       hitMarkerTimer.current = setTimeout(() => setHitMarker(false), 180);
@@ -236,7 +378,7 @@ export default function ArPracticeScreen(_props: Props) {
       exit();
       return true;
     });
-    loadBest(AR_ROUND_SECS, AR_DEFAULT_DIFFICULTY);
+    loadBest('targets', AR_ROUND_SECS, AR_DEFAULT_DIFFICULTY);
     return () => {
       unsubscribe?.();
       setLocalShotHandler(null);
@@ -251,18 +393,22 @@ export default function ArPracticeScreen(_props: Props) {
   const finish = useCallback(() => {
     const game = gameRef.current;
     if (!game) return;
-    const r = arResults(game);
-    const isNewBest = r.score > bestRef.current;
+    const res: Results =
+      game.mode === 'zombies'
+        ? { mode: 'zombies', r: zombieResults(game.state) }
+        : { mode: 'targets', r: arResults(game.state) };
+    const score = res.r.score;
+    const isNewBest = score > bestRef.current;
     if (isNewBest) {
-      bestRef.current = r.score;
-      setBest(r.score);
+      bestRef.current = score;
+      setBest(score);
       AsyncStorage.setItem(
-        arBestKey(BEST_KEY, roundSecsRef.current, difficultyRef.current),
-        String(r.score),
+        bestKey(game.mode, roundSecsRef.current, difficultyRef.current),
+        String(score),
       );
     }
     setNewBest(isNewBest);
-    setResults(r);
+    setResults(res);
     setFrame(EMPTY_FRAME);
     setPhaseBoth('results');
   }, []);
@@ -282,29 +428,121 @@ export default function ArPracticeScreen(_props: Props) {
       if (phaseRef.current === 'countdown') {
         const left = Math.ceil((countdownEndsAtRef.current - t) / 1_000);
         if (left <= 0) {
-          gameRef.current = createArGame({
-            nowMs: t,
-            durationSecs: roundSecsRef.current,
-            difficulty: difficultyRef.current,
-          });
+          gameRef.current =
+            modeRef.current === 'zombies'
+              ? {
+                  mode: 'zombies',
+                  state: createZombieGame({ nowMs: t, difficulty: difficultyRef.current }),
+                }
+              : {
+                  mode: 'targets',
+                  state: createArGame({
+                    nowMs: t,
+                    durationSecs: roundSecsRef.current,
+                    difficulty: difficultyRef.current,
+                  }),
+                };
           setPhaseBoth('playing');
         } else {
           setFrame(f => (f.countdownLeft === left ? f : { ...f, countdownLeft: left }));
         }
         return;
       }
-      const game = gameRef.current;
-      if (phaseRef.current !== 'playing' || !game) return;
+      const current = gameRef.current;
+      if (phaseRef.current !== 'playing' || !current) return;
 
+      const { width, height } = sizeRef.current;
+      const viewport = { width, height, focalPx: focalLengthPx(width, height) };
+      const edge = Math.min(width, height) / 2 - 36;
+      // Off-screen marker at the screen edge for a projected point.
+      const edgeMarker = (id: number, kind: string, s: { direction: number }): Indicator => ({
+        id,
+        kind,
+        x: width / 2 + Math.cos(s.direction) * edge,
+        y: height / 2 - Math.sin(s.direction) * edge,
+        deg: (-s.direction * 180) / Math.PI,
+      });
+
+      if (current.mode === 'zombies') {
+        const zg = current.state;
+        const { bites } = tickZombieGame(zg, t, aimAzimuthDeg(basis));
+        if (bites) {
+          playZombieBite();
+          Vibration.vibrate(200);
+        }
+        if (zg.over) {
+          playKilled();
+          finish();
+          return;
+        }
+        const indicators: Indicator[] = [];
+        const zombies: ZombieSprite[] = [];
+        // Draw far zombies first so near ones overlap them.
+        for (const z of [...zg.zombies].sort((a, b) => b.distanceM - a.distanceM)) {
+          const s = projectPoint(basis, zombiePosition(z), viewport, z.heightM / 2);
+          const near = z.distanceM < 4;
+          if (s.visible) {
+            zombies.push({
+              id: z.id,
+              emoji: ZOMBIE_EMOJI[z.kind],
+              x: s.x,
+              y: s.y,
+              size: Math.max(16, s.sizePx),
+              hp: z.maxHp > 1 ? z.hp / z.maxHp : null,
+              near,
+            });
+          } else {
+            indicators.push(edgeMarker(z.id, near ? 'near' : 'zombie', s));
+          }
+        }
+        const powerUps: PowerUpSprite[] = [];
+        for (const p of zg.powerUps) {
+          const s = projectPoint(basis, targetPosition(p), viewport, p.radiusM);
+          if (s.visible) {
+            powerUps.push({
+              id: p.id,
+              kind: p.kind,
+              emoji: POWERUP_EMOJI[p.kind],
+              x: s.x,
+              y: s.y,
+              size: Math.max(28, s.sizePx),
+              expiring: p.expiresAt - t < 1_500,
+            });
+          } else {
+            indicators.push(edgeMarker(p.id, p.kind, s));
+          }
+        }
+        setFrame({
+          ...EMPTY_FRAME,
+          zombies,
+          powerUps,
+          indicators,
+          popups: zg.popups
+            .map(pp => ({
+              id: pp.id,
+              text: pp.text,
+              age: (t - pp.at) / 900,
+              ...projectPoint(basis, targetPosition(pp), viewport),
+            }))
+            .filter(pp => pp.visible),
+          score: zg.score,
+          wave: zg.wave,
+          lives: zg.lives,
+          banner: zg.banner ? zg.banner.text : '',
+          frozen: isFrozen(zg, t),
+          biteFlash: Math.max(0, 1 - (t - zg.lastBiteAt) / BITE_FLASH_MS),
+          countdownLeft: 0,
+        });
+        return;
+      }
+
+      const game = current.state;
       tickArGame(game, t, aimAzimuthDeg(basis));
       if (game.over) {
         finish();
         return;
       }
 
-      const { width, height } = sizeRef.current;
-      const viewport = { width, height, focalPx: focalLengthPx(width, height) };
-      const edge = Math.min(width, height) / 2 - 36;
       const projected = game.targets.map(tg => ({
         id: tg.id,
         kind: tg.kind,
@@ -312,18 +550,11 @@ export default function ArPracticeScreen(_props: Props) {
         ...projectPoint(basis, targetPosition(tg), viewport, tg.radiusM),
       }));
       setFrame({
+        ...EMPTY_FRAME,
         sprites: projected
           .filter(s => s.visible)
           .map(s => ({ ...s, size: Math.max(18, s.sizePx) })),
-        indicators: projected
-          .filter(s => !s.visible)
-          .map(s => ({
-            id: s.id,
-            kind: s.kind,
-            x: width / 2 + Math.cos(s.direction) * edge,
-            y: height / 2 - Math.sin(s.direction) * edge,
-            deg: (-s.direction * 180) / Math.PI,
-          })),
+        indicators: projected.filter(s => !s.visible).map(s => edgeMarker(s.id, s.kind, s)),
         popups: game.popups
           .map(pp => ({
             id: pp.id,
@@ -411,6 +642,19 @@ export default function ArPracticeScreen(_props: Props) {
         <Target key={s.id} s={s} />
       ))}
 
+      {frame.zombies.map(z => (
+        <Zombie key={z.id} z={z} frozen={frame.frozen} />
+      ))}
+
+      {frame.powerUps.map(p => (
+        <PowerUp key={p.id} p={p} />
+      ))}
+
+      {frame.frozen && <View pointerEvents="none" style={styles.freezeTint} />}
+      {frame.biteFlash > 0 && (
+        <View pointerEvents="none" style={[styles.biteFlash, { opacity: frame.biteFlash }]} />
+      )}
+
       {frame.indicators.map(ind => (
         <Text
           key={ind.id}
@@ -423,6 +667,7 @@ export default function ArPracticeScreen(_props: Props) {
               color: KIND_COLORS[ind.kind] ?? KIND_COLORS.standard,
               transform: [{ rotate: `${ind.deg}deg` }],
             },
+            ind.kind === 'near' && styles.indicatorNear,
           ]}>
           ➤
         </Text>
@@ -455,25 +700,51 @@ export default function ArPracticeScreen(_props: Props) {
               <Text style={styles.statLabel}>SCORE</Text>
               <Text style={styles.statValue}>{frame.score}</Text>
             </View>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>TIME</Text>
-              <Text
-                style={[
-                  styles.statValue,
-                  phase === 'playing' && frame.timeLeft <= 10 && styles.statLow,
-                ]}>
-                {phase === 'playing' ? frame.timeLeft : '–'}
-              </Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statLabel}>STREAK</Text>
-              <Text style={styles.statValue}>{frame.streak > 1 ? `×${frame.streak}` : '–'}</Text>
-            </View>
+            {mode === 'zombies' ? (
+              <>
+                <View style={styles.stat}>
+                  <Text style={styles.statLabel}>WAVE</Text>
+                  <Text style={styles.statValue}>
+                    {phase === 'playing' && frame.wave ? frame.wave : '–'}
+                  </Text>
+                </View>
+                <View style={styles.stat}>
+                  <Text style={styles.statLabel}>LIVES</Text>
+                  <Text style={[styles.statValue, styles.statLives]}>
+                    {phase === 'playing' ? '❤'.repeat(frame.lives) || '–' : '–'}
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.stat}>
+                  <Text style={styles.statLabel}>TIME</Text>
+                  <Text
+                    style={[
+                      styles.statValue,
+                      phase === 'playing' && frame.timeLeft <= 10 && styles.statLow,
+                    ]}>
+                    {phase === 'playing' ? frame.timeLeft : '–'}
+                  </Text>
+                </View>
+                <View style={styles.stat}>
+                  <Text style={styles.statLabel}>STREAK</Text>
+                  <Text style={styles.statValue}>
+                    {frame.streak > 1 ? `×${frame.streak}` : '–'}
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
 
           {phase === 'countdown' && (
             <Text pointerEvents="none" style={styles.countdown}>
               {frame.countdownLeft}
+            </Text>
+          )}
+          {!!frame.banner && (
+            <Text pointerEvents="none" style={styles.banner}>
+              {frame.banner.toUpperCase()}
             </Text>
           )}
 
@@ -512,31 +783,64 @@ export default function ArPracticeScreen(_props: Props) {
       {phase === 'intro' && (
         <ScrollView style={styles.panelWrap} contentContainerStyle={styles.panelWrapContent}>
           <View style={styles.panel}>
-            <Text style={styles.h1}>AR TARGET PRACTICE</Text>
-            <Text style={styles.sub}>SINGLE PLAYER · NO SERVER NEEDED</Text>
-            <Text style={styles.body}>
-              Look around through your camera. Targets appear in the space around you. Put
-              the crosshair on them and pull the trigger. Pick the round length and difficulty.
+            <Text style={styles.h1}>
+              {mode === 'zombies' ? 'AR ZOMBIE SURVIVAL' : 'AR TARGET PRACTICE'}
             </Text>
+            <Text style={styles.sub}>SINGLE PLAYER · NO SERVER NEEDED</Text>
             <View style={styles.roundPicker}>
-              {AR_ROUND_OPTIONS_SECS.map(secs => (
+              {(
+                [
+                  ['targets', '🎯 Targets'],
+                  ['zombies', '🧟 Zombies'],
+                ] as const
+              ).map(([key, label]) => (
                 <TouchableOpacity
-                  key={secs}
-                  style={[styles.roundOpt, roundSecs === secs && styles.roundOptSelected]}
-                  onPress={() => loadBest(secs, difficulty)}>
-                  <Text
-                    style={[styles.roundOptText, roundSecs === secs && styles.roundOptTextSelected]}>
-                    {secs}s
+                  key={key}
+                  style={[styles.roundOpt, mode === key && styles.roundOptSelected]}
+                  onPress={() => loadBest(key, roundSecs, difficulty)}>
+                  <Text style={[styles.roundOptText, mode === key && styles.roundOptTextSelected]}>
+                    {label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
+            {mode === 'zombies' ? (
+              <Text style={styles.body}>
+                Waves of zombies close in on you from all sides. Shoot them before they get
+                close enough to bite. Each bite costs a life. Every wave brings more, faster
+                zombies. Pick the difficulty.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.body}>
+                  Look around through your camera. Targets appear in the space around you. Put
+                  the crosshair on them and pull the trigger. Pick the round length and
+                  difficulty.
+                </Text>
+                <View style={styles.roundPicker}>
+                  {AR_ROUND_OPTIONS_SECS.map(secs => (
+                    <TouchableOpacity
+                      key={secs}
+                      style={[styles.roundOpt, roundSecs === secs && styles.roundOptSelected]}
+                      onPress={() => loadBest(mode, secs, difficulty)}>
+                      <Text
+                        style={[
+                          styles.roundOptText,
+                          roundSecs === secs && styles.roundOptTextSelected,
+                        ]}>
+                        {secs}s
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
             <View style={styles.roundPicker}>
-              {Object.entries(AR_DIFFICULTIES).map(([key, cfg]) => (
+              {Object.entries(mode === 'zombies' ? AR_ZOMBIE_DIFFICULTIES : AR_DIFFICULTIES).map(([key, cfg]) => (
                 <TouchableOpacity
                   key={key}
                   style={[styles.roundOpt, difficulty === key && styles.roundOptSelected]}
-                  onPress={() => loadBest(roundSecs, key)}>
+                  onPress={() => loadBest(mode, roundSecs, key)}>
                   <Text
                     style={[styles.roundOptText, difficulty === key && styles.roundOptTextSelected]}>
                     {cfg.label}
@@ -544,16 +848,37 @@ export default function ArPracticeScreen(_props: Props) {
                 </TouchableOpacity>
               ))}
             </View>
-            <View style={styles.legend}>
-              <LegendRow color={KIND_COLORS.standard} label="Target: 100 pts" />
-              <LegendRow color={KIND_COLORS.mover} label="Moving target: 150 pts" />
-              <LegendRow color={KIND_COLORS.bonus} label="Gold target: 300 pts, gone fast" />
-            </View>
-            <Text style={styles.small}>
-              Hits in a row raise your streak bonus (up to double points). A missed shot or an
-              escaped target resets it. A charged plasma shot hits every target in a wider cone.
-              Reloads are instant.
-            </Text>
+            {mode === 'zombies' ? (
+              <>
+                <View style={styles.legend}>
+                  <IconRow icon="🧟" label="Walker: 100 pts" />
+                  <IconRow icon="🧟‍♀️" label="Runner: 150 pts, fast (from wave 2)" />
+                  <IconRow icon="🧟‍♂️" label="Brute: 400 pts, takes 4 hits (from wave 3)" />
+                  <IconRow icon="❤️" label="Medkit: +1 life" />
+                  <IconRow icon="💣" label="Bomb: wipes out every zombie" />
+                  <IconRow icon="❄️" label="Freeze: zombies stop for 5 s" />
+                </View>
+                <Text style={styles.small}>
+                  Shoot a floating power-up to collect it. Headshots do double damage and score
+                  +50%. Hits in a row raise your streak bonus (up to double points). Clearing a
+                  wave earns a bonus. A charged plasma shot hits every zombie in a wider cone.
+                  Reloads are instant.
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.legend}>
+                  <LegendRow color={KIND_COLORS.standard} label="Target: 100 pts" />
+                  <LegendRow color={KIND_COLORS.mover} label="Moving target: 150 pts" />
+                  <LegendRow color={KIND_COLORS.bonus} label="Gold target: 300 pts, gone fast" />
+                </View>
+                <Text style={styles.small}>
+                  Hits in a row raise your streak bonus (up to double points). A missed shot or
+                  an escaped target resets it. A charged plasma shot hits every target in a wider
+                  cone. Reloads are instant.
+                </Text>
+              </>
+            )}
             <Text style={[styles.small, bleConnected && styles.gunOk]}>
               {bleConnected
                 ? '● Gun connected'
@@ -576,12 +901,29 @@ export default function ArPracticeScreen(_props: Props) {
       {phase === 'results' && results && (
         <ScrollView style={styles.panelWrap} contentContainerStyle={styles.panelWrapContent}>
           <View style={styles.panel}>
-            <Text style={styles.h1}>{newBest ? 'NEW BEST SCORE!' : "TIME'S UP!"}</Text>
-            <Text style={styles.bigScore}>{results.score}</Text>
-            <ResultRow label="Targets hit" value={results.targetsHit} />
-            <ResultRow label="Targets missed" value={results.targetsMissed} />
-            <ResultRow label="Accuracy" value={`${results.accuracy}%`} />
-            <ResultRow label="Best streak" value={results.bestStreak} />
+            <Text style={styles.h1}>
+              {newBest
+                ? 'NEW BEST SCORE!'
+                : results.mode === 'zombies'
+                  ? 'YOU GOT EATEN!'
+                  : "TIME'S UP!"}
+            </Text>
+            <Text style={styles.bigScore}>{results.r.score}</Text>
+            {results.mode === 'zombies' ? (
+              <>
+                <ResultRow label="Wave reached" value={results.r.wave} />
+                <ResultRow label="Zombies killed" value={results.r.kills} />
+                <ResultRow label="Headshots" value={results.r.headshots} />
+                <ResultRow label="Power-ups" value={results.r.powerUps} />
+              </>
+            ) : (
+              <>
+                <ResultRow label="Targets hit" value={results.r.targetsHit} />
+                <ResultRow label="Targets missed" value={results.r.targetsMissed} />
+              </>
+            )}
+            <ResultRow label="Accuracy" value={`${results.r.accuracy}%`} />
+            <ResultRow label="Best streak" value={results.r.bestStreak} />
             <ResultRow label="Best score" value={best} />
             <TouchableOpacity
               style={[styles.btnPrimary, starting && styles.btnDisabled]}
@@ -614,6 +956,15 @@ function LegendRow({ color, label }: { color: string; label: string }) {
   );
 }
 
+function IconRow({ icon, label }: { icon: string; label: string }) {
+  return (
+    <View style={styles.legendRow}>
+      <Text style={styles.legendIcon}>{icon}</Text>
+      <Text style={styles.body}>{label}</Text>
+    </View>
+  );
+}
+
 function ResultRow({ label, value }: { label: string; value: string | number }) {
   return (
     <View style={styles.resultRow}>
@@ -635,6 +986,69 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   targetDim: { opacity: 0.35 },
+  zombie: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  zombieEmoji: {
+    textAlign: 'center',
+    textShadowColor: 'rgba(118,255,3,0.7)',
+    textShadowRadius: 8,
+  },
+  zombieNear: { textShadowColor: '#ff1744', textShadowRadius: 12 },
+  zombieFrozen: { textShadowColor: '#40c4ff', textShadowRadius: 10, opacity: 0.8 },
+  hp: {
+    position: 'absolute',
+    left: '15%',
+    right: '15%',
+    top: -6,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    overflow: 'hidden',
+  },
+  hpFill: { height: '100%', backgroundColor: '#ff1744' },
+  powerUp: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  freezeTint: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(64,196,255,0.18)',
+    borderWidth: 24,
+    borderColor: 'rgba(64,196,255,0.35)',
+  },
+  biteFlash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255,23,68,0.3)',
+    borderWidth: 36,
+    borderColor: 'rgba(255,23,68,0.6)',
+  },
+  banner: {
+    position: 'absolute',
+    top: '22%',
+    left: 16,
+    right: 16,
+    textAlign: 'center',
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: 2,
+    color: '#76ff03',
+    textShadowColor: '#000',
+    textShadowRadius: 12,
+  },
+  indicatorNear: { fontSize: 34 },
   indicator: {
     position: 'absolute',
     width: 30,
@@ -700,6 +1114,7 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 10, letterSpacing: 1, color: 'rgba(255,255,255,0.7)' },
   statValue: { fontSize: 22, fontWeight: '900', color: '#fff', textShadowColor: '#000', textShadowRadius: 4 },
   statLow: { color: '#ff5252' },
+  statLives: { color: '#ff1744', fontSize: 18, letterSpacing: 1 },
 
   countdown: {
     position: 'absolute',
@@ -792,6 +1207,7 @@ const styles = StyleSheet.create({
   legend: { gap: 4 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 14, height: 14, borderRadius: 7 },
+  legendIcon: { width: 18, fontSize: 14, textAlign: 'center' },
   roundPicker: { flexDirection: 'row', gap: 6 },
   roundOpt: {
     flex: 1,

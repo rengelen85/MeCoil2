@@ -86,7 +86,7 @@ export default function RoomSelectScreen(_props: Props) {
 
       <Text style={styles.sectionLabel}>Single Player</Text>
       <TouchableOpacity style={styles.arBtn} onPress={startArPractice}>
-        <Text style={styles.arBtnText}>🎯 AR target practice</Text>
+        <Text style={styles.arBtnText}>🎯 AR practice & 🧟 zombies</Text>
       </TouchableOpacity>
       <Text style={styles.arHint}>
         Shoot targets through your camera. No server needed.

@@ -81,7 +81,7 @@ function stateLabel(state) {
 
     <section class="card">
       <h2>Single Player</h2>
-      <button class="btn-ar" on:click={startArPractice}>🎯 AR target practice</button>
+      <button class="btn-ar" on:click={startArPractice}>🎯 AR practice &amp; 🧟 zombies</button>
       <p class="ar-hint">Shoot targets through your camera. No server needed.</p>
     </section>
   </div>

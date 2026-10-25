@@ -1,5 +1,17 @@
 # Release Notes
 
+## [0.6.0] — 2026-10-25
+
+### Added
+
+- **AR zombie survival (single player)**: A second AR practice mode in both the web and Android clients. Pick **🧟 Zombies** on the AR intro screen and waves of zombies walk in towards you through the camera view. Shoot them before they bite; each bite costs a life, and the game lasts until you run out. Every wave brings more and faster zombies, first from in front and later from all sides. Walkers (100 pts), fast zig-zagging runners (150 pts, from wave 2) and 4-hit brutes (400 pts, from wave 3). Headshots do double damage and +50% points, clearing a wave earns a bonus, and edge arrows turn red when a zombie gets close. Easy / Normal / Hard change speed, wave size, lives (5 / 3 / 2) and hit-box size; best scores are kept per difficulty
+- **AR power-ups**: During a zombie wave, shootable power-ups float in the air: ❤️ Medkit (+1 life), 💣 Bomb (kills every zombie up) and ❄️ Freeze (zombies stop for 5 seconds)
+- New synthesized sounds for a zombie bite and collecting a power-up; on Android (and supporting browsers) a bite also vibrates the phone
+
+### Changed
+
+- The AR entry button on the Setup and Room screens is now **🎯 AR practice & 🧟 zombies**
+
 ## [0.5.1] — 2026-10-25
 
 ### Added

@@ -199,3 +199,55 @@ export function playAirstrikeWarning() {
     });
   });
 }
+
+// Low, growly "chomp" when a zombie bites in AR zombie survival.
+export function playZombieBite() {
+  play((c) => {
+    tone(c, {
+      type: 'sawtooth',
+      from: 140,
+      to: 60,
+      start: 0,
+      dur: 0.25,
+      gain: 0.32,
+    });
+    tone(c, {
+      type: 'square',
+      from: 90,
+      to: 40,
+      start: 0.12,
+      dur: 0.22,
+      gain: 0.2,
+    });
+  });
+}
+
+// Quick rising sparkle when an AR power-up is shot and collected.
+export function playPowerUp() {
+  play((c) => {
+    tone(c, {
+      type: 'triangle',
+      from: 660,
+      to: 990,
+      start: 0,
+      dur: 0.08,
+      gain: 0.22,
+    });
+    tone(c, {
+      type: 'triangle',
+      from: 990,
+      to: 1480,
+      start: 0.08,
+      dur: 0.08,
+      gain: 0.22,
+    });
+    tone(c, {
+      type: 'sine',
+      from: 1980,
+      to: 1980,
+      start: 0.16,
+      dur: 0.18,
+      gain: 0.16,
+    });
+  });
+}
