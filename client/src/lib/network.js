@@ -6,6 +6,7 @@ import {
   ammo,
   apacheArmed,
   apacheReady,
+  arReturnScreen,
   bulletsPerMag,
   countdownAt,
   ctfState,
@@ -301,7 +302,10 @@ function _handle(msg) {
       reconnectFailed.set(false);
       myId.set(msg.playerId);
       saveSession(get(username), msg.playerId);
-      screen.set('roomselect');
+      // A session restored in the background must not pull the player out of
+      // offline AR practice; they land in the room list when they leave it.
+      if (get(screen) === 'ar') arReturnScreen.set('roomselect');
+      else screen.set('roomselect');
       break;
 
     case S2C.REJOIN_FAILED:

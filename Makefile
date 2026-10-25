@@ -1,21 +1,16 @@
 .PHONY: install dev dev-server dev-client build start test gen-certs phone-test lint fmt \
-        mobile-prereqs mobile-install apk-debug apk-release android-run android-run-adb
+        mobile-prereqs android-preflight mobile-install apk-debug apk-release android-run android-run-adb
 
 SHELL := /bin/bash
 SHELL_RC := $(HOME)/.bashrc
 
 # Install all dependencies and generate certs
-init: install-prereqs install gen-certs
+init: install-prereqs install gen-certs mobile-prereqs
 	sudo chown -R $$USER:$$USER .
 
-# Install Node.js (Ubuntu/Debian) & openssl
+# Install Node.js, openssl, mkcert and uv (Ubuntu/Debian or macOS). Logic lives in scripts/setup.sh.
 install-prereqs:
-	sudo apt update
-	sudo apt install nodejs -y
-	sudo apt install npm -y
-	sudo apt install openssl libssl-dev -y
-	curl -LsSf https://astral.sh/uv/install.sh | sh
-	@echo "Please restart the terminal for all changes to take effect"
+	scripts/setup.sh --prereqs --lint
 
 # Check installed Node.js version
 check-prereqs:
@@ -93,31 +88,36 @@ phone-test: gen-certs build
 
 # ── Android / Mobile ──────────────────────────────────────────────────────────
 
-# Install Android build prerequisites on Ubuntu/Debian (JDK only).
-# After this, install Android Studio via make install-android-studio, complete the wizard, and create an AVD.
+# Install JDK 17, Android SDK, NDK and CMake without Android Studio (see scripts/setup.sh --android).
+# Optionally install the IDE via make install-android-studio, and create an emulator with make create-avd.
 mobile-prereqs:
-	sudo apt update
-	sudo apt install -y openjdk-17-jdk
-	sudo apt install -y libpulse0
-	sudo apt install -y unzip
+	scripts/setup.sh --prereqs --android
 	@echo ""
-	@echo "Next: install Android Studio, complete the wizard. Make sure to include (Tools > SDK Manager > SDK Tools) Android SDK Command-line Tools, Android SDK Build-Tools, NDK (Side by Side) and CMake."
-	@echo "Then: Create an AVD or connect a physical android device in Android Studio Device Manager and run `make android-run`."
+	@echo "Next: create an AVD with make create-avd, or connect a physical device, then run make android-run."
 
 android-env-vars:
-	@if ! grep -q "# ANDROID SDK START" $(SHELL_RC); then \
-		echo "" >> $(SHELL_RC); \
-		echo "# ANDROID SDK START" >> $(SHELL_RC); \
-		echo "export ANDROID_HOME=\$$HOME/Android/Sdk" >> $(SHELL_RC); \
-		echo "export PATH=\$$PATH:\$$ANDROID_HOME/emulator:\$$ANDROID_HOME/platform-tools:\$$ANDROID_HOME/cmdline-tools/latest/bin" >> $(SHELL_RC); \
-		echo "# ANDROID SDK END" >> $(SHELL_RC); \
-	else \
-		echo "Android SDK environment variables already set in $(SHELL_RC), skipping."; \
-	fi
-	@echo "Android env ensured in $(SHELL_RC)"
+	scripts/setup.sh --android-env
 	@echo "Run this to apply changes now:"
-	@echo "source ~/.bashrc"
+	@echo "source $(SHELL_RC)"
 
+
+# Fail fast with a pointer to the fix when Java or the Android SDK is not usable in this shell.
+android-preflight:
+	@if [ -z "$$JAVA_HOME" ] && ! command -v java >/dev/null 2>&1; then \
+		echo "Java not found. Run: make mobile-prereqs, then open a new terminal."; \
+		exit 1; \
+	fi
+	@if [ -z "$$ANDROID_HOME" ]; then \
+		if [ -d "$$HOME/Android/Sdk" ] || [ -d "$$HOME/Library/Android/sdk" ]; then \
+			echo "ANDROID_HOME is not set in this shell. Run: source $(SHELL_RC) (or open a new terminal), then retry."; \
+		else \
+			echo "Android SDK not found. Run: make mobile-prereqs, then open a new terminal."; \
+		fi; \
+		exit 1; \
+	elif [ ! -d "$$ANDROID_HOME" ]; then \
+		echo "ANDROID_HOME points to $$ANDROID_HOME, which does not exist. Run: make mobile-prereqs"; \
+		exit 1; \
+	fi
 
 # Install mobile app dependencies
 mobile-install:
@@ -125,7 +125,7 @@ mobile-install:
 
 # Build a debug APK.
 # Output: mobile/android/app/build/outputs/apk/debug/app-debug.apk
-apk-debug-build: mobile-install
+apk-debug-build: android-preflight mobile-install
 	cd mobile/android && ./gradlew assembleDebug
 	@echo "APK ready: mobile/android/app/build/outputs/apk/debug/app-debug.apk"
 
@@ -138,7 +138,7 @@ apk-debug: apk-debug-build apk-debug-install
 
 # Build a release APK (signed with the debug keystore — replace for distribution).
 # Output: mobile/android/app/build/outputs/apk/release/app-release.apk
-apk-release-build: mobile-install
+apk-release-build: android-preflight mobile-install
 	cd mobile/android && ./gradlew assembleRelease
 	@echo "APK ready: mobile/android/app/build/outputs/apk/release/app-release.apk"
 
@@ -150,7 +150,7 @@ apk-release-install:
 apk-release: apk-release-build apk-release-install
 
 # Build and run on a connected device or running emulator (also starts Metro).
-android-run: mobile-install android-env-vars
+android-run: android-env-vars android-preflight mobile-install
 	adb reverse tcp:8081 tcp:8081
 	cd mobile && npm run android
 

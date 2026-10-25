@@ -13,7 +13,6 @@ certs/
 
 # Excluded files
 org-set-up.md
-CLAUDE.md
 
 # Mobile build artifacts
 mobile/android/build/

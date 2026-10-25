@@ -1,16 +1,12 @@
-.PHONY: android-emulator create-avd android-clean
+.PHONY: install-android-studio android-emulator create-avd android-clean
 
 ANDROID_STUDIO_VERSION = 2026.1.1.9
 ANDROID_STUDIO_TAR = android-studio-quail1-patch1-linux.tar.gz
 ANDROID_STUDIO_URL = https://edgedl.me.gvt1.com/android/studio/ide-zips/$(ANDROID_STUDIO_VERSION)/$(ANDROID_STUDIO_TAR)
 INSTALL_DIR = /opt/android-studio
 
-# Build number from https://developer.android.com/studio#command-line-tools-only
-CMDLINE_TOOLS_BUILD = 13114758
-CMDLINE_TOOLS_ZIP   = commandlinetools-linux-$(CMDLINE_TOOLS_BUILD)_latest.zip
-CMDLINE_TOOLS_URL   = https://dl.google.com/android/repository/$(CMDLINE_TOOLS_ZIP)
-
-install-android-studio: android-env-vars
+# Install the Android Studio IDE (optional). The SDK, NDK and ANDROID_HOME setup come from scripts/setup.sh.
+install-android-studio:
 	@if [ ! -f $(ANDROID_STUDIO_TAR) ]; then \
 		echo "Downloading Android Studio..."; \
 		wget -nc $(ANDROID_STUDIO_URL); \
@@ -22,86 +18,15 @@ install-android-studio: android-env-vars
 	sudo mv /opt/android-studio $(INSTALL_DIR) || true
 	@echo "Creating symlink..."
 	sudo ln -sf $(INSTALL_DIR)/bin/studio.sh /usr/local/bin/android-studio
-	@echo "Android Studio installed!"	
-	@if [ ! -f $(CMDLINE_TOOLS_ZIP) ]; then \
-		echo "Downloading SDK command-line tools..."; \
-		wget -nc $(CMDLINE_TOOLS_URL); \
-	else \
-		echo "File already exists, skipping download."; \
-	fi
-	@if [ ! -f "$$HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager" ]; then \
-		echo "Installing Android SDK command-line tools..."; \
-		mkdir -p "$$HOME/Android/Sdk/cmdline-tools"; \
-		unzip -q $(CMDLINE_TOOLS_ZIP) -d "$$HOME/Android/Sdk/cmdline-tools/"; \
-		mv "$$HOME/Android/Sdk/cmdline-tools/cmdline-tools" "$$HOME/Android/Sdk/cmdline-tools/latest"; \
-		yes | "$$HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true; \
-		echo "Command-line tools installed."; \
-	else \
-		echo "Command-line tools already installed, skipping."; \
-	fi
-	@if ! grep -q "# ANDROID SDK START" $(SHELL_RC); then \
-		echo "" >> $(SHELL_RC); \
-		echo "# ANDROID SDK START" >> $(SHELL_RC); \
-		echo "export ANDROID_HOME=\$$HOME/Android/Sdk" >> $(SHELL_RC); \
-		echo "export PATH=\$$PATH:\$$ANDROID_HOME/emulator:\$$ANDROID_HOME/platform-tools:\$$ANDROID_HOME/cmdline-tools/latest/bin" >> $(SHELL_RC); \
-		echo "# ANDROID SDK END" >> $(SHELL_RC); \
-	else \
-		echo "Android SDK environment variables already set in $(SHELL_RC), skipping."; \
-	fi
-	@echo "In Android Studio: SDK Manager → SDK Tools → Android SDK Command-line Tools → Apply.""
-	@echo "Then re-run: make create-avd"
-	android-studio
+	scripts/setup.sh --prereqs --android
+	@echo "Android Studio installed! Start it with: android-studio"
+	@echo "Then create an emulator with: make create-avd"
 
-install-android-avd:
-	@SDKMANAGER="$$HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager"; \
-	AVDMANAGER="$$HOME/Android/Sdk/cmdline-tools/latest/bin/avdmanager"; \
-	if [ ! -f "$$AVDMANAGER" ]; then \
-		echo "WARNING: avdmanager not found; skipping AVD creation."; \
-		echo "In Android Studio: SDK Manager → SDK Tools → Android SDK Command-line Tools → Apply."; \
-		echo "Then re-run: make create-avd"; \
-	elif [ ! -d "$$HOME/.android/avd/Pixel_6_API_36.avd" ]; then \
-		echo "Installing system image (system-images;android-36;google_apis;x86_64)..."; \
-		yes | "$$SDKMANAGER" "system-images;android-36;google_apis;x86_64" && \
-		echo "Creating AVD Pixel_6_API_36..." && \
-		echo "no" | "$$AVDMANAGER" create avd \
-			--name Pixel_6_API_36 \
-			--package "system-images;android-36;google_apis;x86_64" \
-			--device "pixel_6" && \
-		echo "AVD Pixel_6_API_36 created."; \
-	else \
-		echo "AVD Pixel_6_API_36 already exists, skipping."; \
-	fi
-	@echo "Granting /dev/kvm access to current user (requires sudo)..."; \
-	sudo adduser $$USER kvm 2>/dev/null || true; \
-	sudo chmod 666 /dev/kvm 2>/dev/null || echo "WARNING: could not chmod /dev/kvm (may not exist yet)"; \
-	echo "KVM access granted. You may need to log out and back in for group changes to take effect."
-
-# Create the default AVD (Pixel_6_API_36).  Requires cmdline-tools to be installed.
-# If avdmanager is missing, open Android Studio → SDK Manager → SDK Tools →
-# Android SDK Command-line Tools → Apply, then re-run this target.
+# Create the default AVD (Pixel_6_API_36). Requires make mobile-prereqs first.
 create-avd:
-	@SDKMANAGER="$$HOME/Android/Sdk/cmdline-tools/latest/bin/sdkmanager"; \
-	AVDMANAGER="$$HOME/Android/Sdk/cmdline-tools/latest/bin/avdmanager"; \
-	if [ ! -f "$$AVDMANAGER" ]; then \
-		echo "ERROR: avdmanager not found at $$AVDMANAGER"; \
-		echo "Install via Android Studio → SDK Manager → SDK Tools → Android SDK Command-line Tools."; \
-		exit 1; \
-	fi; \
-	if [ ! -d "$$HOME/.android/avd/Pixel_6_API_36.avd" ]; then \
-		echo "Installing system image (system-images;android-36;google_apis;x86_64)..."; \
-		yes | "$$SDKMANAGER" "system-images;android-36;google_apis;x86_64" && \
-		echo "Creating AVD Pixel_6_API_36..." && \
-		echo "no" | "$$AVDMANAGER" create avd \
-			--name Pixel_6_API_36 \
-			--package "system-images;android-36;google_apis;x86_64" \
-			--device "pixel_6" && \
-		echo "AVD Pixel_6_API_36 created."; \
-	else \
-		echo "AVD Pixel_6_API_36 already exists, skipping."; \
-	fi
-	
-	# Start an Android emulator.  Lists available AVDs when AVD= is not set.
+	scripts/setup.sh --avd
 
+# Start an Android emulator.  Lists available AVDs when AVD= is not set.
 # Usage:  make android-emulator AVD=Pixel_6_API_36
 android-emulator:
 	@if [ -z "$(AVD)" ]; then \

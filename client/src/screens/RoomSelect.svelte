@@ -1,7 +1,13 @@
 <script>
 import { GAME_STATES } from '../../../shared/messages.js';
 import { sendCreateRoom, sendJoinRoom } from '../lib/network.js';
-import { clearSession, rooms, username } from '../stores/game.js';
+import {
+  arReturnScreen,
+  clearSession,
+  rooms,
+  screen,
+  username,
+} from '../stores/game.js';
 
 let newRoomName = '';
 
@@ -12,6 +18,11 @@ function create() {
 
 function onKey(e) {
   if (e.key === 'Enter') create();
+}
+
+function startArPractice() {
+  arReturnScreen.set('roomselect');
+  screen.set('ar');
 }
 
 function stateLabel(state) {
@@ -66,6 +77,12 @@ function stateLabel(state) {
           {/each}
         </ul>
       {/if}
+    </section>
+
+    <section class="card">
+      <h2>Single Player</h2>
+      <button class="btn-ar" on:click={startArPractice}>🎯 AR practice &amp; 🧟 zombies</button>
+      <p class="ar-hint">Shoot targets through your camera. No server needed.</p>
     </section>
   </div>
 </div>
@@ -139,6 +156,22 @@ function stateLabel(state) {
     transition: opacity 0.2s;
   }
   .btn-primary:hover { opacity: 0.88; }
+
+  .btn-ar {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 1px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-ar:hover { background: var(--accent); color: #000; }
+  .ar-hint { color: var(--text-muted); font-size: 12px; margin: 0; }
 
   .empty { color: var(--text-muted); font-size: 14px; margin: 4px 0; }
 

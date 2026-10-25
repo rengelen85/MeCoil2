@@ -20,8 +20,11 @@
     "react-native-audio-api": "^0.12.0",
     "react-native-ble-plx": "^3.2.1",
     "react-native-compass-heading": "^1.5.0",
+    "react-native-nitro-image": "^0.15.2",
+    "react-native-nitro-modules": "^0.37.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.0.0",
+    "react-native-vision-camera": "^5.2.3",
     "shared": "file:../shared",
     "zustand": "^5.0.0"
   },

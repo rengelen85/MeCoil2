@@ -11,6 +11,7 @@ import RoomSelectScreen from './src/screens/RoomSelectScreen.js';
 import LobbyScreen from './src/screens/LobbyScreen.js';
 import InGameScreen from './src/screens/InGameScreen.js';
 import EndScreen from './src/screens/EndScreen.js';
+import ArPracticeScreen from './src/screens/ArPracticeScreen.js';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -20,6 +21,7 @@ const SCREEN_TO_ROUTE: Record<Screen, keyof RootStackParamList> = {
   lobby: 'Lobby',
   ingame: 'InGame',
   end: 'End',
+  ar: 'ArPractice',
 };
 
 function ScreenRouter() {
@@ -46,6 +48,7 @@ export default function App() {
           <Stack.Screen name="Lobby" component={LobbyScreen} />
           <Stack.Screen name="InGame" component={InGameScreen} />
           <Stack.Screen name="End" component={EndScreen} />
+          <Stack.Screen name="ArPractice" component={ArPracticeScreen} />
         </Stack.Navigator>
         <ScreenRouter />
       </NavigationContainer>

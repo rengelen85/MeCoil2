@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { GAME_STATES, GAME_MODES, TEAMS } from 'shared/messages.js';
 
-export type Screen = 'setup' | 'roomselect' | 'lobby' | 'ingame' | 'end';
+export type Screen = 'setup' | 'roomselect' | 'lobby' | 'ingame' | 'end' | 'ar';
 export type GameState = (typeof GAME_STATES)[keyof typeof GAME_STATES];
 export type Team = (typeof TEAMS)[keyof typeof TEAMS];
 
@@ -123,6 +123,8 @@ export interface RoomInfo {
 
 interface GameStore {
   screen: Screen;
+  // Screen to return to when leaving single-player AR target practice.
+  arReturnScreen: Screen;
   myId: number | null;
   isHost: boolean;
   username: string;
@@ -191,6 +193,7 @@ interface GameStore {
   roomName: string;
 
   setScreen: (s: Screen) => void;
+  setArReturnScreen: (s: Screen) => void;
   setMyId: (id: number | null) => void;
   setIsHost: (v: boolean) => void;
   setUsername: (name: string) => void;
@@ -250,6 +253,7 @@ interface GameStore {
 
 export const useGameStore = create<GameStore>((set, _get) => ({
   screen: 'setup',
+  arReturnScreen: 'setup',
   myId: null,
   isHost: false,
   username: '',
@@ -322,6 +326,7 @@ export const useGameStore = create<GameStore>((set, _get) => ({
   roomName: '',
 
   setScreen: s => set({ screen: s }),
+  setArReturnScreen: s => set({ arReturnScreen: s }),
   setMyId: id => set({ myId: id }),
   setIsHost: v => set({ isHost: v }),
   setUsername: name => set({ username: name }),

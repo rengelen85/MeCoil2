@@ -1,7 +1,9 @@
 import { derived, writable } from 'svelte/store';
 import { GAME_MODES, GAME_STATES } from '../../../shared/messages.js';
 
-export const screen = writable('setup'); // 'setup' | 'lobby' | 'ingame' | 'end'
+export const screen = writable('setup'); // 'setup' | 'roomselect' | 'lobby' | 'ingame' | 'end' | 'ar'
+// Screen to return to when leaving single-player AR target practice.
+export const arReturnScreen = writable('setup');
 export const isReconnecting = writable(false); // true while auto-reconnect is in progress
 export const reconnectFailed = writable(false); // true once auto-reconnect gave up; drives the manual "Rejoin" button
 

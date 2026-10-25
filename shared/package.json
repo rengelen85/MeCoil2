@@ -6,6 +6,8 @@
   "main": "messages.js",
   "exports": {
     ".": "./messages.js",
-    "./messages.js": "./messages.js"
+    "./messages.js": "./messages.js",
+    "./arGame.js": "./arGame.js",
+    "./arZombies.js": "./arZombies.js"
   }
 }

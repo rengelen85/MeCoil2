@@ -32,7 +32,7 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
   const [name, setName] = useState('');
   const [serverUrl, setServerUrl] = useState('');
   const [connecting, setConnecting] = useState(false);
-  const { setUsername, setMyId } = useGameStore();
+  const { setUsername, setMyId, setScreen, setArReturnScreen } = useGameStore();
 
   useEffect(() => {
     loadSession().then(saved => {
@@ -77,6 +77,11 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
     } finally {
       setConnecting(false);
     }
+  }
+
+  function startArPractice() {
+    setArReturnScreen('setup');
+    setScreen('ar');
   }
 
   return (
@@ -127,6 +132,24 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
             {connecting ? 'Connecting…' : 'Connect'}
           </Text>
         </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>OR</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.btn, styles.btnAr, connecting && styles.btnDisabled]}
+          onPress={startArPractice}
+          disabled={connecting}>
+          <Text style={[styles.btnText, styles.btnArText]}>
+            🎯 AR practice & 🧟 zombies
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.arHint}>
+          Single player with your camera. No server needed.
+        </Text>
       </View>
     </KeyboardAvoidingView>
   );
@@ -203,5 +226,35 @@ const styles = StyleSheet.create({
   },
   btnTextDark: {
     color: '#000',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#333',
+  },
+  dividerText: {
+    color: '#666',
+    fontSize: 11,
+    letterSpacing: 1,
+    marginHorizontal: 10,
+  },
+  btnAr: {
+    borderWidth: 1,
+    borderColor: '#00e5ff',
+  },
+  btnArText: {
+    color: '#00e5ff',
+    fontWeight: '700',
+  },
+  arHint: {
+    color: '#666',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: -4,
   },
 });

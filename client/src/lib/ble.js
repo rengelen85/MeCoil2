@@ -98,6 +98,16 @@ let _activeProfile = DEFAULT_PROFILE;
 // server can apply mode-appropriate damage. DEFAULT_PROFILE is full auto.
 let _activeMode = 'auto';
 
+// Single-player AR target practice handles shots on the device instead of
+// sending them to the server. While set, every round the gun fires (an ammo
+// drop outside a reload) is passed here as (mode, rounds), and trigger/IR
+// events are not sent to the server.
+let _localShotHandler = null;
+
+export function setLocalShotHandler(fn) {
+  _localShotHandler = fn;
+}
+
 export function isBleAvailable() {
   return !!navigator.bluetooth;
 }
@@ -120,8 +130,12 @@ function _setupGunHandlers() {
   gun.on('powerBtn', _onResetBtn);
   gun.on('irEvent', _onIrEvent);
   gun.on('ammoChanged', (count) => {
+    const before = get(ammo);
     ammo.set(count);
     maxAmmo.set(magazineSize());
+    if (_localShotHandler && count < before && !get(isReloading)) {
+      _localShotHandler(_activeMode, before - count);
+    }
   });
   gun.on('disconnected', () => {
     bleConnected.set(false);
@@ -260,6 +274,7 @@ function _onResetBtn() {
 }
 
 function _onTrigger() {
+  if (_localShotHandler) return; // AR practice scores shots from ammoChanged
   if (get(isReloading) || !get(isAlive) || get(gunLocked)) return;
   if (_activeMode === 'plasma') {
     // Plasma fires a variable number of rounds depending on charge time (4 rounds/period).
@@ -300,5 +315,6 @@ function _onReload() {
 }
 
 function _onIrEvent(ev) {
+  if (_localShotHandler) return; // nobody to report hits to in single player
   sendHit(ev.shooterID);
 }

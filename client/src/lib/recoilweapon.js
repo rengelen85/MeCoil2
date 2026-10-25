@@ -430,13 +430,14 @@ class RecoilGun {
     view.setUint8(7, weaponProfile.muzzleLedPower);
     view.setUint8(8, 0xff);
     view.setUint8(9, weaponProfile.motorPower);
-    // byte 10: FlashLED1 (high nibble) | FlashLED2 (low nibble, unused = 0)
-    view.setUint8(10, ((weaponProfile.muzzleFlashMode & 0x0f) << 4) | 0x00);
-    // byte 11: FlashParam1 (high nibble) | FlashParam2 (low nibble)
+    // U4 fields are packed low nibble first (see the BLE protocol doc).
+    // byte 10: FlashLED1 (low nibble) | FlashLED2 (high nibble, unused = 0)
+    view.setUint8(10, weaponProfile.muzzleFlashMode & 0x0f);
+    // byte 11: FlashParam1 (low nibble) | FlashParam2 (high nibble)
     view.setUint8(
       11,
-      ((weaponProfile.flashParam1 & 0x0f) << 4) |
-        (weaponProfile.flashParam2 & 0x0f),
+      (weaponProfile.flashParam1 & 0x0f) |
+        ((weaponProfile.flashParam2 & 0x0f) << 4),
     );
     await this._CONFIGCHAR.writeValue(buffer);
   }

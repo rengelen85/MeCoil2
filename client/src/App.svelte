@@ -7,6 +7,7 @@ import {
   sendRegister,
   sendRejoin,
 } from './lib/network.js';
+import ArPractice from './screens/ArPractice.svelte';
 import EndScreen from './screens/EndScreen.svelte';
 import InGame from './screens/InGame.svelte';
 import Lobby from './screens/Lobby.svelte';
@@ -53,9 +54,11 @@ onMount(async () => {
   <InGame />
 {:else if $screen === 'end'}
   <EndScreen />
+{:else if $screen === 'ar'}
+  <ArPractice />
 {/if}
 
-{#if $isReconnecting || $reconnectFailed}
+{#if ($isReconnecting || $reconnectFailed) && $screen !== 'ar'}
   <div class="reconnect-overlay">
     <div class="reconnect-box">
       {#if $isReconnecting}

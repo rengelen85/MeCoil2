@@ -80,6 +80,28 @@ export function playReload() {
   });
 }
 
+// Bright two-note "ping" when an AR practice target is shot down.
+export function playTargetHit() {
+  play((c) => {
+    tone(c, {
+      type: 'triangle',
+      from: 880,
+      to: 1320,
+      start: 0,
+      dur: 0.09,
+      gain: 0.25,
+    });
+    tone(c, {
+      type: 'sine',
+      from: 1760,
+      to: 1760,
+      start: 0.07,
+      dur: 0.16,
+      gain: 0.18,
+    });
+  });
+}
+
 // Downward "you died" sweep — a descending sawtooth that decays away.
 export function playKilled() {
   play((c) => {
@@ -174,6 +196,58 @@ export function playAirstrikeWarning() {
       start: 0.62,
       dur: 0.4,
       gain: 0.22,
+    });
+  });
+}
+
+// Low, growly "chomp" when a zombie bites in AR zombie survival.
+export function playZombieBite() {
+  play((c) => {
+    tone(c, {
+      type: 'sawtooth',
+      from: 140,
+      to: 60,
+      start: 0,
+      dur: 0.25,
+      gain: 0.32,
+    });
+    tone(c, {
+      type: 'square',
+      from: 90,
+      to: 40,
+      start: 0.12,
+      dur: 0.22,
+      gain: 0.2,
+    });
+  });
+}
+
+// Quick rising sparkle when an AR power-up is shot and collected.
+export function playPowerUp() {
+  play((c) => {
+    tone(c, {
+      type: 'triangle',
+      from: 660,
+      to: 990,
+      start: 0,
+      dur: 0.08,
+      gain: 0.22,
+    });
+    tone(c, {
+      type: 'triangle',
+      from: 990,
+      to: 1480,
+      start: 0.08,
+      dur: 0.08,
+      gain: 0.22,
+    });
+    tone(c, {
+      type: 'sine',
+      from: 1980,
+      to: 1980,
+      start: 0.16,
+      dur: 0.18,
+      gain: 0.16,
     });
   });
 }

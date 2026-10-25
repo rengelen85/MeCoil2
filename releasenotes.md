@@ -1,5 +1,50 @@
 # Release Notes
 
+## [0.6.2] — 2026-10-25
+
+### Fixed
+
+- **Muzzle LED flash when shooting**: The gun's muzzle LED now flashes on every shot in semi, burst and auto mode, in both the web and Android clients. The flash mode and its two parameters were written to the gun with their nibbles swapped (the protocol packs the first 4-bit field in the low nibble), so the setting landed on the power LED instead of the muzzle LED. Plasma's glow only seemed to work because of that
+
+## [0.6.1] — 2026-10-25
+
+### Changed
+
+- **Painted zombies in AR zombie survival**: Walkers, runners and brutes are now shaded, generated zombie figures (torn clothes, glowing eyes, wounds) instead of emoji, in both the web and Android clients. They shamble with a two-frame walk cycle, lean the other way at random so a wave doesn't move in lockstep, and the legend on the intro screen shows them too. Near zombies get a red glow and frozen ones a blue glow and hold their pose. The sprites are drawn by `scripts/gen-zombies.mjs`
+
+## [0.6.0] — 2026-10-25
+
+### Added
+
+- **AR zombie survival (single player)**: A second AR practice mode in both the web and Android clients. Pick **🧟 Zombies** on the AR intro screen and waves of zombies walk in towards you through the camera view. Shoot them before they bite; each bite costs a life, and the game lasts until you run out. Every wave brings more and faster zombies, first from in front and later from all sides. Walkers (100 pts), fast zig-zagging runners (150 pts, from wave 2) and 4-hit brutes (400 pts, from wave 3). Headshots do double damage and +50% points, clearing a wave earns a bonus, and edge arrows turn red when a zombie gets close. Easy / Normal / Hard change speed, wave size, lives (5 / 3 / 2) and hit-box size; best scores are kept per difficulty
+- **AR power-ups**: During a zombie wave, shootable power-ups float in the air: ❤️ Medkit (+1 life), 💣 Bomb (kills every zombie up) and ❄️ Freeze (zombies stop for 5 seconds)
+- New synthesized sounds for a zombie bite and collecting a power-up; on Android (and supporting browsers) a bite also vibrates the phone
+
+### Changed
+
+- The AR entry button on the Setup and Room screens is now **🎯 AR practice & 🧟 zombies**
+
+## [0.5.1] — 2026-10-25
+
+### Added
+
+- **AR target practice difficulty**: Choose **Easy**, **Normal** or **Hard** on the intro screen (web and Android). Easy has bigger, longer-lived, slower targets and fewer at once; Hard has smaller, faster-fading, faster-moving targets and more at once. Point values are unchanged. Best scores are kept per round length and difficulty
+- **AR target practice round length**: The intro screen of AR target practice (web and Android) now lets you pick the round length: 30, 60, 90, 120 or 180 seconds. Best scores are kept separately per round length
+
+### Changed
+
+- **AR target practice starts in semi-auto**: A connected gun now begins practice in SEMI instead of AUTO; you can still cycle modes during the round
+
+## [0.5.0] — 2026-10-25
+
+### Added
+
+- **AR target practice (single player)**: A new offline mode in both the web and Android clients, opened from the Setup or Room screen with **🎯 AR target practice**. The rear camera shows the world around you and targets float in it, held in place by the phone's motion sensors. Put the crosshair on a target and pull the trigger. A round lasts 60 seconds: red targets are worth 100 points, moving orange targets 150, and fast-fading gold targets 300. Consecutive hits build a streak bonus of up to double points, and a charged plasma shot hits every target in a wider cone. Off-screen targets are marked with edge arrows, and the results screen shows hits, accuracy, best streak and your local best score
+- **No server needed**: Everything (targets, hit detection, scoring, the best score) runs on the phone. With a paired gun, shots are read from its ammo counter; without one, on-screen **FIRE** / **RELOAD** buttons (and `T` / `R` on the web) take over. Fast reload is always on, so reloads refill the magazine instantly. Without motion sensors (e.g. a desktop browser) you aim by dragging
+- **Android**: Camera permission plus a small native rotation-vector sensor module (`ArOrientation`) that also keeps the screen on during practice. Adds `react-native-vision-camera` (with `react-native-nitro-modules` / `react-native-nitro-image`), so run `cd mobile && npm install` and rebuild the APK
+
+---
+
 ## [0.4.3] — 2026-07-22
 
 ### Added
