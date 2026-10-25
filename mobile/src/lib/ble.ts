@@ -96,6 +96,17 @@ let _activeMode: GunMode = 'auto';
 // Local reload timer handle so a reload can't be double-scheduled.
 let _handlersWired = false;
 
+// Single-player AR target practice handles shots on the device instead of
+// sending them to the server. While set, every round the gun fires (an ammo
+// drop outside a reload) is passed here as (mode, rounds), and trigger/IR
+// events are not sent to the server. Mirrors client/src/lib/ble.js.
+type LocalShotHandler = (mode: GunMode, rounds: number) => void;
+let _localShotHandler: LocalShotHandler | null = null;
+
+export function setLocalShotHandler(fn: LocalShotHandler | null): void {
+  _localShotHandler = fn;
+}
+
 // ── Permissions ──────────────────────────────────────────────────────────────
 
 async function _requestPermissions() {
@@ -285,8 +296,12 @@ function _setupGunHandlers() {
   gun.on('irEvent', _onIrEvent);
   gun.on('ammoChanged', (count: number) => {
     const game = useGameStore.getState();
+    const before = game.ammo;
     game.setAmmo(count);
     game.setMaxAmmo(magazineSize());
+    if (_localShotHandler && count < before && !game.isReloading) {
+      _localShotHandler(_activeMode, before - count);
+    }
   });
 }
 
@@ -355,6 +370,7 @@ function _onResetBtn() {
 }
 
 function _onTrigger() {
+  if (_localShotHandler) return; // AR practice scores shots from ammoChanged
   const game = useGameStore.getState();
   if (game.isReloading || !game.isAlive) return;
   if (_activeMode === 'plasma') {
@@ -399,6 +415,7 @@ function _onReload() {
 }
 
 function _onIrEvent(ev: IrEvent) {
+  if (_localShotHandler) return; // nobody to report hits to in single player
   sendHit(ev.shooterID);
 }
 

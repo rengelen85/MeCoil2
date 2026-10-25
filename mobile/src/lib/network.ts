@@ -259,7 +259,10 @@ function _handle(msg: { type: string; [key: string]: unknown }) {
       game.setReconnectFailed(false);
       game.setMyId(msg.playerId as number);
       saveSession(game.username, msg.playerId as number);
-      game.setScreen('roomselect');
+      // A session restored in the background must not pull the player out of
+      // offline AR practice; they land in the room list when they leave it.
+      if (game.screen === 'ar') game.setArReturnScreen('roomselect');
+      else game.setScreen('roomselect');
       break;
 
     case S2C.REJOIN_FAILED:

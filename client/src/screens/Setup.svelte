@@ -1,7 +1,12 @@
 <script>
 import { bleErrorMessage, connectBle, isBleAvailable } from '../lib/ble.js';
 import { connect, sendRegister } from '../lib/network.js';
-import { bleConnected, username } from '../stores/game.js';
+import {
+  arReturnScreen,
+  bleConnected,
+  screen,
+  username,
+} from '../stores/game.js';
 
 let nameInput = '';
 let status = '';
@@ -55,6 +60,11 @@ async function join() {
 
 function onKey(e) {
   if (e.key === 'Enter') join();
+}
+
+function startArPractice() {
+  arReturnScreen.set('setup');
+  screen.set('ar');
 }
 </script>
 
@@ -113,6 +123,13 @@ function onKey(e) {
     <button class="btn-primary" on:click={join} disabled={connecting}>
       {connecting ? status : 'Continue'}
     </button>
+
+    <div class="divider"><span>or</span></div>
+
+    <button class="btn-ar" on:click={startArPractice} disabled={connecting}>
+      🎯 AR target practice
+    </button>
+    <p class="ar-hint">Single player with your camera. No server needed.</p>
   </div>
 
   <div class="footer">
@@ -256,6 +273,44 @@ function onKey(e) {
     color: #00c853;
     font-weight: 600;
     font-size: 14px;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .divider::before,
+  .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .btn-ar {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: 0.5px;
+  }
+  .btn-ar:disabled { opacity: 0.5; cursor: default; }
+
+  .ar-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+    text-align: center;
+    margin: -4px 0 0;
   }
 
   .footer {

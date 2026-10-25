@@ -1,5 +1,15 @@
 # Release Notes
 
+## [0.5.0] — 2026-10-25
+
+### Added
+
+- **AR target practice (single player)**: A new offline mode in both the web and Android clients, opened from the Setup or Room screen with **🎯 AR target practice**. The rear camera shows the world around you and targets float in it, held in place by the phone's motion sensors. Put the crosshair on a target and pull the trigger. A round lasts 60 seconds: red targets are worth 100 points, moving orange targets 150, and fast-fading gold targets 300. Consecutive hits build a streak bonus of up to double points, and a charged plasma shot hits every target in a wider cone. Off-screen targets are marked with edge arrows, and the results screen shows hits, accuracy, best streak and your local best score
+- **No server needed**: Everything (targets, hit detection, scoring, the best score) runs on the phone. With a paired gun, shots are read from its ammo counter; without one, on-screen **FIRE** / **RELOAD** buttons (and `T` / `R` on the web) take over. Without motion sensors (e.g. a desktop browser) you aim by dragging
+- **Android**: Camera permission plus a small native rotation-vector sensor module (`ArOrientation`) that also keeps the screen on during practice. Adds `react-native-vision-camera` (with `react-native-nitro-modules` / `react-native-nitro-image`), so run `cd mobile && npm install` and rebuild the APK
+
+---
+
 ## [0.4.3] — 2026-07-22
 
 ### Added

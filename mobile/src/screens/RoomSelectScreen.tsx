@@ -22,7 +22,7 @@ import ReconnectOverlay from '../components/ReconnectOverlay.js';
 type Props = NativeStackScreenProps<RootStackParamList, 'RoomSelect'>;
 
 export default function RoomSelectScreen(_props: Props) {
-  const { rooms } = useGameStore();
+  const { rooms, setScreen, setArReturnScreen } = useGameStore();
   const [showCreate, setShowCreate] = useState(false);
   const [newRoomName, setNewRoomName] = useState('');
 
@@ -40,6 +40,11 @@ export default function RoomSelectScreen(_props: Props) {
     sendCreateRoom(newRoomName.trim());
     setShowCreate(false);
     setNewRoomName('');
+  }
+
+  function startArPractice() {
+    setArReturnScreen('roomselect');
+    setScreen('ar');
   }
 
   function renderRoom({ item }: { item: RoomInfo }) {
@@ -78,6 +83,14 @@ export default function RoomSelectScreen(_props: Props) {
         }
         style={styles.list}
       />
+
+      <Text style={styles.sectionLabel}>Single Player</Text>
+      <TouchableOpacity style={styles.arBtn} onPress={startArPractice}>
+        <Text style={styles.arBtnText}>🎯 AR target practice</Text>
+      </TouchableOpacity>
+      <Text style={styles.arHint}>
+        Shoot targets through your camera. No server needed.
+      </Text>
 
       <Modal visible={showCreate} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -169,6 +182,31 @@ const styles = StyleSheet.create({
     color: '#000',
     fontWeight: '600',
     fontSize: 16,
+  },
+  sectionLabel: {
+    color: '#aaa',
+    fontSize: 12,
+    marginTop: 12,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  arBtn: {
+    borderWidth: 1,
+    borderColor: '#00e5ff',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  arBtnText: {
+    color: '#00e5ff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  arHint: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 6,
   },
   modalOverlay: {
     flex: 1,

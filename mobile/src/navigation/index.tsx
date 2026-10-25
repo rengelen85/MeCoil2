@@ -5,4 +5,5 @@ export type RootStackParamList = {
   Lobby: undefined;
   InGame: undefined;
   End: undefined;
+  ArPractice: undefined;
 };

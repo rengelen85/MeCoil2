@@ -222,6 +222,7 @@ and multi-arch build details (and why not App Runner / ECS Express Mode).
 | **Lobby** | Wait for players, configure the game (host only), ready up |
 | **In Game** | Live GPS map, ammo bar, kill feed, timer, synthesized sound effects (reload / killed / respawn / airstrike alert) |
 | **End Screen** | Final scores, back to lobby for another round |
+| **AR Target Practice** | Single-player camera mode, no server needed (see below) |
 
 ### Game Modes
 
@@ -262,6 +263,24 @@ and multi-arch build details (and why not App Runner / ECS Express Mode).
 - **Immunity**: The only power-up that spawns is immunity (💉). One immunity token absorbs a single shot and grants a 20-second grace period to evade re-infection. Survivors' guns are locked (🔒 GUN LOCKED badge) until they pick up immunity
 - **Winning**: Infected team wins if all players are tagged; survivors win if the time limit expires
 - **HUD display**: Shows 🧟 INFECTED or 🧍 SURVIVOR status, with 🛡️ IMMUNE indicator when holding an immunity token
+
+### AR Target Practice (single player)
+
+A solo mode that runs entirely on the phone, with no server or network connection. Open it with **🎯 AR target practice** on the Setup screen (or under *Single Player* on the room list).
+
+- The rear camera is the backdrop. Targets are placed in the space around you and held in place by the phone's motion sensors, so you turn to find them. Arrows at the screen edge point to targets outside the view
+- Aim with the crosshair in the centre of the screen (where a gun-mounted phone points) and pull the trigger. Each round the gun fires counts as a shot. Without a gun, use the on-screen **FIRE** / **RELOAD** buttons (or `T` / `R` on a keyboard). Without motion sensors (desktop browsers), drag to look around
+- A round lasts 60 seconds with a 20-round magazine and 2-second reloads. Targets get faster and more numerous as the round goes on
+
+| Target | Points | Notes |
+|--------|--------|-------|
+| Red | 100 | Static |
+| Orange | 150 | Moves sideways around you |
+| Gold | 300 | Far away and disappears quickly |
+
+Consecutive hits add a streak bonus (+10% per hit, up to double points). A missed shot or an escaped target resets it. A charged **PLASMA** shot widens the hit cone and takes down every target inside it. Your best score is stored on the device.
+
+Requirements: the web client needs HTTPS for the camera (the same as for Bluetooth). It is served by the MeCoil server, so the page must be loaded once, but the game itself sends nothing over the network. The Android app needs camera permission and works with no server configured at all.
 
 ### Power-ups
 
@@ -335,7 +354,7 @@ MeCoil/
 ├── mobile/           # React Native Android app (client only)
 │   ├── src/          # React Native screens and components
 │   └── android/      # Android-specific build config (Gradle)
-├── shared/           # Shared protocol constants
+├── shared/           # Shared protocol constants and AR practice game logic
 ├── docs/             # Hardware protocol documentation
 ├── certs/            # HTTPS certificates (gitignored)
 ├── Makefile          # Linux/macOS task runner

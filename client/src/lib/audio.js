@@ -80,6 +80,28 @@ export function playReload() {
   });
 }
 
+// Bright two-note "ping" when an AR practice target is shot down.
+export function playTargetHit() {
+  play((c) => {
+    tone(c, {
+      type: 'triangle',
+      from: 880,
+      to: 1320,
+      start: 0,
+      dur: 0.09,
+      gain: 0.25,
+    });
+    tone(c, {
+      type: 'sine',
+      from: 1760,
+      to: 1760,
+      start: 0.07,
+      dur: 0.16,
+      gain: 0.18,
+    });
+  });
+}
+
 // Downward "you died" sweep — a descending sawtooth that decays away.
 export function playKilled() {
   play((c) => {
