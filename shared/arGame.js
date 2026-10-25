@@ -14,6 +14,8 @@
 // phone mounted on the gun is aiming.
 
 export const AR_ROUND_SECS = 60;
+// Round lengths offered on the intro screen.
+export const AR_ROUND_OPTIONS_SECS = [30, 60, 90, 120, 180];
 export const AR_MAGAZINE_SIZE = 20;
 export const AR_COUNTDOWN_SECS = 3;
 // Horizontal field of view assumed for the rear camera across the screen's

@@ -22,6 +22,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   AR_COUNTDOWN_SECS,
   AR_MAGAZINE_SIZE,
+  AR_ROUND_OPTIONS_SECS,
+  AR_ROUND_SECS,
   aimAzimuthDeg,
   arResults,
   arSecondsLeft,
@@ -36,7 +38,13 @@ import {
 } from 'shared/arGame.js';
 import { RootStackParamList } from '../navigation/index.js';
 import { useGameStore } from '../stores/game.js';
-import { applyGunAssignment, GUN_MODES, GunMode, setLocalShotHandler } from '../lib/ble.js';
+import {
+  applyGunAssignment,
+  GUN_MODES,
+  GunMode,
+  setGunMode,
+  setLocalShotHandler,
+} from '../lib/ble.js';
 import { playReload, playTargetHit } from '../lib/audio.js';
 import { subscribeArOrientation } from '../lib/arOrientation.js';
 
@@ -80,6 +88,11 @@ interface Frame {
 }
 
 const BEST_KEY = 'mecoil_ar_best';
+
+// Best scores are kept per round length; 60 s keeps the original key.
+function bestKey(secs: number) {
+  return secs === AR_ROUND_SECS ? BEST_KEY : `${BEST_KEY}_${secs}`;
+}
 const KIND_COLORS: Record<string, string> = {
   standard: '#ff1744',
   mover: '#ff9100',
@@ -155,6 +168,8 @@ export default function ArPracticeScreen(_props: Props) {
   const sizeRef = useRef({ width: 0, height: 0 });
   const countdownEndsAtRef = useRef(0);
   const bestRef = useRef(0);
+  const roundSecsRef = useRef(AR_ROUND_SECS);
+  const [roundSecs, setRoundSecs] = useState(AR_ROUND_SECS);
   const hitMarkerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setPhaseBoth = (p: Phase) => {
@@ -180,6 +195,16 @@ export default function ArPracticeScreen(_props: Props) {
       },
     }),
   ).current;
+
+  const selectRound = useCallback((secs: number) => {
+    roundSecsRef.current = secs;
+    setRoundSecs(secs);
+    AsyncStorage.getItem(bestKey(secs)).then(v => {
+      if (roundSecsRef.current !== secs) return;
+      bestRef.current = Number(v) || 0;
+      setBest(bestRef.current);
+    });
+  }, []);
 
   const exit = useCallback(() => {
     const game = useGameStore.getState();
@@ -208,10 +233,7 @@ export default function ArPracticeScreen(_props: Props) {
       exit();
       return true;
     });
-    AsyncStorage.getItem(BEST_KEY).then(v => {
-      bestRef.current = Number(v) || 0;
-      setBest(bestRef.current);
-    });
+    selectRound(AR_ROUND_SECS);
     return () => {
       unsubscribe?.();
       setLocalShotHandler(null);
@@ -221,7 +243,7 @@ export default function ArPracticeScreen(_props: Props) {
       game.setGunSlotId(null);
       game.resetGame();
     };
-  }, [onShot, exit]);
+  }, [onShot, exit, selectRound]);
 
   const finish = useCallback(() => {
     const game = gameRef.current;
@@ -231,7 +253,7 @@ export default function ArPracticeScreen(_props: Props) {
     if (isNewBest) {
       bestRef.current = r.score;
       setBest(r.score);
-      AsyncStorage.setItem(BEST_KEY, String(r.score));
+      AsyncStorage.setItem(bestKey(roundSecsRef.current), String(r.score));
     }
     setNewBest(isNewBest);
     setResults(r);
@@ -254,7 +276,7 @@ export default function ArPracticeScreen(_props: Props) {
       if (phaseRef.current === 'countdown') {
         const left = Math.ceil((countdownEndsAtRef.current - t) / 1_000);
         if (left <= 0) {
-          gameRef.current = createArGame({ nowMs: t });
+          gameRef.current = createArGame({ nowMs: t, durationSecs: roundSecsRef.current });
           setPhaseBoth('playing');
         } else {
           setFrame(f => (f.countdownLeft === left ? f : { ...f, countdownLeft: left }));
@@ -322,7 +344,10 @@ export default function ArPracticeScreen(_props: Props) {
     game.setIsReloading(false);
     if (game.bleConnected) {
       game.setGunSlotId(0);
-      applyGunAssignment(0).catch(() => {});
+      // Practice starts in semi; applyGunAssignment resets the gun to auto.
+      applyGunAssignment(0)
+        .then(() => setGunMode('semi'))
+        .catch(() => {});
     }
   }
 
@@ -481,8 +506,21 @@ export default function ArPracticeScreen(_props: Props) {
             <Text style={styles.sub}>SINGLE PLAYER · NO SERVER NEEDED</Text>
             <Text style={styles.body}>
               Look around through your camera. Targets appear in the space around you. Put
-              the crosshair on them and pull the trigger. You have 60 seconds.
+              the crosshair on them and pull the trigger. Pick how long the round lasts.
             </Text>
+            <View style={styles.roundPicker}>
+              {AR_ROUND_OPTIONS_SECS.map(secs => (
+                <TouchableOpacity
+                  key={secs}
+                  style={[styles.roundOpt, roundSecs === secs && styles.roundOptSelected]}
+                  onPress={() => selectRound(secs)}>
+                  <Text
+                    style={[styles.roundOptText, roundSecs === secs && styles.roundOptTextSelected]}>
+                    {secs}s
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <View style={styles.legend}>
               <LegendRow color={KIND_COLORS.standard} label="Target: 100 pts" />
               <LegendRow color={KIND_COLORS.mover} label="Moving target: 150 pts" />
@@ -731,6 +769,18 @@ const styles = StyleSheet.create({
   legend: { gap: 4 },
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 14, height: 14, borderRadius: 7 },
+  roundPicker: { flexDirection: 'row', gap: 6 },
+  roundOpt: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  roundOptSelected: { backgroundColor: '#00e5ff', borderColor: '#00e5ff' },
+  roundOptText: { color: '#f0f0f0', fontWeight: '600', fontSize: 13 },
+  roundOptTextSelected: { color: '#000' },
   best: { color: '#ffd600', fontSize: 13, fontWeight: '700' },
   bigScore: { color: '#00e5ff', fontSize: 56, fontWeight: '900', textAlign: 'center' },
   resultRow: { flexDirection: 'row', justifyContent: 'space-between' },

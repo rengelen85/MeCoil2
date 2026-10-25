@@ -7,6 +7,8 @@ import { get } from 'svelte/store';
 import {
   AR_COUNTDOWN_SECS,
   AR_MAGAZINE_SIZE,
+  AR_ROUND_OPTIONS_SECS,
+  AR_ROUND_SECS,
   aimAzimuthDeg,
   arResults,
   arSecondsLeft,
@@ -24,6 +26,7 @@ import { playReload, playTargetHit } from '../lib/audio.js';
 import {
   applyGunAssignment,
   GUN_MODES,
+  setGunMode,
   setLocalShotHandler,
 } from '../lib/ble.js';
 import {
@@ -74,13 +77,24 @@ let hitMarkerTimer = null;
 let raf = null;
 let wakeLock = null;
 
+let roundSecs = AR_ROUND_SECS;
 let results = null;
-let best = loadBest();
+let best = loadBest(roundSecs);
 let newBest = false;
 
-function loadBest() {
+// Best scores are kept per round length; 60 s keeps the original key.
+function bestKey(secs) {
+  return secs === AR_ROUND_SECS ? BEST_KEY : `${BEST_KEY}_${secs}`;
+}
+
+function selectRound(secs) {
+  roundSecs = secs;
+  best = loadBest(secs);
+}
+
+function loadBest(secs) {
   try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0;
+    return Number(localStorage.getItem(bestKey(secs))) || 0;
   } catch {
     return 0;
   }
@@ -88,7 +102,7 @@ function loadBest() {
 
 function saveBest(value) {
   try {
-    localStorage.setItem(BEST_KEY, String(value));
+    localStorage.setItem(bestKey(roundSecs), String(value));
   } catch {}
 }
 
@@ -173,7 +187,10 @@ function prepareGun() {
   isReloading.set(false);
   if (get(bleConnected)) {
     gunSlotId.set(0);
-    applyGunAssignment(0).catch(() => {});
+    // Practice starts in semi; applyGunAssignment resets the gun to auto.
+    applyGunAssignment(0)
+      .then(() => setGunMode('semi'))
+      .catch(() => {});
   }
 }
 
@@ -254,7 +271,7 @@ function frame() {
   if (phase === 'countdown') {
     countdownLeft = Math.ceil((countdownEndsAt - now) / 1_000);
     if (countdownLeft <= 0) {
-      game = createArGame({ nowMs: now });
+      game = createArGame({ nowMs: now, durationSecs: roundSecs });
       phase = 'playing';
     }
   }
@@ -411,9 +428,20 @@ onDestroy(() => {
         <p class="sub">Single player · no server needed</p>
         <p>
           Look around through your camera. Targets appear in the space around
-          you. Put the crosshair on them and pull the trigger. You have 60
-          seconds.
+          you. Put the crosshair on them and pull the trigger. Pick how long
+          the round lasts.
         </p>
+        <div class="round-picker" role="group" aria-label="Round length">
+          {#each AR_ROUND_OPTIONS_SECS as secs}
+            <button
+              class="round-opt"
+              class:selected={roundSecs === secs}
+              on:click|stopPropagation={() => selectRound(secs)}
+            >
+              {secs}s
+            </button>
+          {/each}
+        </div>
         <ul class="legend">
           <li><span class="dot standard"></span> Target: 100 pts</li>
           <li><span class="dot mover"></span> Moving target: 150 pts</li>
@@ -686,6 +714,21 @@ onDestroy(() => {
   .big-score { font-size: 56px; font-weight: 900; color: var(--accent); text-align: center; line-height: 1; }
   .results-grid { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; }
   .results-grid span { color: var(--text-muted); }
+
+  .round-picker { display: flex; gap: 6px; }
+  .round-opt {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 0;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .round-opt.selected { background: var(--accent); border-color: var(--accent); color: #000; }
 
   .btn-primary:disabled { opacity: 0.5; }
   .btn-secondary {

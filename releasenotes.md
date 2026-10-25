@@ -1,5 +1,15 @@
 # Release Notes
 
+## [0.5.1] — 2026-10-25
+
+### Added
+
+- **AR target practice round length**: The intro screen of AR target practice (web and Android) now lets you pick the round length: 30, 60, 90, 120 or 180 seconds. Best scores are kept separately per round length
+
+### Changed
+
+- **AR target practice starts in semi-auto**: A connected gun now begins practice in SEMI instead of AUTO; you can still cycle modes during the round
+
 ## [0.5.0] — 2026-10-25
 
 ### Added
