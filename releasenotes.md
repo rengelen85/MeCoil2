@@ -1,11 +1,5 @@
 # Release Notes
 
-## [0.6.2] — 2026-10-25
-
-### Fixed
-
-- **Muzzle LED flash when shooting**: The gun's muzzle LED now flashes on every shot in semi, burst and auto mode, in both the web and Android clients. Only plasma's charge-up glow worked before, because the firmware's automatic flash-on-firing didn't fire for the square-wave modes; the app now sends the muzzle-flash command itself whenever rounds are fired
-
 ## [0.6.1] — 2026-10-25
 
 ### Changed
