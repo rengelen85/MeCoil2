@@ -8,6 +8,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   BackHandler,
   Image,
   ImageSourcePropType,
@@ -57,6 +58,7 @@ import { RootStackParamList } from '../navigation/index.js';
 import { useGameStore } from '../stores/game.js';
 import {
   applyGunAssignment,
+  connectBle,
   GUN_MODES,
   GunMode,
   setGunMode,
@@ -287,6 +289,14 @@ export default function ArPracticeScreen(_props: Props) {
   const { hasPermission, requestPermission } = useCameraPermission();
 
   const [phase, setPhase] = useState<Phase>('intro');
+  const [connectingGun, setConnectingGun] = useState(false);
+
+  function connectGun() {
+    setConnectingGun(true);
+    connectBle()
+      .catch(e => Alert.alert('BLE Error', e.message))
+      .finally(() => setConnectingGun(false));
+  }
   const [frame, setFrame] = useState<Frame>(EMPTY_FRAME);
   const [results, setResults] = useState<Results | null>(null);
   const [best, setBest] = useState(0);
@@ -901,6 +911,16 @@ export default function ArPracticeScreen(_props: Props) {
                 ? '● Gun connected'
                 : 'No gun connected: use the FIRE and RELOAD buttons.'}
             </Text>
+            {!bleConnected && (
+              <TouchableOpacity
+                style={[styles.btnSecondary, connectingGun && styles.btnDisabled]}
+                onPress={connectGun}
+                disabled={connectingGun}>
+                <Text style={styles.btnSecondaryText}>
+                  {connectingGun ? 'Connecting gun…' : '🔫 Connect gun'}
+                </Text>
+              </TouchableOpacity>
+            )}
             {best > 0 && <Text style={styles.best}>Best score: {best}</Text>}
             <TouchableOpacity
               style={[styles.btnPrimary, starting && styles.btnDisabled]}

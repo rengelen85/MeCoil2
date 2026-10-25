@@ -45,7 +45,10 @@ import {
 } from '../lib/audio.js';
 import {
   applyGunAssignment,
+  bleErrorMessage,
+  connectBle,
   GUN_MODES,
+  isBleAvailable,
   setGunMode,
   setLocalShotHandler,
 } from '../lib/ble.js';
@@ -82,6 +85,25 @@ const BITE_FLASH_MS = 450;
 
 let mode = 'targets'; // 'targets' | 'zombies'
 let phase = 'intro'; // 'intro' | 'countdown' | 'playing' | 'results'
+let bleConnecting = false;
+let bleError = '';
+
+async function connectGun() {
+  if (!isBleAvailable()) {
+    bleError =
+      'Bluetooth is not available. Use Chrome or Edge on Android over HTTPS. iOS is not supported.';
+    return;
+  }
+  bleConnecting = true;
+  bleError = '';
+  try {
+    await connectBle();
+  } catch (e) {
+    bleError = bleErrorMessage(e);
+  } finally {
+    bleConnecting = false;
+  }
+}
 let stage;
 let video;
 let stream = null;
@@ -709,6 +731,18 @@ onDestroy(() => {
             ? '● Gun connected'
             : 'No gun connected: use the FIRE and RELOAD buttons (or T / R).'}
         </p>
+        {#if !$bleConnected}
+          <button
+            class="btn-secondary"
+            on:click|stopPropagation={connectGun}
+            disabled={bleConnecting}
+          >
+            {bleConnecting ? 'Opening Bluetooth picker…' : '🔫 Connect gun'}
+          </button>
+          {#if bleError}
+            <p class="ble-error">{bleError}</p>
+          {/if}
+        {/if}
         {#if best > 0}
           <p class="best">Best score: {best}</p>
         {/if}
@@ -1050,6 +1084,7 @@ onDestroy(() => {
   .dot.bonus { background: #ffd600; }
   .icon { width: 14px; text-align: center; display: inline-block; }
   img.icon { width: 20px; height: 30px; object-fit: contain; vertical-align: middle; }
+  .ble-error { color: #ff5252; font-size: 12px; line-height: 1.5; margin: 0; }
   .gun-status { font-size: 12px; color: var(--text-muted); }
   .gun-status.ok { color: #00c853; font-weight: 600; }
   .best { font-size: 13px; color: #ffd600; font-weight: 700; }

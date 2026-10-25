@@ -25,6 +25,7 @@ import {
   sendRejoin,
   normalizeServerUrl,
 } from '../lib/network.js';
+import { connectBle } from '../lib/ble.js';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Setup'>;
 
@@ -32,6 +33,8 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
   const [name, setName] = useState('');
   const [serverUrl, setServerUrl] = useState('');
   const [connecting, setConnecting] = useState(false);
+  const [connectingGun, setConnectingGun] = useState(false);
+  const bleConnected = useGameStore(s => s.bleConnected);
   const { setUsername, setMyId, setScreen, setArReturnScreen } = useGameStore();
 
   useEffect(() => {
@@ -47,6 +50,13 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
       if (id != null) setMyId(id);
     });
   }, [setMyId]);
+
+  function handleConnectGun() {
+    setConnectingGun(true);
+    connectBle()
+      .catch(e => Alert.alert('BLE Error', e.message))
+      .finally(() => setConnectingGun(false));
+  }
 
   async function handleConnect() {
     if (!name.trim()) {
@@ -138,6 +148,19 @@ export default function SetupScreen({ navigation: _navigation }: Props) {
           <Text style={styles.dividerText}>OR</Text>
           <View style={styles.dividerLine} />
         </View>
+
+        {bleConnected ? (
+          <Text style={styles.gunOk}>● Gun connected</Text>
+        ) : (
+          <TouchableOpacity
+            style={[styles.btn, styles.btnAr, connectingGun && styles.btnDisabled]}
+            onPress={handleConnectGun}
+            disabled={connectingGun}>
+            <Text style={[styles.btnText, styles.btnArText]}>
+              {connectingGun ? 'Connecting gun…' : '🔫 Connect gun'}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={[styles.btn, styles.btnAr, connecting && styles.btnDisabled]}
@@ -250,6 +273,12 @@ const styles = StyleSheet.create({
   btnArText: {
     color: '#00e5ff',
     fontWeight: '700',
+  },
+  gunOk: {
+    color: '#00c853',
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 12,
   },
   arHint: {
     color: '#666',
