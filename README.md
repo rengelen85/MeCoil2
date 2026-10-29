@@ -18,7 +18,7 @@ Players connect from the browser on their phones. No app to install. A full nati
 
 ## Prerequisites
 
-Set up your machine with **[dev-setup](https://github.com/rengelen85/dev-setup)** first. It installs the system tools this repo expects: Node.js (≥ 22), mkcert, uv (for `make lint` / `make fmt`), Docker and the AWS CLI. This repo only installs its own dependencies.
+Set up your machine with **[dev-setup](https://github.com/rengelen85/dev-setup)** first. It installs the system tools this repo expects: Node.js (≥ 22), mkcert, uv (for `make lint` / `make fmt`), Docker, the AWS CLI and, for the Android app, JDK 17 and the Android SDK (`./install.sh android`). This repo only installs its own dependencies.
 
 ---
 
@@ -26,17 +26,17 @@ Set up your machine with **[dev-setup](https://github.com/rengelen85/dev-setup)*
 
 ### Automated setup (Linux / macOS)
 
-`scripts/setup.sh` installs the npm dependencies, generates HTTPS certs and optionally sets up the Android toolchain, then prints the next steps. It supports Ubuntu/Debian (apt) and macOS (Homebrew), and it is safe to re-run.
+`scripts/setup.sh` installs the npm dependencies, generates HTTPS certs and optionally the Android packages this project pins, then prints the next steps. It supports Linux and macOS, and it is safe to re-run.
 
 ```sh
 scripts/setup.sh                # npm dependencies, HTTPS certs
-scripts/setup.sh --android      # also JDK 17, Android SDK + NDK 27.1.12297006, mobile/ dependencies
-scripts/setup.sh --android-sdk  # only JDK 17 and the Android SDK/NDK; same as make mobile-prereqs
-scripts/setup.sh --avd          # create the Pixel_6_API_36 emulator (same as make create-avd; run --android first)
+scripts/setup.sh --android      # also Android API 36, NDK 27.1.12297006, CMake and mobile/ dependencies
+scripts/setup.sh --android-sdk  # only the Android packages; same as make mobile-prereqs
+scripts/setup.sh --avd          # create the Pixel_6_API_36 emulator (same as make create-avd)
 ```
 
 - Certs are created in `certs/` for `localhost`, `127.0.0.1`, `mecoil.local` and this machine's LAN IP. If your IP changes, delete `certs/` and re-run the script.
-- `--android` adds the `ANDROID_HOME` variables to your shell rc file. Open a new shell afterwards, then run `make create-avd` (or `scripts/setup.sh --avd`) for an emulator or connect a device and run `make android-run`.
+- The Android options need the Android SDK and `ANDROID_HOME` from dev-setup (`./install.sh android`). Afterwards, run `make create-avd` for an emulator or connect a device, then run `make android-run`.
 - The script does not install Android Studio. Install it separately (see [Android Mobile App](#android-mobile-app-react-native)).
 
 ### Linux / macOS (Makefile)
@@ -70,11 +70,10 @@ A native Android app is available in the `mobile/` directory. It is a pure clien
 
 **Prerequisites:**
 
-- Android Studio (latest stable, or matching your Android API 36 SDK version)
-- Java Development Kit (JDK) 17+
-- Android SDK API 36 (`android/build.gradle` → `compileSdkVersion`)
-- Android NDK **27.1.12297006** — **must match the pinned version** in `android/build.gradle` → `ndkVersion`. Other NDK versions may cause build failures.
-- `ANDROID_HOME` environment variable pointing to your Android SDK root (e.g., `C:\Users\...\AppData\Local\Android\Sdk`), or create `mobile/android/local.properties` with `sdk.dir=<path>`
+- JDK 17+, the Android SDK and `ANDROID_HOME`: on Linux/macOS from [dev-setup](https://github.com/rengelen85/dev-setup) (`./install.sh android`). On Windows, set `ANDROID_HOME` to your SDK root (e.g., `C:\Users\...\AppData\Local\Android\Sdk`), or create `mobile/android/local.properties` with `sdk.dir=<path>`
+- Android SDK API 36 (`android/build.gradle` → `compileSdkVersion`), installed by `make mobile-prereqs`
+- Android NDK **27.1.12297006**, installed by `make mobile-prereqs`. It **must match the pinned version** in `android/build.gradle` → `ndkVersion`. Other NDK versions may cause build failures.
+- Android Studio (optional, latest stable)
 
 **Build & install:**
 

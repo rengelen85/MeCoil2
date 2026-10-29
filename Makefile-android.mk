@@ -5,7 +5,8 @@ ANDROID_STUDIO_TAR = android-studio-quail1-patch1-linux.tar.gz
 ANDROID_STUDIO_URL = https://edgedl.me.gvt1.com/android/studio/ide-zips/$(ANDROID_STUDIO_VERSION)/$(ANDROID_STUDIO_TAR)
 INSTALL_DIR = /opt/android-studio
 
-# Install the Android Studio IDE (optional). The SDK, NDK and ANDROID_HOME setup come from scripts/setup.sh.
+# Install the Android Studio IDE (optional). The SDK and ANDROID_HOME come from dev-setup,
+# the pinned NDK and platform from scripts/setup.sh.
 install-android-studio:
 	@if [ ! -f $(ANDROID_STUDIO_TAR) ]; then \
 		echo "Downloading Android Studio..."; \
@@ -22,7 +23,7 @@ install-android-studio:
 	@echo "Android Studio installed! Start it with: android-studio"
 	@echo "Then create an emulator with: make create-avd"
 
-# Create the default AVD (Pixel_6_API_36). Requires make mobile-prereqs first.
+# Create the default AVD (Pixel_6_API_36). Requires the Android SDK from dev-setup.
 create-avd:
 	scripts/setup.sh --avd
 

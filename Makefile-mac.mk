@@ -6,7 +6,7 @@
 # Mac equivalent of init: npm deps and certs
 init-mac: install gen-certs
 
-# Install JDK 17, Android SDK, NDK and CMake via Homebrew (same script as mobile-prereqs)
+# Install the pinned Android SDK packages (same script as mobile-prereqs)
 mobile-prereqs-mac: mobile-prereqs
 
 # Install Android Studio via Homebrew Cask (optional); the SDK comes from scripts/setup.sh
