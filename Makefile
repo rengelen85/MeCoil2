@@ -4,21 +4,12 @@
 SHELL := /bin/bash
 SHELL_RC := $(HOME)/.bashrc
 
-# Install all dependencies and generate certs
-init: install-prereqs install gen-certs mobile-prereqs
+# Install all dependencies and generate certs.
+# System tools (Node.js, mkcert, uv, Docker) come from https://github.com/rengelen85/dev-setup.
+init: install gen-certs mobile-prereqs
 	sudo chown -R $$USER:$$USER .
 
-# Install Node.js, openssl, mkcert and uv (Ubuntu/Debian or macOS). Logic lives in scripts/setup.sh.
-install-prereqs:
-	scripts/setup.sh --prereqs --lint
-
-# Check installed Node.js version
-check-prereqs:
-	@node -v
-	@npm -v
-	@openssl version -a
-
-# First-time setup: install all dependencies
+# Install npm dependencies
 install:
 	npm install
 	npm install --prefix client
@@ -88,34 +79,30 @@ phone-test: gen-certs build
 
 # ── Android / Mobile ──────────────────────────────────────────────────────────
 
-# Install JDK 17, Android SDK, NDK and CMake without Android Studio (see scripts/setup.sh --android).
-# Optionally install the IDE via make install-android-studio, and create an emulator with make create-avd.
+# Install the pinned Android SDK packages (API 36, NDK, CMake) into the SDK from dev-setup
+# (see scripts/setup.sh --android-sdk). Optionally install the IDE via make install-android-studio,
+# and create an emulator with make create-avd.
 mobile-prereqs:
-	scripts/setup.sh --prereqs --android
+	scripts/setup.sh --android-sdk
 	@echo ""
 	@echo "Next: create an AVD with make create-avd, or connect a physical device, then run make android-run."
 
-android-env-vars:
-	scripts/setup.sh --android-env
-	@echo "Run this to apply changes now:"
-	@echo "source $(SHELL_RC)"
-
-
 # Fail fast with a pointer to the fix when Java or the Android SDK is not usable in this shell.
+# Both come from https://github.com/rengelen85/dev-setup (./install.sh android).
 android-preflight:
 	@if [ -z "$$JAVA_HOME" ] && ! command -v java >/dev/null 2>&1; then \
-		echo "Java not found. Run: make mobile-prereqs, then open a new terminal."; \
+		echo "Java not found. Install it with dev-setup (./install.sh android), then open a new terminal."; \
 		exit 1; \
 	fi
 	@if [ -z "$$ANDROID_HOME" ]; then \
 		if [ -d "$$HOME/Android/Sdk" ] || [ -d "$$HOME/Library/Android/sdk" ]; then \
 			echo "ANDROID_HOME is not set in this shell. Run: source $(SHELL_RC) (or open a new terminal), then retry."; \
 		else \
-			echo "Android SDK not found. Run: make mobile-prereqs, then open a new terminal."; \
+			echo "Android SDK not found. Install it with dev-setup (./install.sh android), then open a new terminal."; \
 		fi; \
 		exit 1; \
 	elif [ ! -d "$$ANDROID_HOME" ]; then \
-		echo "ANDROID_HOME points to $$ANDROID_HOME, which does not exist. Run: make mobile-prereqs"; \
+		echo "ANDROID_HOME points to $$ANDROID_HOME, which does not exist. Re-run dev-setup (./install.sh android)."; \
 		exit 1; \
 	fi
 
@@ -150,7 +137,7 @@ apk-release-install:
 apk-release: apk-release-build apk-release-install
 
 # Build and run on a connected device or running emulator (also starts Metro).
-android-run: android-env-vars android-preflight mobile-install
+android-run: android-preflight mobile-install
 	adb reverse tcp:8081 tcp:8081
 	cd mobile && npm run android
 

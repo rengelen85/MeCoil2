@@ -4,6 +4,8 @@ MeCoil is a self-hosted laser tag server for Goliath Recoil BLE guns: a Node.js 
 
 ## Commands
 
+System tools (Node.js, mkcert, uv, Docker, JDK, Android SDK) come from <https://github.com/rengelen85/dev-setup>; don't add machine-level installers here.
+
 Root (Node ≥ 20): `make install`, `make gen-certs` (mkcert HTTPS certs, needed for BLE/GPS/compass on phones), `npm run dev` (server :3000 + Vite :5173), `npm run dev:server`, `npm run build`, `npm start`, `npm run lint` (Biome, what CI runs), `npm run fmt`, `npm test` (`node --test`; single file: `node --test path/to/file.test.js`).
 
 HTTPS turns on automatically when `certs/cert.pem` and `certs/key.pem` exist; `NO_HTTPS=1` forces HTTP. `PORT` defaults to 3000. Vite proxies `/ws` to the server.

@@ -5,7 +5,7 @@
 # targets (see lint-configs / fmt-configs below) and needs no container — just the
 # hadolint + caddy binaries (install with `make config-tools`).
 
-.PHONY: container-info docker-prereqs config-tools \
+.PHONY: container-info config-tools \
         lint-configs fmt-configs docker-build docker-test docker-up docker-down
 
 # Docker CLI + Compose plugin. Override with ENGINE=... / COMPOSE=... if needed.
@@ -39,16 +39,10 @@ container-info:
 	@echo "COMPOSE  = $(COMPOSE)"
 	@echo "IMAGE    = $(IMAGE)"
 	@if ! command -v $(ENGINE) >/dev/null 2>&1; then \
-		echo "Docker not found — run 'make docker-prereqs'."; \
+		echo "Docker not found — install it with https://github.com/rengelen85/dev-setup (./install.sh docker)."; \
 	else \
 		$(ENGINE) --version; \
 	fi
-
-# Install Docker Engine + Compose plugin on Ubuntu/Debian (official script).
-docker-prereqs:
-	curl -fsSL https://get.docker.com | sudo sh
-	sudo usermod -aG docker $$USER
-	@echo "Log out and back in (or run 'newgrp docker') so group membership applies."
 
 # Install the host lint/format tools for the Docker + Caddy configs (no container).
 config-tools:

@@ -18,16 +18,22 @@ Players connect from the browser on their phones. No app to install. A full nati
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Node.js | ≥ 20 | [nodejs.org](https://nodejs.org) |
-| mkcert | any | For HTTPS — required for BLE and GPS on phones |
+This repo only installs its own dependencies (npm packages, HTTPS certs, pinned Android packages). Install these system tools yourself first:
 
-**Install mkcert:**
+| Tool | Version | Needed for |
+|------|---------|------------|
+| [Node.js](https://nodejs.org) + npm | ≥ 20 (server, web client); ≥ 22.11 for `mobile/` and `scripts/setup.sh` | Everything |
+| [mkcert](https://github.com/FiloSottile/mkcert) | any | HTTPS certs; phones need HTTPS for BLE, GPS and the compass |
+| make, curl, openssl | any | Makefile targets, `make gen-certs` (openssl is preinstalled on most systems) |
+| [uv](https://docs.astral.sh/uv/) | any | `make lint` / `make fmt` (Markdown lint via `rumdl`) |
+| [Docker Engine](https://docs.docker.com/engine/install/) + Compose plugin | buildx ≥ 0.17 | `make docker-*` targets (optional) |
+| [hadolint](https://github.com/hadolint/hadolint), [caddy](https://caddyserver.com/) | any | Docker/Caddy config lint in `make lint` (optional, `make config-tools`); skipped with a warning if missing |
+| JDK | 17 | Android app |
+| [Android SDK command-line tools](https://developer.android.com/studio#command-line-tools-only), platform-tools, emulator | latest | Android app; `ANDROID_HOME` must point to the SDK root, with `platform-tools`, `emulator` and `cmdline-tools/latest/bin` on `PATH` |
 
-- macOS: `brew install mkcert`
-- Linux: `apt install libnss3-tools && brew install mkcert` or download from [github.com/FiloSottile/mkcert](https://github.com/FiloSottile/mkcert)
-- Windows: `winget install mkcert`
+The project-specific Android packages are installed by `make mobile-prereqs` (or `scripts/setup.sh --android-sdk`) into that SDK: platform `android-36`, NDK `27.1.12297006` and CMake `3.22.1`. Gradle downloads build-tools `36.0.0` on the first build.
+
+**Quickest route (Linux/macOS):** [dev-setup](https://github.com/rengelen85/dev-setup) installs all of the above except openssl, hadolint and caddy. Run `./install.sh` for everything, or pick tools: `./install.sh node mkcert uv docker android`.
 
 ---
 
@@ -35,18 +41,17 @@ Players connect from the browser on their phones. No app to install. A full nati
 
 ### Automated setup (Linux / macOS)
 
-`scripts/setup.sh` installs everything the server, web client and certs need, then prints the next steps. It supports Ubuntu/Debian (apt) and macOS (Homebrew), and it is safe to re-run.
+`scripts/setup.sh` installs the npm dependencies, generates HTTPS certs and optionally the Android packages this project pins, then prints the next steps. It supports Linux and macOS, and it is safe to re-run.
 
 ```sh
-scripts/setup.sh             # Node 22, mkcert, npm dependencies, HTTPS certs
-scripts/setup.sh --android   # also JDK 17, Android SDK + NDK 27.1.12297006, mobile/ dependencies
-scripts/setup.sh --lint      # also uv, needed by make lint / make fmt for Markdown
-scripts/setup.sh --prereqs   # only system tools (Node, openssl, mkcert); same as make install-prereqs
-scripts/setup.sh --avd       # create the Pixel_6_API_36 emulator (same as make create-avd; run --android first)
+scripts/setup.sh                # npm dependencies, HTTPS certs
+scripts/setup.sh --android      # also Android API 36, NDK 27.1.12297006, CMake and mobile/ dependencies
+scripts/setup.sh --android-sdk  # only the Android packages; same as make mobile-prereqs
+scripts/setup.sh --avd          # create the Pixel_6_API_36 emulator (same as make create-avd)
 ```
 
 - Certs are created in `certs/` for `localhost`, `127.0.0.1`, `mecoil.local` and this machine's LAN IP. If your IP changes, delete `certs/` and re-run the script.
-- `--android` adds the `ANDROID_HOME` variables to your shell rc file. Open a new shell afterwards, then run `make create-avd` (or `scripts/setup.sh --avd`) for an emulator or connect a device and run `make android-run`.
+- The Android options need the Android SDK and `ANDROID_HOME` from dev-setup (`./install.sh android`). Afterwards, run `make create-avd` for an emulator or connect a device, then run `make android-run`.
 - The script does not install Android Studio. Install it separately (see [Android Mobile App](#android-mobile-app-react-native)).
 
 ### Linux / macOS (Makefile)
@@ -80,11 +85,10 @@ A native Android app is available in the `mobile/` directory. It is a pure clien
 
 **Prerequisites:**
 
-- Android Studio (latest stable, or matching your Android API 36 SDK version)
-- Java Development Kit (JDK) 17+
-- Android SDK API 36 (`android/build.gradle` → `compileSdkVersion`)
-- Android NDK **27.1.12297006** — **must match the pinned version** in `android/build.gradle` → `ndkVersion`. Other NDK versions may cause build failures.
-- `ANDROID_HOME` environment variable pointing to your Android SDK root (e.g., `C:\Users\...\AppData\Local\Android\Sdk`), or create `mobile/android/local.properties` with `sdk.dir=<path>`
+- JDK 17+, the Android SDK and `ANDROID_HOME`: on Linux/macOS from [dev-setup](https://github.com/rengelen85/dev-setup) (`./install.sh android`). On Windows, set `ANDROID_HOME` to your SDK root (e.g., `C:\Users\...\AppData\Local\Android\Sdk`), or create `mobile/android/local.properties` with `sdk.dir=<path>`
+- Android SDK API 36 (`android/build.gradle` → `compileSdkVersion`), installed by `make mobile-prereqs`
+- Android NDK **27.1.12297006**, installed by `make mobile-prereqs`. It **must match the pinned version** in `android/build.gradle` → `ndkVersion`. Other NDK versions may cause build failures.
+- Android Studio (optional, latest stable)
 
 **Build & install:**
 
