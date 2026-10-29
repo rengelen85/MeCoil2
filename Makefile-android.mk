@@ -18,7 +18,7 @@ install-android-studio:
 	sudo mv /opt/android-studio $(INSTALL_DIR) || true
 	@echo "Creating symlink..."
 	sudo ln -sf $(INSTALL_DIR)/bin/studio.sh /usr/local/bin/android-studio
-	scripts/setup.sh --prereqs --android
+	scripts/setup.sh --android-sdk
 	@echo "Android Studio installed! Start it with: android-studio"
 	@echo "Then create an emulator with: make create-avd"
 

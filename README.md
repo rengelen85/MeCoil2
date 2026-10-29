@@ -18,16 +18,7 @@ Players connect from the browser on their phones. No app to install. A full nati
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Node.js | ≥ 20 | [nodejs.org](https://nodejs.org) |
-| mkcert | any | For HTTPS — required for BLE and GPS on phones |
-
-**Install mkcert:**
-
-- macOS: `brew install mkcert`
-- Linux: `apt install libnss3-tools && brew install mkcert` or download from [github.com/FiloSottile/mkcert](https://github.com/FiloSottile/mkcert)
-- Windows: `winget install mkcert`
+Set up your machine with **[dev-setup](https://github.com/rengelen85/dev-setup)** first. It installs the system tools this repo expects: Node.js (≥ 22), mkcert, uv (for `make lint` / `make fmt`), Docker and the AWS CLI. This repo only installs its own dependencies.
 
 ---
 
@@ -35,14 +26,13 @@ Players connect from the browser on their phones. No app to install. A full nati
 
 ### Automated setup (Linux / macOS)
 
-`scripts/setup.sh` installs everything the server, web client and certs need, then prints the next steps. It supports Ubuntu/Debian (apt) and macOS (Homebrew), and it is safe to re-run.
+`scripts/setup.sh` installs the npm dependencies, generates HTTPS certs and optionally sets up the Android toolchain, then prints the next steps. It supports Ubuntu/Debian (apt) and macOS (Homebrew), and it is safe to re-run.
 
 ```sh
-scripts/setup.sh             # Node 22, mkcert, npm dependencies, HTTPS certs
-scripts/setup.sh --android   # also JDK 17, Android SDK + NDK 27.1.12297006, mobile/ dependencies
-scripts/setup.sh --lint      # also uv, needed by make lint / make fmt for Markdown
-scripts/setup.sh --prereqs   # only system tools (Node, openssl, mkcert); same as make install-prereqs
-scripts/setup.sh --avd       # create the Pixel_6_API_36 emulator (same as make create-avd; run --android first)
+scripts/setup.sh                # npm dependencies, HTTPS certs
+scripts/setup.sh --android      # also JDK 17, Android SDK + NDK 27.1.12297006, mobile/ dependencies
+scripts/setup.sh --android-sdk  # only JDK 17 and the Android SDK/NDK; same as make mobile-prereqs
+scripts/setup.sh --avd          # create the Pixel_6_API_36 emulator (same as make create-avd; run --android first)
 ```
 
 - Certs are created in `certs/` for `localhost`, `127.0.0.1`, `mecoil.local` and this machine's LAN IP. If your IP changes, delete `certs/` and re-run the script.

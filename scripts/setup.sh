@@ -2,12 +2,13 @@
 # Set up a local MeCoil environment: the Node server, the Svelte web client,
 # HTTPS certs for phones, and optionally the Android app.
 #
-#   scripts/setup.sh             server + web client + HTTPS certs
-#   scripts/setup.sh --android   also JDK 17, Android SDK/NDK and mobile/ deps
-#   scripts/setup.sh --lint      also install uv (used by `make lint` for Markdown)
-#   scripts/setup.sh --prereqs   only install system tools (what `make install-prereqs` runs);
-#                                skips npm install and cert generation
-#   scripts/setup.sh --avd       only create the Pixel_6_API_36 emulator (run --android first)
+# System tools (Node.js, mkcert, uv, Docker, ...) are not installed here; set up
+# your machine with https://github.com/rengelen85/dev-setup first.
+#
+#   scripts/setup.sh                server + web client + HTTPS certs
+#   scripts/setup.sh --android      also JDK 17, Android SDK/NDK and mobile/ deps
+#   scripts/setup.sh --android-sdk  only JDK 17 and the Android SDK/NDK (what `make mobile-prereqs` runs)
+#   scripts/setup.sh --avd          only create the Pixel_6_API_36 emulator (run --android first)
 #   scripts/setup.sh --android-env  only add ANDROID_HOME to your shell rc file
 #
 # Supports Ubuntu/Debian (apt) and macOS (Homebrew). Safe to re-run.
@@ -19,20 +20,19 @@ MIN_NODE_MAJOR=22                # mobile/ needs Node >= 22.11; the server alone
 ANDROID_CMDLINE_BUILD=13114758   # from https://developer.android.com/studio#command-line-tools-only
 NDK_VERSION=27.1.12297006        # must match mobile/android/build.gradle
 AVD_NAME=Pixel_6_API_36
+DEV_SETUP_URL=https://github.com/rengelen85/dev-setup
 
 WITH_ANDROID=0
-WITH_LINT=0
-PREREQS_ONLY=0
+ONLY_ANDROID_SDK=0
 ONLY_AVD=0
 ONLY_ANDROID_ENV=0
 for arg in "$@"; do
   case "$arg" in
     --android) WITH_ANDROID=1 ;;
-    --lint) WITH_LINT=1 ;;
-    --prereqs) PREREQS_ONLY=1 ;;
+    --android-sdk) ONLY_ANDROID_SDK=1 ;;
     --avd) ONLY_AVD=1 ;;
     --android-env) ONLY_ANDROID_ENV=1 ;;
-    -h | --help) sed -n '2,12p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 1 ;;
   esac
 done
@@ -60,48 +60,18 @@ esac
 
 node_major() { node -p 'process.versions.node.split(".")[0]'; }
 
-ensure_apt_index() {
-  if [ "$PKG" = apt ]; then
-    log "Refreshing apt package index and installing base tools"
-    sudo apt-get update
-    # make is needed for the Makefile targets (make dev, make lint, ...)
-    sudo apt-get install -y make curl ca-certificates openssl libssl-dev
-  fi
-}
-
-ensure_node() {
-  if have node && [ "$(node_major)" -ge "$MIN_NODE_MAJOR" ]; then
-    log "Node $(node -v) and npm $(npm -v) found"
-    return
-  fi
-
-  log "Installing Node.js $MIN_NODE_MAJOR"
-  if [ "$PKG" = brew ]; then
-    brew install node || brew upgrade node
-  else
-    sudo apt-get install -y curl ca-certificates
-    curl -fsSL "https://deb.nodesource.com/setup_${MIN_NODE_MAJOR}.x" | sudo -E bash -
-    sudo apt-get install -y nodejs
-  fi
-
+require_tools() {
+  local missing=()
   if ! have node || [ "$(node_major)" -lt "$MIN_NODE_MAJOR" ]; then
-    echo "Node $MIN_NODE_MAJOR+ is still not on PATH. Open a new shell and re-run this script." >&2
+    missing+=("Node.js >= $MIN_NODE_MAJOR")
+  fi
+  have mkcert || missing+=("mkcert")
+  if [ "${#missing[@]}" -gt 0 ]; then
+    echo "Missing: ${missing[*]}" >&2
+    echo "Set up your machine with $DEV_SETUP_URL, open a new shell and re-run this script." >&2
     exit 1
   fi
-}
-
-ensure_mkcert() {
-  if have mkcert; then
-    log "mkcert found"
-    return
-  fi
-
-  log "Installing mkcert"
-  if [ "$PKG" = brew ]; then
-    brew install mkcert
-  else
-    sudo apt-get install -y mkcert libnss3-tools
-  fi
+  log "Node $(node -v), npm $(npm -v) and mkcert found"
 }
 
 lan_ip() {
@@ -126,15 +96,6 @@ setup_certs() {
   ip="$(lan_ip)"
   mkcert -cert-file certs/cert.pem -key-file certs/key.pem \
     localhost 127.0.0.1 mecoil.local ${ip:+"$ip"}
-}
-
-ensure_uv() {
-  if have uv; then
-    log "uv found"
-    return
-  fi
-  log "Installing uv (for make lint / make fmt)"
-  curl -LsSf https://astral.sh/uv/install.sh | sh
 }
 
 # Homebrew's JDK is keg-only, so it is not on PATH; sdkmanager and avdmanager need it.
@@ -171,7 +132,7 @@ $java_line
 EOF
 }
 
-setup_android() {
+setup_android_sdk() {
   log "Installing JDK 17 and Android build dependencies"
   if [ "$PKG" = brew ]; then
     brew install openjdk@17
@@ -200,11 +161,6 @@ setup_android() {
     "ndk;$NDK_VERSION" "cmake;3.22.1"
 
   write_android_env
-
-  if [ "$PREREQS_ONLY" = 0 ]; then
-    log "Installing mobile/ dependencies"
-    npm install --prefix mobile
-  fi
 }
 
 setup_avd() {
@@ -243,32 +199,24 @@ if [ "$ONLY_ANDROID_ENV" = 1 ]; then
   write_android_env
   exit 0
 fi
-
-ensure_apt_index
-ensure_node
-
-if [ "$PREREQS_ONLY" = 0 ]; then
-  log "Installing server and web client dependencies"
-  npm install
-  npm install --prefix client
+if [ "$ONLY_ANDROID_SDK" = 1 ]; then
+  setup_android_sdk
+  log "Android SDK installed. Open a new shell (or run: source $SHELL_RC) for ANDROID_HOME to take effect"
+  exit 0
 fi
 
-ensure_mkcert
-if [ "$PREREQS_ONLY" = 0 ]; then
-  setup_certs
-fi
+require_tools
 
-if [ "$WITH_LINT" = 1 ]; then
-  ensure_uv
-fi
+log "Installing server and web client dependencies"
+npm install
+npm install --prefix client
+
+setup_certs
 
 if [ "$WITH_ANDROID" = 1 ]; then
-  setup_android
-fi
-
-if [ "$PREREQS_ONLY" = 1 ]; then
-  log "Prerequisites installed. Restart the terminal for all changes to take effect"
-  exit 0
+  setup_android_sdk
+  log "Installing mobile/ dependencies"
+  npm install --prefix mobile
 fi
 
 log "Setup complete"

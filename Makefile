@@ -4,21 +4,12 @@
 SHELL := /bin/bash
 SHELL_RC := $(HOME)/.bashrc
 
-# Install all dependencies and generate certs
-init: install-prereqs install gen-certs mobile-prereqs
+# Install all dependencies and generate certs.
+# System tools (Node.js, mkcert, uv, Docker) come from https://github.com/rengelen85/dev-setup.
+init: install gen-certs mobile-prereqs
 	sudo chown -R $$USER:$$USER .
 
-# Install Node.js, openssl, mkcert and uv (Ubuntu/Debian or macOS). Logic lives in scripts/setup.sh.
-install-prereqs:
-	scripts/setup.sh --prereqs --lint
-
-# Check installed Node.js version
-check-prereqs:
-	@node -v
-	@npm -v
-	@openssl version -a
-
-# First-time setup: install all dependencies
+# Install npm dependencies
 install:
 	npm install
 	npm install --prefix client
@@ -88,10 +79,10 @@ phone-test: gen-certs build
 
 # ── Android / Mobile ──────────────────────────────────────────────────────────
 
-# Install JDK 17, Android SDK, NDK and CMake without Android Studio (see scripts/setup.sh --android).
+# Install JDK 17, Android SDK, NDK and CMake without Android Studio (see scripts/setup.sh --android-sdk).
 # Optionally install the IDE via make install-android-studio, and create an emulator with make create-avd.
 mobile-prereqs:
-	scripts/setup.sh --prereqs --android
+	scripts/setup.sh --android-sdk
 	@echo ""
 	@echo "Next: create an AVD with make create-avd, or connect a physical device, then run make android-run."
 
