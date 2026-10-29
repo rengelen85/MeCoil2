@@ -18,7 +18,22 @@ Players connect from the browser on their phones. No app to install. A full nati
 
 ## Prerequisites
 
-Set up your machine with **[dev-setup](https://github.com/rengelen85/dev-setup)** first. It installs the system tools this repo expects: Node.js (≥ 22), mkcert, uv (for `make lint` / `make fmt`), Docker, the AWS CLI and, for the Android app, JDK 17 and the Android SDK (`./install.sh android`). This repo only installs its own dependencies.
+This repo only installs its own dependencies (npm packages, HTTPS certs, pinned Android packages). Install these system tools yourself first:
+
+| Tool | Version | Needed for |
+|------|---------|------------|
+| [Node.js](https://nodejs.org) + npm | ≥ 20 (server, web client); ≥ 22.11 for `mobile/` and `scripts/setup.sh` | Everything |
+| [mkcert](https://github.com/FiloSottile/mkcert) | any | HTTPS certs; phones need HTTPS for BLE, GPS and the compass |
+| make, curl, openssl | any | Makefile targets, `make gen-certs` (openssl is preinstalled on most systems) |
+| [uv](https://docs.astral.sh/uv/) | any | `make lint` / `make fmt` (Markdown lint via `rumdl`) |
+| [Docker Engine](https://docs.docker.com/engine/install/) + Compose plugin | buildx ≥ 0.17 | `make docker-*` targets (optional) |
+| [hadolint](https://github.com/hadolint/hadolint), [caddy](https://caddyserver.com/) | any | Docker/Caddy config lint in `make lint` (optional, `make config-tools`); skipped with a warning if missing |
+| JDK | 17 | Android app |
+| [Android SDK command-line tools](https://developer.android.com/studio#command-line-tools-only), platform-tools, emulator | latest | Android app; `ANDROID_HOME` must point to the SDK root, with `platform-tools`, `emulator` and `cmdline-tools/latest/bin` on `PATH` |
+
+The project-specific Android packages are installed by `make mobile-prereqs` (or `scripts/setup.sh --android-sdk`) into that SDK: platform `android-36`, NDK `27.1.12297006` and CMake `3.22.1`. Gradle downloads build-tools `36.0.0` on the first build.
+
+**Quickest route (Linux/macOS):** [dev-setup](https://github.com/rengelen85/dev-setup) installs all of the above except openssl, hadolint and caddy. Run `./install.sh` for everything, or pick tools: `./install.sh node mkcert uv docker android`.
 
 ---
 
